@@ -21,7 +21,7 @@ prototype's design/foundations** — its exact state is captured in `docs/resear
 
 | Need | Doc |
 |---|---|
-| **What / Why — canonical, read first** | `docs/core/service-overview.md` (full-app product truth) · `docs/core/spec.md` (feature spec) |
+| **What / Why — canonical PRD, read first** | `docs/core/prd.md` (full-app PRD — R1–R17 w/ acceptance criteria) · narrative: `docs/core/service-overview.md` · feature detail: `docs/core/spec.md` |
 | Design ethos / decision tie-breakers | `docs/core/design-principles.md` |
 | Design system — tokens / skin (incl. current app skin) | `docs/core/design-system.md` |
 | How — architecture · data model | `docs/core/architecture.md` · `docs/core/data-model.md` |
@@ -35,9 +35,10 @@ process) **and the completed-prototype archive** (`docs/research/prototype/`). K
 
 ## Work rules
 
-- **Consult the product truth before every reply** (`docs/core/service-overview.md` + `docs/core/spec.md`; the
-  archived prototype PRD is `docs/research/prototype/prd.md`), keep replies aligned to it, and **surface any
-  conflict** between a request and it instead of silently diverging.
+- **Consult the product truth before every reply** — the canonical full-app PRD `docs/core/prd.md` (What/Why,
+  R1–R17); narrative `docs/core/service-overview.md`, feature detail `docs/core/spec.md`; the archived prototype
+  PRD is `docs/research/prototype/prd.md`. Keep replies aligned to the PRD, and **surface any conflict** between a
+  request and it instead of silently diverging.
 - **Do not write code during the planning stage without an explicit request.** (This repo is not code-only — it
   also hosts direction Q&A, problem-spotting, and research.)
 - **After any doc change, summarize it in the same reply** — which file/section, what was added / removed /
