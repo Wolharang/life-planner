@@ -3,11 +3,14 @@
 > Confirmed decisions with rationale. Newest at top. Written in English; user-facing answers in Korean.
 >
 > **Phase note (2026-07-10):** the **trigger prototype is built and validated** (founder-confirmed running);
-> the project has moved to the **full "integrated day" app** phase. **D35 / D36 are prototype-scoped** (and
-> D13 / D28 / D30–D32 carry inline "for the prototype only" refinements) — they remain valid history, but the
-> active product truth is now `docs/core/service-overview.md` + `docs/core/spec.md`. The prototype build/plan
-> docs are archived under `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); its design
-> foundation lives on in `docs/core/design-system.md` + `app/`.
+> the project has moved to the **full "integrated day" app** phase. **D35 is the prototype-scoped decision**
+> (trigger-first scope + v0.3 choices); **D28** carries an inline "for the prototype, lead = 0" refinement, and
+> **D13 / D30 / D31 / D32** are re-scoped *by* D35 (not annotated inline). **D36 is NOT prototype-only history —
+> it is the live, app-wide design foundation** (base design system + forest/gold baseline; `design-system.md`
+> was promoted to core precisely as that foundation). The active product truth is now
+> `docs/core/service-overview.md` + `docs/core/spec.md`; the prototype build/plan docs are archived under
+> `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
+> `docs/core/design-system.md` + `app/`.
 
 ## 2026-07-09 — Trigger-prototype scope & v0.3 product decisions
 

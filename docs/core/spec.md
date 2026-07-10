@@ -13,7 +13,7 @@ have skipped** when nothing was planned. Pre-committing the day makes those task
 up doing **more** and completing given tasks **regularly and quickly**. That behavioral outcome — not just
 the plan-vs-actual bookkeeping — is the real target.
 
-**Scope tiers** (priority order — see `CLAUDE.md` for the authoritative statement):
+**Scope tiers** (priority order — the authoritative statement is **D4** in `docs/core/decisions.md`; also `docs/core/service-overview.md` §3):
 
 - **Core**: calendar of important events with cloud auto-sync and advance notifications.
 - **Secondary**: D-1 day-level time-block planning linked to calendar dates, plus in-the-moment budget and
