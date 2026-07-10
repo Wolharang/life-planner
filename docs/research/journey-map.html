@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifePlanner — 사용자 여정 지도</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --ink:#1b2130; --ink-soft:#5b647a; --ink-faint:#8b93a7;
+    --line:#e6e8f0; --line-strong:#d3d7e3;
+    --pos:#1f9d6b; --pos-bg:#e5f6ee; --neu:#c48a1a; --neu-bg:#fbf1dc; --neg:#d1495b; --neg-bg:#fbe6e9;
+    --accent:#4f46e5; --accent-bg:#ecebfb; --chip:#eef0f6; --chip-ink:#41496a; --shadow:0 6px 24px rgba(20,25,45,.07);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e111a; --panel:#161b28; --ink:#e8ebf5; --ink-soft:#a4adc4; --ink-faint:#6f7893;
+      --line:#242b3d; --line-strong:#323a52;
+      --pos:#43c78d; --pos-bg:#12362a; --neu:#e6b455; --neu-bg:#3a2f17; --neg:#f2748a; --neg-bg:#3a1c24;
+      --accent:#a5a0f5; --accent-bg:#211f3b; --chip:#232a3d; --chip-ink:#c7cde0; --shadow:0 8px 30px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7fb; --panel:#fff; --ink:#1b2130; --ink-soft:#5b647a; --ink-faint:#8b93a7; --line:#e6e8f0; --line-strong:#d3d7e3;
+    --pos:#1f9d6b; --pos-bg:#e5f6ee; --neu:#c48a1a; --neu-bg:#fbf1dc; --neg:#d1495b; --neg-bg:#fbe6e9;
+    --accent:#4f46e5; --accent-bg:#ecebfb; --chip:#eef0f6; --chip-ink:#41496a; --shadow:0 6px 24px rgba(20,25,45,.07);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e111a; --panel:#161b28; --ink:#e8ebf5; --ink-soft:#a4adc4; --ink-faint:#6f7893; --line:#242b3d; --line-strong:#323a52;
+    --pos:#43c78d; --pos-bg:#12362a; --neu:#e6b455; --neu-bg:#3a2f17; --neg:#f2748a; --neg-bg:#3a1c24;
+    --accent:#a5a0f5; --accent-bg:#211f3b; --chip:#232a3d; --chip-ink:#c7cde0; --shadow:0 8px 30px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",Roboto,sans-serif;
+    line-height:1.55;padding:32px 20px 64px}
+  .wrap{max-width:1280px;margin:0 auto}
+  header.top{margin-bottom:22px}
+  .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800}
+  h1{font-size:27px;margin:.28em 0 .1em;letter-spacing:-.01em}
+  .sub{color:var(--ink-soft);font-size:14.5px;margin:0}
+  .goal{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:14px;padding:14px 18px;box-shadow:var(--shadow)}
+  .goal b{color:var(--accent)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--ink-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot.pos{background:var(--pos)} .dot.neu{background:var(--neu)} .dot.neg{background:var(--neg)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:18px 20px;margin-top:22px}
+  .card h2{font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:800;
+    border-radius:7px;padding:2px 8px}
+  .card .hint{color:var(--ink-faint);font-size:12.5px;margin:0 0 12px}
+
+  /* Emotion curve */
+  .curve-scroll{overflow-x:auto}
+  svg.curve{display:block;min-width:820px;width:100%;height:auto}
+  .stagelabels{display:grid;grid-template-columns:repeat(7,1fr);min-width:820px;gap:0;margin-top:2px}
+  .stagelabels div{text-align:center;font-size:12px;color:var(--ink-soft);padding:0 4px}
+  .stagelabels b{display:block;color:var(--ink);font-size:12.5px}
+
+  /* Journey table */
+  .tbl-scroll{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+  table{border-collapse:separate;border-spacing:0;min-width:1120px;width:100%;font-size:13px}
+  th,td{padding:11px 13px;vertical-align:top;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+  thead th{position:sticky;top:0;background:var(--panel);z-index:3;text-align:left;font-size:12.5px}
+  thead th .st-emo{font-size:16px}
+  th.rowlab,td.rowlab{position:sticky;left:0;background:var(--panel);z-index:2;font-weight:700;color:var(--ink-soft);
+    width:96px;min-width:96px;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  thead th.rowlab{z-index:4}
+  tbody tr:last-child td{border-bottom:none}
+  th:last-child,td:last-child{border-right:none}
+  .stagehead{font-weight:800;color:var(--ink);font-size:13.5px}
+  .stagehead .n{color:var(--accent);font-weight:800}
+  .emo{display:inline-flex;align-items:center;gap:7px;font-weight:700;padding:3px 9px;border-radius:999px;font-size:12.5px}
+  .emo.pos{background:var(--pos-bg);color:var(--pos)} .emo.neu{background:var(--neu-bg);color:var(--neu)}
+  .emo.neg{background:var(--neg-bg);color:var(--neg)}
+  td.pain{color:var(--ink)} td.pain .flag{color:var(--neg);font-weight:700}
+  td.opp .arrow{color:var(--pos);font-weight:800}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{background:var(--chip);color:var(--chip-ink);border-radius:7px;padding:2px 7px;font-size:11.5px;font-weight:600;
+    border:1px solid var(--line-strong)}
+  .chip.key{background:var(--accent);color:#fff;border-color:transparent}
+  .quote{color:var(--ink-soft);font-style:italic}
+
+  /* Checks */
+  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:6px}
+  .check{border:1px solid var(--line);border-radius:13px;padding:14px 16px;background:var(--bg)}
+  .check .verdict{font-weight:800;font-size:13px;margin-bottom:6px;display:inline-flex;align-items:center;gap:7px}
+  .check .verdict.yes{color:var(--pos)} .check .verdict.warn{color:var(--neu)}
+  .check p{margin:0;font-size:13px;color:var(--ink-soft)}
+  .check b{color:var(--ink)}
+  .foot{color:var(--ink-faint);font-size:12px;margin-top:26px;text-align:center}
+  .trough-note{margin-top:10px;font-size:12.5px;color:var(--neg);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">LifePlanner · User Journey Map</div>
+    <h1>사용자 여정 지도 — "의도를 행동으로"</h1>
+    <p class="sub">이전 대화(인터뷰 33개·실행 레시피·HMW)와 <code>instructions.md</code>의 여정 매핑 원칙으로 작성. 예쁘게가 아니라 <b>가장 심각한 문제가 어디서 터지는지</b>를 본다.</p>
+    <div class="goal">🎯 <b>핵심 목표</b> — 미리 정한 <b>미래의 일(특히 운동)</b>을 <b>그 순간 실제로 실행</b>하여 계획대로 사는 것. (수단: 캘린더·알림·기록 / 진짜 문제: 실행)</div>
+    <div class="legend">
+      <span><i class="dot pos"></i> 긍정(+)</span>
+      <span><i class="dot neu"></i> 중립(0)</span>
+      <span><i class="dot neg"></i> 부정(−)</span>
+      <span>· <b>굵은 HMW</b> = 그 단계의 핵심 기회</span>
+    </div>
+  </header>
+
+  <!-- EMOTION CURVE -->
+  <section class="card">
+    <h2><span class="num">감정 곡선</span> Emotional arc across the journey</h2>
+    <p class="hint">감정이 가장 푹 꺼지는 <b>④ 실행의 순간(10분의 싸움)</b>이 제품의 심장이 작동해야 할 지점이다. ⑤ 기록 마찰에서 조용한 2차 하강도 주의.</p>
+    <div class="curve-scroll">
+      <svg class="curve" viewBox="0 0 1400 210" preserveAspectRatio="none" aria-label="emotion curve">
+        <defs>
+          <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.20"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- gridlines -->
+        <line x1="60" y1="40" x2="1340" y2="40" stroke="var(--line)" stroke-width="1"/>
+        <line x1="60" y1="105" x2="1340" y2="105" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+        <line x1="60" y1="170" x2="1340" y2="170" stroke="var(--line)" stroke-width="1"/>
+        <text x="20" y="44" fill="var(--pos)" font-size="12" font-weight="700">+</text>
+        <text x="20" y="109" fill="var(--neu)" font-size="12" font-weight="700">0</text>
+        <text x="20" y="174" fill="var(--neg)" font-size="12" font-weight="700">−</text>
+        <!-- area + line through: 100,67 300,64 500,107 700,169 900,98 1100,61 1300,95 -->
+        <path d="M100,67 L300,64 L500,107 L700,169 L900,98 L1100,61 L1300,95 L1300,200 L100,200 Z" fill="url(#area)"/>
+        <polyline points="100,67 300,64 500,107 700,169 900,98 1100,61 1300,95" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- failure branch from S4 staying low + S6 miss -->
+        <polyline points="700,169 900,182 1100,178" fill="none" stroke="var(--neg)" stroke-width="2" stroke-dasharray="5 5" opacity=".8"/>
+        <text x="905" y="198" fill="var(--neg)" font-size="10.5">결심 안 서면 · 하루 빠지면 (미실행/이탈)</text>
+        <!-- points -->
+        <g font-size="0">
+          <circle cx="100" cy="67" r="7" fill="var(--pos)"/>
+          <circle cx="300" cy="64" r="7" fill="var(--pos)"/>
+          <circle cx="500" cy="107" r="7" fill="var(--neu)"/>
+          <circle cx="700" cy="169" r="8.5" fill="var(--neg)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="900" cy="98" r="7" fill="var(--neu)"/>
+          <circle cx="1100" cy="61" r="7" fill="var(--pos)"/>
+          <circle cx="1300" cy="95" r="7" fill="var(--neu)"/>
+        </g>
+        <text x="700" y="150" text-anchor="middle" fill="var(--neg)" font-size="11.5" font-weight="800">최저점 ⚑</text>
+      </svg>
+    </div>
+    <div class="stagelabels">
+      <div><b>① 사전 기록</b>중요 일정</div>
+      <div><b>② 다음날 설계</b>D-1 시간대</div>
+      <div><b>③ 당일 알림</b>정확 시각 큐</div>
+      <div><b>④ 실행의 순간</b>10분의 싸움</div>
+      <div><b>⑤ 실행 & 기록</b>지출·식사</div>
+      <div><b>⑥ 완료 체크</b>성공/복귀</div>
+      <div><b>⑦ 동기화 & 회고</b>현실적 계획</div>
+    </div>
+  </section>
+
+  <!-- DETAIL TABLE -->
+  <section class="card">
+    <h2><span class="num">여정 상세</span> 단계별 행동·생각·감정·불편·기회·HMW</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="rowlab"></th>
+            <th><span class="stagehead"><span class="n">①</span> 사전 기록</span><br><span class="st-emo">🙂</span></th>
+            <th><span class="stagehead"><span class="n">②</span> 다음날 설계 (D-1)</span><br><span class="st-emo">🙂</span></th>
+            <th><span class="stagehead"><span class="n">③</span> 당일 알림</span><br><span class="st-emo">😐</span></th>
+            <th><span class="stagehead"><span class="n">④</span> 실행의 순간</span><br><span class="st-emo">😣</span></th>
+            <th><span class="stagehead"><span class="n">⑤</span> 실행 & 즉시 기록</span><br><span class="st-emo">🙂/😐</span></th>
+            <th><span class="stagehead"><span class="n">⑥</span> 완료 체크 & 복귀</span><br><span class="st-emo">🙂/😣</span></th>
+            <th><span class="stagehead"><span class="n">⑦</span> 동기화 & 회고</span><br><span class="st-emo">😐/🙂</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="rowlab">행동</td>
+            <td>중요 일정이 생길 때마다 <b>카카오 캘린더에 몇 주 전</b> 기록 (7시·1시간 전·15분 전 알림)</td>
+            <td>전날, 다음날 시간대 계획을 짬(예: 21:00 헬스). <b>현재는 거의 안 함</b> — 중요한 것 몇 개만 일정처럼 기록</td>
+            <td>정한 시각 얼마 전 <b>알림 수신</b></td>
+            <td class="quote">"가야하나…꼭? (4분) 그래도 기록까지 해놨는데 가야지 (준비) 가기 싫은데…그래도 (2분) 나감" — ~10분 지연 후 실행</td>
+            <td>운동 감. <b>지출=결제 직후, 식사=먹은 직후</b> 기록 (칼로리는 종종 까먹어 늦게·부정확)</td>
+            <td>그 블록을 <b>'완료' 체크</b> (미실행 시 미실행+사유)</td>
+            <td>모든 기기 자동 동기화. (나중) 계획 vs 실제·실패 사유를 모아 봄</td>
+          </tr>
+          <tr>
+            <td class="rowlab">생각</td>
+            <td>"잊지 말자. 겹치면 그때 조율."</td>
+            <td>"이건 꼭 해야지. 이렇게 정했으니 내일은 하겠지." / 바쁜 날 → "운동은 무리겠다"</td>
+            <td>"아 맞다, 그 시간이네."</td>
+            <td>갈까 말까 · 피곤·귀찮음 ↔ <b>"기록까지 해놨는데"</b></td>
+            <td>"왔다. 기록은…이따 할까"(까먹음)</td>
+            <td>성공: "오기를 잘했다" / 실패: "에라, 망했나"</td>
+            <td>"이 시간대는 자꾸 실패하네 → 다음엔 조정"</td>
+          </tr>
+          <tr>
+            <td class="rowlab">감정</td>
+            <td><span class="emo pos">＋ 안심</span></td>
+            <td><span class="emo pos">＋ 기대</span> <span class="emo neu">０ 과부하 시 회피</span></td>
+            <td><span class="emo neu">０ 인지</span></td>
+            <td><span class="emo neg">－ 저항·갈등</span></td>
+            <td><span class="emo pos">＋ 뿌듯</span> <span class="emo neu">０ 기록 마찰</span></td>
+            <td><span class="emo pos">＋ 성취</span> <span class="emo neg">－ 미실행 자책</span></td>
+            <td><span class="emo neu">０/＋ 통제감</span></td>
+          </tr>
+          <tr>
+            <td class="rowlab">불편 지점</td>
+            <td class="pain"><span class="flag">⚑</span> 새 폰 연동 안 됨(재입력)·즉시 안 보임·오프라인 불가</td>
+            <td class="pain"><span class="flag">⚑</span> 계획 자체가 부담(현재 습관 아님)·<b>과부하한 날은 운동을 아예 안 넣음 → 실행이 사라짐</b></td>
+            <td class="pain"><span class="flag">⚑</span> 한 번 울고 말면 놓침·Doze/무음에 막힐 위험</td>
+            <td class="pain"><span class="flag">⚑</span> <b>그 순간의 저항이 최대</b> — 결심 안 서면 실패. "덥다·사람 많다" 같은 실제 장벽</td>
+            <td class="pain"><span class="flag">⚑</span> 즉시 기록이 귀찮음/까먹음 → 칼로리 부정확·앱 열고 메뉴 거치는 마찰</td>
+            <td class="pain"><span class="flag">⚑</span> 스트릭식이면 하루 빠짐 → "망했다"(what-the-hell)로 이탈·성취가 안 보이면 무의미</td>
+            <td class="pain"><span class="flag">⚑</span> 평가 없으면 계획이 계속 비현실적 → 반복 실패</td>
+          </tr>
+          <tr>
+            <td class="rowlab">기회 영역</td>
+            <td class="opp"><span class="arrow">→</span> 모든 기기 자동 동기화 + 앱 열자마자 오늘 바로 보이게</td>
+            <td class="opp"><span class="arrow">→</span> 몇 초 만에 부담 없는 설계 + <b>진짜 빈 슬롯 제안</b>(과부하여도 작은 슬롯)·현실 소요·버퍼</td>
+            <td class="opp"><span class="arrow">→</span> 정확 시각·풀스크린·햅틱으로 확실히 인지(스팸은 아니게)</td>
+            <td class="opp"><span class="arrow">→</span> <b>커밋 + 5·4·3·2·1 + 마이크로 스타트 + 햅틱</b>으로 착수 문턱↓ (제품의 심장)</td>
+            <td class="opp"><span class="arrow">→</span> <b>2탭·프리셋·위젯·Siri/NFC</b>로 &lt;2초 기록(계획과 분리된 별도 표면)</td>
+            <td class="opp"><span class="arrow">→</span> <b>역량 보상(무죄책)·미스=데이터</b>·하루 빠져도 다음날 복귀 넛지</td>
+            <td class="opp"><span class="arrow">→</span> 계획 vs 실제 → 점점 현실적 계획(Later)·무료·오프라인 동기화</td>
+          </tr>
+          <tr>
+            <td class="rowlab">HMW 연결</td>
+            <td><div class="chips"><span class="chip key">H8 통합</span><span class="chip">H14 알림</span><span class="chip">H15 동기화</span></div></td>
+            <td><div class="chips"><span class="chip key">H1 부담없는 계획</span><span class="chip key">H3 진짜 빈 슬롯</span><span class="chip">H13 SNS 대체</span></div></td>
+            <td><div class="chips"><span class="chip key">H6 실행 큐</span><span class="chip">H14 정확 알림</span></div></td>
+            <td><div class="chips"><span class="chip key">H2 그 순간 실행</span><span class="chip key">H10 실제 장벽↓</span></div></td>
+            <td><div class="chips"><span class="chip key">H16 2탭 기록</span><span class="chip">H12 칼로리 즉시</span><span class="chip">H8 통합</span></div></td>
+            <td><div class="chips"><span class="chip key">H4 성취 체감</span><span class="chip key">H7 무죄책</span><span class="chip">H11 복귀</span></div></td>
+            <td><div class="chips"><span class="chip key">H5 계획-실제</span><span class="chip">H9 실행 평가</span><span class="chip">H15 동기화</span></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="trough-note">⚑ 감정 최저점 = ④ 실행의 순간 → 핵심 HMW <b>H2</b>(정밀 투표 1위)가 정확히 여기에 꽂힌다.</div>
+  </section>
+
+  <!-- CHECKS -->
+  <section class="card">
+    <h2><span class="num">확인</span> 여정 검증 (init2/instructions 기준)</h2>
+    <div class="checks">
+      <div class="check">
+        <div class="verdict warn">◐ 여정이 실제 사용 패턴과 맞는가?</div>
+        <p><b>대체로 YES</b> — ①·③·④·⑤·⑥은 P1 인터뷰 실측과 일치. <b>단 ②(D-1 설계)는 현재 하지 않는 단계</b> — 여정 전체가 아직 습관이 아닌 스텝에 의존한다(=최대 <b>채택 위험</b>).</p>
+      </div>
+      <div class="check">
+        <div class="verdict yes">✔ 불편 지점이 HMW와 연결되는가?</div>
+        <p><b>YES</b> — 각 단계 불편이 HMW로 직결. 가장 아픈 ④=<b>H2</b>(투표 1위), ⑤ 마찰=H16/H12, ⑥ 이탈=H7/H11. 표의 'HMW 연결' 행 참조.</p>
+      </div>
+      <div class="check">
+        <div class="verdict yes">✔ 놓치던 문제 지점이 새로 보이는가?</div>
+        <p><b>YES, 3가지</b>: ① <b>②단계 자체가 빠진 습관</b>(전 여정의 관문) → 온보딩/부담↓ 최우선. ② 실패는 ④ 이전 <b>②(계획 시)에서도</b> 발생("과부하 → 운동 제외") → <b>H3를 계획 시점에</b> 발동해야. ③ ⑤ 기록 마찰의 <b>조용한 2차 하강</b>이 매일-사용을 서서히 갉음.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">출처: 이전 대화(인터뷰 33개 · 실행 레시피 · <code>docs/research/hmw.md</code>) · 방법: <code>docs/research/instructions.md</code> 사용자 여정 매핑 · North Star: 실행 엔진(D30) · 솔루션: S2(D31/D32)</p>
+</div>
+
+<script>
+  // honor an explicit theme toggle if the host stamps data-theme; otherwise prefers-color-scheme handles it.
+  (function(){ try{ var t=localStorage.getItem('theme'); if(t){document.documentElement.setAttribute('data-theme',t);} }catch(e){} })();
+</script>
+</body>
+</html>

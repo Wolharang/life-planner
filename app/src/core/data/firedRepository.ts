@@ -1,0 +1,33 @@
+// Log of "the execution moment appeared" (drained from the native PendingFires on app open). Used by
+// R6 catch-up (a fire with no `done` outcome for its date = fired-but-not-done → "아직 안 했죠") and by
+// S1 measurability (each carries the actual fire latency `deltaMs`). Entries are removed once resolved
+// (done/miss recorded) or auto-archived after the catch-up window.
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const KEY = "lp.fires.v1";
+
+export interface FireRecord {
+  taskId: string;
+  title: string;
+  date: string; // YYYY-MM-DD occurrence date
+  intended: number; // epoch ms it was scheduled for
+  firedAt: number; // epoch ms it actually fired
+  deltaMs: number; // firedAt − intended (S1 latency)
+  createdAt?: number; // task creation time — for the PRD §10 commit→fire gap (may be absent on old rows)
+}
+
+export async function listFires(): Promise<FireRecord[]> {
+  const raw = await AsyncStorage.getItem(KEY);
+  return raw ? (JSON.parse(raw) as FireRecord[]) : [];
+}
+
+export async function setFires(list: FireRecord[]): Promise<void> {
+  await AsyncStorage.setItem(KEY, JSON.stringify(list));
+}
+
+export async function appendFires(list: FireRecord[]): Promise<void> {
+  if (list.length === 0) return;
+  const all = await listFires();
+  await setFires([...all, ...list]);
+}

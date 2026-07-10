@@ -1,0 +1,43 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+  <application>
+
+    <!-- Fires at the exact time (setAlarmClock). Not exported: only our own PendingIntent triggers it. -->
+    <receiver
+      android:name="com.lifeplanner.lpalarm.AlarmReceiver"
+      android:exported="false" />
+
+    <!-- Re-registers alarms from the native mirror after reboot / time / timezone change. -->
+    <receiver
+      android:name="com.lifeplanner.lpalarm.BootReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+    </receiver>
+
+    <!-- Full-screen execution surface shown OVER the lock screen (Phase-1 native placeholder). -->
+    <activity
+      android:name="com.lifeplanner.lpalarm.ExecutionActivity"
+      android:exported="false"
+      android:showWhenLocked="true"
+      android:turnScreenOn="true"
+      android:excludeFromRecents="true"
+      android:launchMode="singleInstance"
+      android:taskAffinity=".LpAlarmExecution"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+  </application>
+</manifest>
