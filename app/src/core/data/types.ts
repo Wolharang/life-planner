@@ -42,3 +42,26 @@ export interface Settings {
   /** execution-moment sound; default off = haptic-only (R8) */
   sound: boolean;
 }
+
+// ── Full-app entities ───────────────────────────────────────────────────────
+
+/**
+ * Important event on the month calendar (PRD R1 · data-model §2.2). Placed days–weeks ahead, marked on
+ * the calendar by `date`, notified in advance, NOT evaluated (canceled = deleted). Local-only for now
+ * (Repository pattern); the storage impl swaps to Firestore later (architecture §7) — this shape stays.
+ */
+export interface ImportantEvent {
+  id: string;
+  title: string;
+  /** YYYY-MM-DD (device local) — the calendar day this event sits on */
+  date: string;
+  /** wall-clock local start time, "HH:mm" — optional */
+  time?: string;
+  /** minutes before `time` to fire the advance notification; default applied if unset (D28) */
+  notifyLeadMinutes?: number;
+  /** calendar bar color (hex). Falls back to the brand color when unset */
+  color?: string;
+  memo?: string;
+  createdAt: number;
+  updatedAt: number;
+}
