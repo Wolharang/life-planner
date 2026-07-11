@@ -249,15 +249,22 @@ flagged blocks prominent); tap a card → detail; **mark done**. A **free-slot h
 spend/meals are **not** shown here (D32).
 - *Acceptance:* today's blocks render as cards; done can be marked; **no** expense/meal appears on this surface.
 
-**R7 — Execution moment on flagged blocks (the heart — reused prototype).** **[P0]** At `start − lead` on a
-**flagged** block, the app pierces the lock screen with the execution moment: **commit line** ("어제 네가 …라고
-정했잖아") → **5·4·3·2·1** → **micro-start + "시작했어?"** → **GO** ("이제 그대로 나가.") → **DONE / PENDING**. The
-moment is **LIGHT** (never a dark takeover); **no in-flow escape** — once fired, the only responses are **"응"** /
-**"아직"** (yes / not yet); an intentional skip is a **pre-fire, re-togglable "오늘은 쉼"** per-occurrence toggle.
-Success = **one calm gold signal** ("안 하던 걸 해냈다"), **no confetti/streak**; a miss is **neutral data**.
-- *Acceptance:* fires within **±`[TBD: 1 min]`** (S2) over the lock screen under kill/Doze/reboot; after firing
-  only 응/아직 exist; DONE shows one calm gold mark; a miss is never red; reuses the prototype's native module
-  (`app/modules/lp-alarm`) unchanged.
+**R7 — Execution moment on flagged blocks (the heart — reuses prototype infra).** **[P0]** At `start − lead` on a
+**flagged** block, the app pierces the lock screen with a **commit line** ("어제 네가 …라고 정했잖아") and the user
+acknowledges ("응, 할게") and leaves. **~5 minutes later** (founder decision 2026-07-11; `[TBD]` value) the app
+re-opens over the lock screen with a **re-check: "진짜 했어?"** (did you really do it?):
+- **"응, 했어"** → **DONE** (one calm gold signal "안 하던 걸 해냈다"; **no confetti/streak**).
+- **"아직 안 했어"** → **5·4·3·2·1 countdown** → **"지금 나가."** (pushes them out) → dismiss; the outcome stays
+  **pending** (a neutral, no-guilt catch-up later — never an immediate "miss" punishment).
+The moment is **LIGHT** (never a dark takeover); **no in-flow "can't-today" escape** — the only responses are
+**응/아직** at commit and **응 했어 / 아직 안 했어** at re-check (neither is an escape); the intentional skip is the
+**pre-fire, re-togglable "오늘은 쉼"** per-occurrence toggle. *(This revises the prototype flow COMMIT→immediate
+5·4·3·2·1→micro-start→GO; the counter-deliberation countdown now runs on the re-check's "아직 안 했어", not before
+commit — see the design-principles A2 note.)*
+- *Acceptance:* the commit fires within **±`[TBD: 1 min]`** (S2) over the lock screen under kill/Doze/reboot; a
+  re-check re-opens ~5 min after commit; "응, 했어" records DONE; "아직 안 했어" runs the countdown then leaves with
+  **no** immediate miss; DONE shows one calm gold mark, a miss is never red; reuses the prototype's native alarm
+  module (`app/modules/lp-alarm`).
 
 **R8 — In-the-moment expense logging.** **[P0]** A **separate 기록 (Logs)** surface logs an expense **when money is
 spent**: amount, **category (8 fixed, D16)**, payment (**free-text**, D26), store, name; **KRW only** (D25);

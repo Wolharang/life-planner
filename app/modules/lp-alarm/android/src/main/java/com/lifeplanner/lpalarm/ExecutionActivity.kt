@@ -28,9 +28,12 @@ import java.util.Calendar
  * unlocking (architecture §4). Handling it here — not by launching the RN app — sidesteps the
  * expo-dev-client launcher (one-React-context limit) and the keyguard entirely. Light surface (v0.5).
  *
- * Flow: COMMIT → COUNTDOWN(5·4·3·2·1) → MICRO-START+CONFIRM → GO → DONE / PENDING. No in-flow escape
- * (v0.5); "아직" / timeouts land on PENDING (dismiss). DONE is recorded via PendingOutcomes (the RN app
- * drains it on next open). Provisional R3 timings ([TBD], PRD Phase 5).
+ * Flow (v1, founder 2026-07-11 — delayed re-check): COMMIT ("…하기로 했잖아") → the app arms a ~5-min
+ * follow-up and dismisses → 5 min later it re-opens at RECHECK ("진짜 했어?"): "응, 했어" → DONE;
+ * "아직 안 했어" → LEAVE 5·4·3·2·1 → "지금 나가" → dismiss (outcome stays pending → no-guilt catch-up).
+ * No in-flow "can't-today" escape (only 했어 / 아직 안 했어). DONE is recorded via PendingOutcomes (the RN
+ * app drains it on next open). Provisional timings ([TBD]). The older COMMIT→COUNTDOWN→ACT→GO path is kept
+ * below (currently unreached) in case we revert. Re-check alarm id = "<taskId>#recheck".
  *
  * NOTE: this is the canonical execution UI. app/app/execution.tsx is the design reference / in-app preview.
  */
@@ -42,6 +45,7 @@ class ExecutionActivity : Activity() {
   private var createdAt = 0L
   private var leadMinutes = 0
   private var taskId = ""
+  private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
   private var count = 5
   private var player: MediaPlayer? = null
   private var savedAlarmVolume = -1
@@ -62,12 +66,15 @@ class ExecutionActivity : Activity() {
     val note: String,
     val intended: Long,
     val createdAt: Long,
-    val leadMinutes: Int
+    val leadMinutes: Int,
+    val mode: String = "commit"
   )
 
   companion object {
     // Occurrences that fired while one was already showing (R2 sequential queue).
     private val queue = ArrayDeque<Item>()
+    // ~5 min after COMMIT, re-open at "진짜 했어?" (founder 2026-07-11). [TBD] — could become a setting.
+    private const val RECHECK_DELAY_MS = 5 * 60_000L
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,23 +97,49 @@ class ExecutionActivity : Activity() {
     note = i.getStringExtra(LpAlarmConstants.EXTRA_NOTE) ?: "",
     intended = i.getLongExtra(LpAlarmConstants.EXTRA_INTENDED, System.currentTimeMillis()),
     createdAt = i.getLongExtra(LpAlarmConstants.EXTRA_CREATED, 0L),
-    leadMinutes = i.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0)
+    leadMinutes = i.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0),
+    mode = i.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit"
   )
 
   private fun startItem(item: Item) {
-    taskId = item.taskId
+    mode = item.mode
+    // The re-check alarm's id is "<taskId>#recheck"; outcomes/markers must key the ORIGINAL task.
+    taskId = item.taskId.removeSuffix("#recheck")
     title = item.title
     note = item.note
     intended = item.intended
     createdAt = item.createdAt
     leadMinutes = item.leadMinutes
     count = 5
-    // Mark that the moment appeared (R6 catch-up net + S1 latency). Resolved later by a `done` outcome.
-    PendingFires.record(this, taskId, title, occurrenceYmd(), intended, System.currentTimeMillis())
     stopSound()
     vibrate(60) // FIRING pulse
     if (SoundSetting.isOn(this)) startSound() // R8: audible only if enabled (default off = haptic-only)
-    render("commit")
+    if (mode == "recheck") {
+      render("recheck")
+    } else {
+      // Mark that the moment appeared (R6 catch-up net + S1 latency). Resolved later by a `done` outcome.
+      PendingFires.record(this, taskId, title, occurrenceYmd(), intended, System.currentTimeMillis())
+      scheduleRecheck() // arm the ~5-min "진짜 했어?" follow-up
+      render("commit")
+    }
+  }
+
+  /** Arm the transient ~5-min re-check follow-up (one-shot; not persisted across reboot). */
+  private fun scheduleRecheck() {
+    AlarmScheduler.schedule(
+      this,
+      AlarmItem(
+        id = "$taskId#recheck",
+        fireAt = System.currentTimeMillis() + RECHECK_DELAY_MS,
+        title = title,
+        recurrence = "none",
+        note = note,
+        createdAt = createdAt,
+        leadMinutes = 0, // the re-check's "intended" is just now+5m — no lead offset
+        mode = "recheck"
+      ),
+      persist = false
+    )
   }
 
   /** End the current occurrence: show the next queued one, or finish if none (R2 sequential). */
@@ -127,7 +160,21 @@ class ExecutionActivity : Activity() {
     when (phase) {
       "commit" -> {
         setContentView(commitView())
-        after(30_000) { render("pending") } // COMMIT idle → PENDING
+        after(30_000) { dismiss() } // COMMIT idle → close (the re-check is already armed)
+      }
+      "recheck" -> {
+        vibrate(60)
+        setContentView(recheckView())
+        after(90_000) { render("pending") } // ignored re-check → PENDING (no-guilt catch-up later)
+      }
+      "leave" -> {
+        count = 5
+        renderLeaveCountdown()
+      }
+      "leavego" -> {
+        vibrate(40)
+        setContentView(leaveGoView())
+        after(3_500) { dismiss() } // pushed out; outcome stays pending (no guilt) — catch-up resolves it
       }
       "countdown" -> {
         count = 5
@@ -163,7 +210,28 @@ class ExecutionActivity : Activity() {
   private fun commitView(): View = column().apply {
     addView(label("내가 정한 약속", 13, soft))
     addView(label(commitLine(), 23, ink, top = 12, bold = true))
-    addView(brandButton("시작할게") { render("countdown") })
+    // v1: commit only acknowledges — the "진짜 했어?" re-check comes ~5 min later (already armed).
+    addView(brandButton("응, 할게") { dismiss() })
+  }
+
+  private fun recheckView(): View = column().apply {
+    addView(label("아까 하기로 한 거", 13, soft))
+    addView(label("진짜 했어?", 30, ink, top = 12, bold = true))
+    addView(brandButton("응, 했어") { render("done") })
+    addView(textLink("아직 안 했어", top = 22) { render("leave") })
+  }
+
+  private fun renderLeaveCountdown() {
+    setContentView(countView(count))
+    vibrate(25)
+    if (count <= 1) after(1_000) { render("leavego") }
+    else after(1_000) { count -= 1; renderLeaveCountdown() }
+  }
+
+  private fun leaveGoView(): View = column().apply {
+    addView(label("지금 나가.", 28, ink, bold = true))
+    addView(label("딱 첫 동작만 — 나가면 이긴다.", 16, soft, top = 12))
+    addView(brandButton("나간다 →") { dismiss() })
   }
 
   private fun countView(n: Int): View = column(Gravity.CENTER).apply {

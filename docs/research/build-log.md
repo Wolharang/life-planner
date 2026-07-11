@@ -7,6 +7,36 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — Execution moment: delayed "진짜 했어?" re-check (R7 flow change, native)
+
+Founder-directed change to the core lever (native `ExecutionActivity`). **New flow:** COMMIT ("…하기로 했잖아")
+→ acknowledge ("응, 할게") + the app **arms a ~5-min follow-up alarm** and dismisses → 5 min later it re-opens
+over the lock screen at **RECHECK ("진짜 했어?")**: **"응, 했어"** → DONE; **"아직 안 했어"** → 5·4·3·2·1 → **"지금
+나가."** → dismiss (outcome stays **pending** — no-guilt catch-up, never an immediate miss). Replaces the prior
+COMMIT→immediate-countdown→micro-start→GO. Invariants held: light, no in-flow "can't-today" escape, no guilt.
+
+### What (native, `app/modules/lp-alarm/`)
+- Threaded a new **`EXTRA_MODE`** ("commit" | "recheck") through `AlarmScheduler` (const + `AlarmItem.mode` +
+  fire/show PendingIntents), `AlarmReceiver`, and `AlarmNotifications.showFullScreen`. JS path unaffected (`mode`
+  defaults to "commit"; `LpAlarmModule.scheduleExactAlarm` unchanged).
+- `ExecutionActivity`: reads `mode`; on **commit** it records the fire marker + `scheduleRecheck()` (a transient
+  one-shot `AlarmItem(id="<taskId>#recheck", fireAt=now+5m, recurrence="none", mode="recheck")`, `persist=false`)
+  then shows commit (button → dismiss); on **recheck** it renders "진짜 했어?" → 응했어=`render("done")`
+  (existing `recordDone`), 아직안했어=`leave` 5·4·3·2·1 → `leavego` → dismiss. The re-check id's `#recheck` suffix
+  is stripped so outcomes key the original task. The old commit→countdown→act→go views are kept but unreached.
+- Outcomes: **no JS change** — "응, 했어" records `done` via the existing `PendingOutcomes`; "아직 안 했어" records
+  nothing (pending → the R6 catch-up net resolves it later).
+
+### Notes / risks
+- **Native (Kotlin) — not compile-checkable here** (gradle compiles only at `run:android`); reviewed carefully.
+  Needs **`prebuild --clean` + `run:android`** on a real device to verify.
+- Edge: a re-check crossing local midnight would date the `done` to the next day (rare; accepted, `[TBD]`).
+- The native moment still uses the **prototype forest/gold palette** (the v5 Toss-form skin only touched the JS
+  preview `execution.tsx`, which is NOT the live moment) — reskinning the native moment to v5 is a separate task.
+- Docs updated: PRD **R7** flow + acceptance; **design-principles A2** revision note.
+
+---
+
 ## 2026-07-11 — Bottom tabs + month calendar (R1, local-first)
 
 First full-app UI feature. **Note on order:** built the calendar **UI local-first ahead of F0** (the backend

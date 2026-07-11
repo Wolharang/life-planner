@@ -47,6 +47,7 @@ object AlarmNotifications {
       putExtra(LpAlarmConstants.EXTRA_INTENDED, item.fireAt)
       putExtra(LpAlarmConstants.EXTRA_CREATED, item.createdAt)
       putExtra(LpAlarmConstants.EXTRA_LEAD, item.leadMinutes)
+      putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
     }
     val fsPending = PendingIntent.getActivity(
       context,
