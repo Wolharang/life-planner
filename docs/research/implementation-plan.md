@@ -127,15 +127,41 @@ time under Doze** → micro-start prompt → mark done → the entry **syncs to 
 → F4 (day summary) → F5 (evaluation, Later).** Prep P-a/P-b/P-c inside F0; P-d inside F3; P-e before F1; P-f as each
 feature lands. Nothing here changes the validated execution lever — it is reused, not rebuilt.
 
-## Build progress (live)
-> Detailed history: `docs/research/build-log.md`. **Local-first is allowed to run ahead of F0:** UI can be built
-> on a local AsyncStorage repository and its storage impl swapped to Firestore later behind the same interface
+## Build progress (live) — CURRENT STATE (self-contained; updated 2026-07-11)
+> This section is the single "where are we" record so context survives a compaction. Detailed history:
+> `docs/research/build-log.md`. **Local-first is allowed to run ahead of F0:** UI can be built on a local
+> AsyncStorage repository and its storage impl swapped to Firestore later behind the same interface
 > (architecture §7), so a feature's UI need not wait for the backend — only its *sync/notification* does.
 
-- **Nav shell:** bottom tab bar (**홈 · 캘린더 · 기록**) built (expo-router `(tabs)` group). 기록 = placeholder.
-- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started.
-- **F1 calendar:** 🟨 **UI built local-first** (2026-07-11) — R1 calendar (square month grid + event bars +
-  selected-day detail) + `ImportantEvent`/`eventRepository` (`lp.events.v1`) + add-event screen. **Remaining:**
-  R2 sync + R3 advance notification (need F0).
-- **F2 time-blocks + execution:** ⬜ (execution moment reused from the prototype when built).
+**Repo / git.** This is now a git repo → remote `origin = git@github.com:Wolharang/life-planner.git` (**private**,
+branch `main`, SSH key `~/.ssh/id_ed25519`). Policy (memory): **commit after every change; push ONLY when the user
+says to.** As of 2026-07-11 there are **several local commits not yet pushed** (initial import → docs reorg → PRD →
+tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
+
+**Phase status:**
+- **Prototype (foundation):** ✅ complete & founder-validated. Snapshot: `docs/research/prototype/PROTOTYPE-STATE.md`.
+  Reused, not rebuilt (native alarm module + execution moment + Repository interfaces).
+- **Nav shell:** ✅ bottom tab bar (**홈 · 캘린더 · 기록**) — expo-router `(tabs)` group (`app/app/(tabs)/`). 기록
+  (`logs.tsx`) = placeholder.
+- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started (the gate for sync/notif).
+- **F1 calendar:** 🟨 **UI built local-first** (2026-07-11) — R1 month calendar (square grid + event bars +
+  selected-day detail, `app/app/(tabs)/calendar.tsx`) + `ImportantEvent` + `eventRepository` (`lp.events.v1`) +
+  `add-event.tsx`. **Remaining:** R2 sync + R3 advance notification (need F0).
+- **F2 time-blocks + execution:** ⬜ NOT started — BUT the execution moment already got a **founder R7 flow change**
+  (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** re-check → 응했어=DONE / 아직안했어=5·4·3·2·1→나가
+  (pending). Implemented in `app/modules/lp-alarm/` (`EXTRA_MODE` + `ExecutionActivity.scheduleRecheck()`/recheck
+  phases). PRD R7 + design-principles A2 revised. Time-blocks themselves (TimeBlock entity, My Day, D-1 snapshot)
+  are still ⬜.
 - **F3 logs · F4 day summary · F5 evaluation:** ⬜.
+
+**Loose ends / caveats to remember:**
+- **The native execution moment can't be compile-checked here** (Kotlin builds only at `npx expo run:android`).
+  The R7 re-check change needs an on-device build to verify it compiles + works. Same for any native edit.
+- **The native moment still uses the prototype forest/gold palette.** The v5 "Toss-form" blue skin was applied to
+  the JS screens + the **JS preview `app/app/execution.tsx`** — which is NOT the live moment (`ExecutionActivity`
+  is). Reskinning the native moment to v5 is a separate TODO.
+- **Design skin v5 is provisional** (design-system.md §1); D36 forest/gold is the confirmed baseline until a
+  skin-lock D-entry (prep P-e).
+- **`[TBD]`s** open: full-app default lead-time (D28), R6 window/render caps, the R7 re-check delay (~5 min).
+- **Where the truth lives:** What/Why = `docs/core/prd.md` (R1–R17); How = `docs/core/architecture.md` +
+  `docs/core/data-model.md`; build order = this file; history = `docs/research/build-log.md`.
