@@ -52,7 +52,8 @@
 | `memo` | string | ○ | 추가 | |
 | `createdAt/updatedAt` | timestamp | ✓ | 자동 | 동기화 |
 - **생성 위치/시점**: 월 달력 화면, 며칠~몇 주 전.
-- **저장**: `/users/{uid}/events/{id}` + 로컬 미러.
+- **저장**: `/users/{uid}/events/{id}` + 로컬 미러. **현재 로컬 구현(2026-07-11)**: AsyncStorage `lp.events.v1`
+  (`app/src/core/data/eventRepository.ts`) — Firestore/uid는 F0에서 인터페이스 뒤로 추가(architecture §7).
 - **연결**: `uid` 소유, `date`로 달력에 표시. **TimeBlock과 FK 없음**(별도 레이어; 충돌 감지 안 함 D8). **평가 안 함**(취소=삭제).
 
 ### 2.3 TimeBlock — 시간 블록 + 실행 엔진 + 평가 (계층2·3의 중심)

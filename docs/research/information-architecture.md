@@ -8,6 +8,10 @@
 > (`docs/core/design-principles.md`). Scope = **full app**; the **prototype subset** is marked in §6.
 >
 > Body in English; user-facing labels quoted in Korean (implement the Korean label).
+>
+> **Build status (2026-07-11):** the app now has a **bottom tab bar** — **홈 · 캘린더 · 기록** (expo-router
+> `(tabs)`); 캘린더 is built (R1, local), 기록 is a placeholder, 돌아보기/평가 (F5) not yet present. This is an
+> evolving subset of the full nav below (오늘/계획/기록/돌아보기 + 설정); labels/structure will converge as F1–F5 land.
 
 ## 1. The organizing logic (why this grouping, not a feature list)
 The user does **not** think in features ("calendar", "budget", "calorie") — they think in **intent over time**:

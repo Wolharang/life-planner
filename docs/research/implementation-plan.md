@@ -126,3 +126,16 @@ time under Doze** → micro-start prompt → mark done → the entry **syncs to 
 **F0 (backend/auth/sync — the gate) → F1 (calendar) → F2 (time-blocks + reuse execution) → F3 (logs, port ref apps)
 → F4 (day summary) → F5 (evaluation, Later).** Prep P-a/P-b/P-c inside F0; P-d inside F3; P-e before F1; P-f as each
 feature lands. Nothing here changes the validated execution lever — it is reused, not rebuilt.
+
+## Build progress (live)
+> Detailed history: `docs/research/build-log.md`. **Local-first is allowed to run ahead of F0:** UI can be built
+> on a local AsyncStorage repository and its storage impl swapped to Firestore later behind the same interface
+> (architecture §7), so a feature's UI need not wait for the backend — only its *sync/notification* does.
+
+- **Nav shell:** bottom tab bar (**홈 · 캘린더 · 기록**) built (expo-router `(tabs)` group). 기록 = placeholder.
+- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started.
+- **F1 calendar:** 🟨 **UI built local-first** (2026-07-11) — R1 calendar (square month grid + event bars +
+  selected-day detail) + `ImportantEvent`/`eventRepository` (`lp.events.v1`) + add-event screen. **Remaining:**
+  R2 sync + R3 advance notification (need F0).
+- **F2 time-blocks + execution:** ⬜ (execution moment reused from the prototype when built).
+- **F3 logs · F4 day summary · F5 evaluation:** ⬜.
