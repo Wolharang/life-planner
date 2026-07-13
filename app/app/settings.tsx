@@ -14,6 +14,7 @@ import { notificationPermissionGranted } from "@/core/notifications/plainReminde
 import { getSettings, updateSettings } from "@/core/data/settingsRepository";
 import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup";
 import { onAccountChanged, type Account } from "@/core/data/firebase";
+import { evidenceCount, resetEvidence } from "@/core/data/evidence";
 
 const LEADS = [
   { label: "정각", v: 0 },
@@ -121,6 +122,37 @@ export default function Settings() {
       }
     })();
   };
+  // Day zero (see evidence.ts). Destructive and irreversible, so it says exactly what it will destroy and
+  // exactly what it will not — and it never runs on one tap.
+  const promptResetMetrics = async () => {
+    if (busy) return;
+    const n = await evidenceCount();
+    if (n === 0) {
+      Alert.alert("기록 초기화", "지울 기록이 없어요. 이미 0일차예요.");
+      return;
+    }
+    Alert.alert(
+      "기록을 초기화할까요?",
+      `해냄·미스·발화 기록 ${n}건이 영구히 지워져요. 일정·블록·지출·식사는 그대로 남아요.\n\n되돌릴 수 없어요.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "초기화",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              await resetEvidence();
+              Alert.alert("초기화 완료", "0일차부터 다시 셉니다.");
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const promptImport = () => {
     Alert.alert("가져오기", "기존 데이터와 어떻게 합칠까요?", [
       { text: "병합 (새 항목만 추가)", onPress: () => doImport("merge") },
@@ -413,31 +445,51 @@ export default function Settings() {
           </Link>
         </View>
 
-        {/* 측정 — the self-experiment's instrument (S1–S5, PRD §4), dev-only */}
-        {__DEV__ && (
-          <>
-            <GroupLabel>개발</GroupLabel>
-            <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
-              <Link href="/metrics" asChild>
-                <Pressable>
-                  <Row>
-                    <View className="flex-1 pr-3">
-                      <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                        측정 (S1–S5)
-                      </Text>
-                      <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                        실행률 · 알람 신뢰성 · 전날 계획 · 기록 마찰 · 무죄책 복귀
-                      </Text>
-                    </View>
-                    <Text className="text-faint" style={{ fontSize: 18 }}>
-                      ›
-                    </Text>
-                  </Row>
-                </Pressable>
-              </Link>
-            </View>
-          </>
-        )}
+        {/* 자가실험 — the instrument the founder grades the product on (S1–S5, PRD §4).
+            It was behind `__DEV__`, which meant the RELEASE build the self-experiment actually runs on
+            shipped **without the instrument** — two weeks of honest use and nothing to read at the end.
+            The falsification condition (§4) cannot fire on a number nobody can see. */}
+        <GroupLabel>자가실험</GroupLabel>
+        <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
+          <Link href="/metrics" asChild>
+            <Pressable>
+              <Row>
+                <View className="flex-1 pr-3">
+                  <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                    측정 (S1–S5)
+                  </Text>
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                    실행률 · 알람 신뢰성 · 전날 계획 · 기록 마찰 · 무죄책 복귀
+                  </Text>
+                </View>
+                <Text className="text-faint" style={{ fontSize: 18 }}>
+                  ›
+                </Text>
+              </Row>
+            </Pressable>
+          </Link>
+
+          <Divider />
+
+          {/* Day zero. The measurement stores carry test blocks, prototype leftovers, and outcomes the
+              bugs we just fixed invented — a false miss is worse than no data, because we would reason
+              from it. This wipes the EVIDENCE (outcomes/fires/missed/latencies), not the plan. */}
+          <Pressable onPress={promptResetMetrics} disabled={busy}>
+            <Row>
+              <View className="flex-1 pr-3">
+                <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                  기록 초기화
+                </Text>
+                <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                  해냄·미스·발화 기록을 모두 지우고 0일차부터 다시 시작해요. 일정과 블록은 그대로예요.
+                </Text>
+              </View>
+              <Text className="text-faint" style={{ fontSize: 18 }}>
+                ›
+              </Text>
+            </Row>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

@@ -69,7 +69,25 @@ type IconKind = TimeBlock["kind"];
 type HomeRow =
   | { kind: "section"; title: string }
   | { kind: "block"; block: TimeBlock; fireAt: number | null; started: boolean }
-  | { kind: "history"; outcome: OutcomeRecord };
+  | { kind: "history"; entry: HistoryEntry };
+
+/**
+ * What 지난 기록 shows. It used to show **outcomes only** — so answering "아직 안 했어" at the re-check, which
+ * deliberately records nothing (R7: the outcome stays pending, never an instant miss), left **no trace at
+ * all**. The founder looked for what he had just done, found nothing, and read the nearest unrelated line as
+ * his own. An app that keeps no record of your answer looks like an app that didn't hear you.
+ *
+ * So the log shows the *event*, and the verdict when there is one. The pending row needs no new storage: the
+ * fire marker already says "the moment appeared for this occurrence", and the absence of an outcome already
+ * says "it was not answered". `pending` is **neutral data** — taupe, never red, never counted as a miss.
+ */
+type HistoryEntry = {
+  taskId: string;
+  title?: string;
+  date: string;
+  at: number;
+  status: OutcomeRecord["status"] | "pending";
+};
 
 // A gentle catch-up prompt (R6). `kind` decides the copy: a block whose intervention NEVER fired
 // (device off / alarm not armed → no fire marker) uses "놓쳤어요"; one that fired but was deferred
@@ -85,6 +103,7 @@ type CatchUpItem = {
 export default function Home() {
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
+  const [fires, setFiresLog] = useState<FireRecord[]>([]); // unresolved ones surface in 지난 기록 as "아직"
   const [catchUps, setCatchUps] = useState<CatchUpItem[]>([]);
   const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean; notif: boolean; overlay: boolean } | null>(null);
   const [askReason, setAskReason] = useState<{ id: string; title: string } | null>(null);
@@ -94,8 +113,42 @@ export default function Home() {
   const load = useCallback(async () => {
     setBlocks(await listBlocks());
     setOutcomes((await listOutcomes()).slice().reverse()); // most recent first
+    setFiresLog(await listFires());
     setLoading(false);
   }, []);
+
+  /**
+   * Delete one line of history. There was **no way to remove a record at all** — which mattered the moment the
+   * data stopped being trustworthy: this device carries test blocks, prototype leftovers, and outcomes the
+   * bugs we fixed *invented*. You cannot run an honest self-experiment on a log you cannot correct, and a
+   * false record is worse than no record because we would reason from it.
+   *
+   * Deleting a `pending` row removes the fire marker, so the catch-up net stops asking about it too — the
+   * occurrence is simply forgotten, not marked missed. (설정 → 기록 초기화 clears the whole log at once.)
+   */
+  const confirmDeleteHistory = (h: HistoryEntry) => {
+    Alert.alert(
+      "이 기록을 지울까요?",
+      `${h.title || "실행"} · ${relDay(h.date)}\n\n측정에서도 빠져요. 되돌릴 수 없어요.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "지우기",
+          style: "destructive",
+          onPress: async () => {
+            if (h.status === "pending") {
+              const all = await listFires();
+              await setFires(all.filter((f) => !(f.taskId === h.taskId && f.date === h.date)));
+            } else {
+              await removeOutcome(h.taskId, h.date);
+            }
+            setCatchUps((prev) => prev.filter((x) => !(x.taskId === h.taskId && x.date === h.date)));
+            load();
+          },
+        },
+      ]
+    );
+  };
 
   const router = useRouter();
   const today = todayYmd();
@@ -385,7 +438,14 @@ export default function Home() {
   // verdict). It is stated in taupe, never red: an unanswered block is neutral data (R14).
   const awaiting = new Set(catchUps.map((c) => `${c.taskId}|${c.date}`));
 
-  const historyRows: HomeRow[] = outcomes.slice(0, 12).map((outcome) => ({ kind: "history", outcome }));
+  const settledKeys = new Set(outcomes.map((o) => `${o.taskId}|${o.date}`));
+  const history: HistoryEntry[] = [
+    ...outcomes.map((o) => ({ taskId: o.taskId, title: o.title, date: o.date, at: o.at, status: o.status })),
+    ...fires
+      .filter((f) => !settledKeys.has(`${f.taskId}|${f.date}`))
+      .map((f) => ({ taskId: f.taskId, title: f.title, date: f.date, at: f.firedAt, status: "pending" as const })),
+  ].sort((a, b) => b.at - a.at);
+  const historyRows: HomeRow[] = history.slice(0, 12).map((entry) => ({ kind: "history", entry }));
   const rows: HomeRow[] = [
     ...(blockRows.length > 0 ? [{ kind: "section" as const, title: "오늘" }, ...blockRows] : []),
     ...(historyRows.length > 0 ? [{ kind: "section" as const, title: "지난 기록" }, ...historyRows] : []),
@@ -457,7 +517,7 @@ export default function Home() {
             row.kind === "block"
               ? `b-${row.block.id}`
               : row.kind === "history"
-                ? `h-${row.outcome.taskId}-${row.outcome.date}-${i}`
+                ? `h-${row.entry.taskId}-${row.entry.date}-${i}`
                 : `s-${row.title}`
           }
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 104 }}
@@ -626,9 +686,13 @@ export default function Home() {
               );
             }
             if (item.kind === "history") {
-              const o = item.outcome;
+              const o = item.entry;
               return (
-                <View className="flex-row items-center px-1" style={{ paddingVertical: 9 }}>
+                <Pressable
+                  onLongPress={() => confirmDeleteHistory(o)}
+                  className="flex-row items-center px-1"
+                  style={{ paddingVertical: 9 }}
+                >
                   <BlockIcon kind={iconOf(o.title || "")} />
                   <View className="flex-1" style={{ marginLeft: 11 }}>
                     <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }}>
@@ -639,7 +703,7 @@ export default function Home() {
                     </Text>
                   </View>
                   <OutcomeBadge status={o.status} />
-                </View>
+                </Pressable>
               );
             }
 
@@ -737,7 +801,19 @@ const iconOf = (title: string): IconKind => {
   return "normal";
 };
 
-function OutcomeBadge({ status }: { status: OutcomeRecord["status"] }) {
+function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" }) {
+  // "아직" = the moment appeared and you said not yet. It is an ANSWER, not a failure: neutral, taupe-on-soft,
+  // never red, and it is not a miss (R7/R14). It stays until you resolve it — or until the catch-up window
+  // quietly archives it.
+  if (status === "pending") {
+    return (
+      <View className="bg-miss-soft rounded-full px-3 py-1">
+        <Text className="text-miss" style={{ fontSize: 12, fontWeight: "600" }}>
+          아직
+        </Text>
+      </View>
+    );
+  }
   if (status === "done") {
     return (
       <View className="bg-gold-soft rounded-full px-3 py-1">

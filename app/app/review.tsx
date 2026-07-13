@@ -156,23 +156,28 @@ export default function Review() {
                 <Text className="text-ink flex-1" style={{ fontSize: 14.5 }} numberOfLines={1}>
                   {b.title}
                 </Text>
-                <View className="flex-row" style={{ gap: 10 }}>
+                {/* Same shape as home's catch-up card (D56): the label is the ANSWER YOU GIVE ("했어요" /
+                    "안 했어요"), never a verdict-noun handed to you. They are opposite and non-undoable, so
+                    they get a wide gap and generous hit targets — a mis-tap here writes a miss into S1.
+                    And gold is the one DONE *mark*, never a button (D39): the answer is a plain outline. */}
+                <View className="flex-row" style={{ gap: 16 }}>
                   <Pressable
                     onPress={() => mark(b, "success")}
-                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-                    className="bg-gold-soft rounded-full px-3 py-1"
+                    hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+                    className="rounded-full px-3 py-1"
+                    style={{ borderWidth: 1.5, borderColor: "#3182F6" }}
                   >
-                    <Text className="text-gold" style={{ fontSize: 11.5, fontWeight: "700" }}>
-                      해냄
+                    <Text className="text-brand" style={{ fontSize: 11.5, fontWeight: "700" }}>
+                      했어요
                     </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => mark(b, "fail")}
-                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
                     className="bg-group rounded-full px-3 py-1"
                   >
                     <Text className="text-ink-soft" style={{ fontSize: 11.5 }}>
-                      미스
+                      안 했어요
                     </Text>
                   </Pressable>
                 </View>

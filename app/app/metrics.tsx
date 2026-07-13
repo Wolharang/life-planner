@@ -51,12 +51,22 @@ export default function Metrics() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  // S1 — EXECUTION RATE (core). Of the flagged occurrences that were resolved, the share marked done
+  // S1 — EXECUTION RATE (core). Of the **flagged** occurrences that were resolved, the share marked done
   // **via the execution moment itself** (source = execution-screen). Catch-up dones are counted, but
   // separately: they are not the lever's proof. A pre-skip is neither — it's out of the denominator.
-  const execDone = outs.filter((o) => o.status === "done" && o.source === "execution-screen").length;
-  const catchDone = outs.filter((o) => o.status === "done" && o.source === "catch-up").length;
-  const miss = outs.filter((o) => o.status === "miss").length;
+  //
+  // **The denominator is the LEVER's universe, not every outcome.** It used to be every outcome in the
+  // store — so a 강의 or 점심 block carrying a plain `알림` (soft) alert, which the execution moment never
+  // touched, could be ticked 해냄/미스 from home or 돌아보기 and land in S1. Blocks the lever never
+  // intervened on were grading the lever. Worse, they drag it DOWN (a soft block can never produce an
+  // `execution-screen` done), and PRD §4's falsification condition is "if S1 is no better than a plain
+  // reminder, the lever has failed → stop and redesign". A working lever could have been thrown away on a
+  // number that was measuring something else.
+  const flagged = new Set(blocks.filter((b) => b.alert === "execution").map((b) => b.id));
+  const levered = outs.filter((o) => flagged.has(o.taskId));
+  const execDone = levered.filter((o) => o.status === "done" && o.source === "execution-screen").length;
+  const catchDone = levered.filter((o) => o.status === "done" && o.source === "catch-up").length;
+  const miss = levered.filter((o) => o.status === "miss").length;
   const resolved = execDone + catchDone + miss;
   const s1 = resolved ? Math.round((100 * execDone) / resolved) : 0;
 
@@ -64,7 +74,7 @@ export default function Metrics() {
   // pre-commitment lever. Flag those and show S1 with them excluded.
   const PRECOMMIT_MIN_MS = 60 * 60 * 1000; // [TBD]
   const latByOcc = new Map(lats.map((l) => [`${l.taskId}|${l.date}`, l]));
-  const lastMinute = outs.filter((o) => {
+  const lastMinute = levered.filter((o) => {
     if (o.status !== "done" || o.source !== "execution-screen") return false;
     const l = latByOcc.get(`${o.taskId}|${o.date}`);
     return l?.createdAt != null && l.intended - l.createdAt < PRECOMMIT_MIN_MS;
@@ -89,10 +99,18 @@ export default function Metrics() {
   const sameDay = logStamps.filter((e) => ymd(e.createdAt) === e.date).length;
   const s4 = logStamps.length ? Math.round((100 * sameDay) / logStamps.length) : 0;
 
-  // S5 — NO-GUILT RETURN: after a miss, the same task-type is done later. Held WITHOUT a streak.
-  const missOcc = outs.filter((o) => o.status === "miss");
+  // S5 — NO-GUILT RETURN: after a miss, **the same kind of task** is done later — the anti-"what-the-hell"
+  // event. Held WITHOUT a streak.
+  //
+  // This compared `taskId`, which made it **structurally 0% forever**. In the full-app model a block belongs
+  // to exactly one date and gets a fresh id per date (D37 killed recurrence), so "a later `done` with the
+  // same id" cannot exist. It was a leftover from the prototype's recurring `Task`, where one id spanned
+  // every date. So the return is matched on what actually recurs: **the task's name** (헬스 missed on Monday,
+  // 헬스 done on Wednesday). Untitled blocks can't be matched and are simply not counted.
+  const kind = (o: OutcomeRecord) => (o.title ?? "").trim();
+  const missOcc = outs.filter((o) => o.status === "miss" && kind(o) !== "");
   const returned = missOcc.filter((m) =>
-    outs.some((o) => o.taskId === m.taskId && o.status === "done" && o.date > m.date)
+    outs.some((o) => kind(o) === kind(m) && o.status === "done" && o.date > m.date)
   ).length;
   const s5 = missOcc.length ? Math.round((100 * returned) / missOcc.length) : 0;
 
@@ -118,7 +136,7 @@ export default function Metrics() {
         <Stat
           title="S1 · 실행률 (핵심)"
           value={resolved === 0 ? "—" : `${s1}%`}
-          desc={`그 순간 실행 ${execDone} · 캐치업 완료 ${catchDone} · 미룸 ${miss}. S1 = 그 순간 실행 ÷ 처리된 발생 (캐치업 완료는 별도 집계 — 레버의 증거가 아니에요).${
+          desc={`그 순간 실행 ${execDone} · 캐치업 완료 ${catchDone} · 안 함 ${miss}. 실행 알림 블록만 셉니다 (단순 알림 블록은 레버가 개입하지 않으므로 제외). S1 = 그 순간 실행 ÷ 처리된 발생 (캐치업 완료는 별도 집계 — 레버의 증거가 아니에요).${
             lastMinute > 0 ? ` 임박 생성(1시간 이내) ${lastMinute}건 — 제외 시 ${s1Excl}%.` : ""
           }`}
         />
@@ -144,7 +162,7 @@ export default function Metrics() {
         <Stat
           title="S5 · 무죄책 복귀"
           value={missOcc.length === 0 ? "—" : `${s5}%`}
-          desc={`미룬 ${missOcc.length}건 중 ${returned}건은 이후 같은 일을 다시 해냄 (what-the-hell 붕괴 없이 복귀). 스트릭은 쓰지 않아요.`}
+          desc={`안 한 ${missOcc.length}건 중 ${returned}건은 이후 같은 일을 다시 해냄 (what-the-hell 붕괴 없이 복귀). 같은 '일'인지는 제목으로 봅니다. 스트릭은 쓰지 않아요.`}
         />
 
         <Stat
@@ -188,14 +206,14 @@ export default function Metrics() {
               <Text
                 className={
                   o.status === "done"
-                    ? "text-brand"
+                    ? "text-gold"
                     : o.status === "skipped"
                       ? "text-faint"
                       : "text-miss"
                 }
                 style={{ fontSize: 12, fontWeight: "600" }}
               >
-                {o.status === "done" ? "완료" : o.status === "skipped" ? "쉼" : "미룸"}
+                {o.status === "done" ? "해냄" : o.status === "skipped" ? "쉼" : "미스"}
               </Text>
             </View>
           ))
