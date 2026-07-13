@@ -9,6 +9,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.lifeplanner.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
@@ -24,7 +25,10 @@
       "expo-router",
       "expo-asset",
       "./plugins/withExecutionLockScreen",
-      "expo-font"
+      "expo-font",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true
