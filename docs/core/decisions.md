@@ -12,6 +12,35 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-13 — F0 (backend)
+
+### D51. AsyncStorage stays the store of record; Firestore is a MIRROR that switches on at login
+- **The collision.** **D34** says "Firestore offline persistence = the sole local store." **D20/R4** say the
+  app is **fully usable with no account**. These cannot both be literally true: with no account there is no
+  `uid`, and with no `uid` there is **no document path to write to**. A "Firestore-only" build would have
+  nowhere to put a block until the user logged in — i.e. the app would be *unusable* until it had an account,
+  which is precisely what D20 forbids.
+- **Decision.** **AsyncStorage remains the local store of record.** Firestore is a **mirror**: repository
+  mutations push each row up (`syncPut`/`syncRemove`), and a realtime listener projects the cloud back down
+  into the same AsyncStorage keys the screens already read. Logged out — and in any build without Firebase —
+  the app is byte-for-byte the local-first app it was before F0.
+- **Consequence (good).** **R11** ("works identically in airplane mode") holds *for free* rather than
+  depending on Firestore's cache being warm. The **Repository interfaces do not change**, so no screen and no
+  native code moved (architecture §7). D34's *stack* (RN + Expo + Kotlin + Firestore/Auth on Spark) stands
+  unchanged — only its "sole local store" clause is superseded.
+- **Consequence (the trap this avoids).** The cutover **pushes before it subscribes**. A listener writes the
+  snapshot into local storage, so subscribing first would let a fresh account's **empty** cloud land on top of
+  a phone full of real plans and **erase them**. Ordering is the whole safety argument.
+- **Deletes are soft** (`deletedAt` tombstones, data-model §6) and hard deletes are **denied by the security
+  rules**: a hard delete propagates as *nothing*, so the other device would never hear about it and would push
+  the row straight back up.
+- **Not synced, on purpose:** the measurement/catch-up stores (`lp.outcomes/fires/missed/latencies`,
+  data-model §2.7). They are **this device's record of what the lever actually did** — evidence (S1–S5), not
+  shared state. Merging two devices' fire logs would corrupt the self-experiment.
+- **A remote change must move the alarm, not just the row.** A block created on the other phone re-arms its
+  alarm here (the sync engine's apply hooks call `rearmBlockAlarms`), because alarm discipline lives in the
+  repository layer (architecture §9-2) and sync enters through that same layer.
+
 ## 2026-07-11 — Cleanups the docs owed the code
 
 ### D49. The global 설정 → 소리 switch is a DEFAULT, not a gate
