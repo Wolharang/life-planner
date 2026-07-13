@@ -7,6 +7,33 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — Device pass #4: the countdown vanished → "the moment exists only on screen" (D46)
+
+- **Symptom (founder):** mid **5·4·3** something was pressed; the countdown disappeared and the app's **main
+  screen** came up.
+- **Diagnosis — the same class as the unstoppable tone (D44), and the founder said so before I did:** the
+  moment kept **living while invisible**. Its phase timers ran on a Handler that didn't care about the
+  window, so once the activity lost the foreground the countdown kept ticking in the background and
+  **ended the moment by itself** (leave → leavego → dismiss → finish), leaving the RN app on screen.
+- **Fix (D46) — the moment is a thing that exists ON SCREEN and nowhere else:**
+  · `onPause` **freezes every timer** (`handler.removeCallbacksAndMessages`) and stops the tone;
+  · `onResume` **re-renders the same phase**, re-arming its timers — it resumes exactly where it froze;
+  · losing the foreground therefore **cannot finish a moment** — only an answer, or a timeout it was awake
+    for, can. An unanswered moment always still exists, and its notification is still there to return to.
+- **Three supporting holes closed while in there:**
+  · **Predictive back (Android 13+) ignores `onBackPressed`** — the override I relied on to kill the in-flow
+    escape would be silently bypassed the day the app opts in. Now an `OnBackInvokedCallback` consumes it too.
+  · **`FLAG_KEEP_SCREEN_ON`** — a countdown that lets the screen doze is a countdown that lost.
+  · **`DONE` is idempotent** — a resumed "done" phase must not record a second outcome.
+- **Standing rule (in decisions):** any new state in the moment (timer, sound, animation) must be **tied to
+  visibility**. If it can run unseen, it is a bug.
+
+### Verified
+`typecheck` ✓ · `32 tests` ✓ · `prebuild --clean --platform android` ✓. (Kotlin compiles only on the device
+build — needs `run:android`.)
+
+---
+
 ## 2026-07-11 — Device pass #3: the unstoppable alarm (D44) · alert model round 2 (D43)
 
 ### THE SERIOUS ONE — a tone playing with no screen and no notification (D44)

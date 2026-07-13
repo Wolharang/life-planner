@@ -12,6 +12,23 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — The moment exists only on screen
+
+### D46. Nothing about the execution moment advances while it is not visible (generalizes D44)
+- **Problem (founder, on-device):** mid **5·4·3** the user pressed something, the countdown vanished and the
+  app's **main screen** appeared. Same *class* of bug as the tone that rang on with no window: **the moment
+  kept living after it stopped being visible** — its timers ran in the background and quietly *ended* it.
+- **Decision — the moment is a thing that exists ON SCREEN, and nowhere else.** While it isn't in the
+  foreground: **every timer freezes**, the tone stops, and no phase can advance. On return it **resumes at
+  the same phase**. Losing the foreground can therefore never *finish* a moment — only an answer (or a
+  timeout it was actually awake for) can. An unanswered moment always still exists, with its notification
+  still there to return to. Supporting guards: the screen may not sleep under it (`FLAG_KEEP_SCREEN_ON`),
+  `DONE` is idempotent (a resumed phase must not double-record), and **predictive back (Android 13+) is
+  consumed too** — it *ignores* the `onBackPressed` override, which would have silently reopened the
+  in-flow escape R7/A2 forbid.
+- **Rule going forward:** any new state in the moment (timer, sound, animation) must be **tied to
+  visibility**. If it can run unseen, it is a bug.
+
 ## 2026-07-11 — Alert model, round 3
 
 ### D45. A soft alert's moments are CHOSEN, not repeated on an interval (revises D43-3)

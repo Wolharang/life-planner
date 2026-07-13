@@ -59,6 +59,13 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 - [ ] Per-block **소리** OFF → **vibration only** (for BOTH tiers). ON → it rings — including an 알림-tier block.
 - [ ] 설정 → **알림음**: pick a tone (tap = preview); the execution moment plays **that** tone.
 
+### The moment must exist only on screen (D46) — check this one carefully
+- [ ] During **5·4·3·2·1**, press **back / home / recents / the power button**. → The countdown must **not
+      silently end the moment**. It freezes while away and **resumes at the same phase** when you come back
+      (via its notification, which is still there because you haven't answered).
+- [ ] The screen must **not sleep** while the moment is up.
+- [ ] You must **not** be able to leave the moment with **back** (button *or* gesture).
+
 ### The unstoppable-alarm guard (D44) — check this one carefully
 - [ ] While the moment is on the lock screen **ringing**, turn the screen **off**, wait, turn it **on** again.
       → The tone must **never keep playing with no screen**. It stops when the moment isn't visible, and the

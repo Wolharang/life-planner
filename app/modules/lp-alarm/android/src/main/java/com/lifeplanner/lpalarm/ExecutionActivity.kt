@@ -48,6 +48,9 @@ class ExecutionActivity : Activity() {
   private var alarmId = "" // the raw alarm/notification id ("<taskId>" or "<taskId>#recheck")
   private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
   private var wantSound = false // per-block (D43): this block asked for a tone. false = vibration only.
+  private var phase = ""        // the phase currently on screen — so we can resume exactly where we froze
+  private var visible = false   // the moment only advances (timers, tone) while it is actually on screen
+  private var doneRecorded = false // recordDone() must be idempotent: re-rendering "done" must not re-record
   private var count = 5
   private var player: MediaPlayer? = null
   private var savedAlarmVolume = -1
@@ -93,6 +96,9 @@ class ExecutionActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     showOverLockScreen()
+    registerBackGuard()
+    // The screen may not sleep under the moment — a countdown that dozes off is a countdown that lost.
+    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     volumeControlStream = AudioManager.STREAM_ALARM // volume keys adjust the ALARM stream on this screen
     startItem(itemFrom(intent))
   }
@@ -137,10 +143,10 @@ class ExecutionActivity : Activity() {
     leadMinutes = item.leadMinutes
     wantSound = item.sound // per-block (D43); the TONE is the global setting
     count = 5
+    doneRecorded = false
     stopSound()
 
     vibrate(60) // FIRING pulse
-    maybeStartSound()
     if (mode == "recheck") {
       render("recheck")
     } else {
@@ -182,26 +188,36 @@ class ExecutionActivity : Activity() {
   }
 
   /**
-   * **The alarm may only ring while the moment is actually on screen.** The founder hit the worst possible
-   * failure: after an off→on screen cycle the tone kept playing with **no window and no notification** —
-   * nothing to tap, no way to stop it. The tone belongs to the *screen*, so it lives and dies with the
-   * screen: it stops the instant we lose the foreground, resumes if we come back, and is hard-capped
-   * anyway. It can no longer outlive what it belongs to.
+   * ── The moment exists ONLY on screen ───────────────────────────────────────────────────────────────
+   *
+   * Two founder-reported bugs were the same bug: **the moment kept living after it stopped being
+   * visible.** Once as a tone that rang on with no window and no notification; once as a countdown that
+   * ran on in the background and quietly ended the moment (the user pressed something mid-5·4·3 and
+   * landed back on the app's main screen).
+   *
+   * So: **nothing about the moment advances while it isn't in the foreground.** All timers freeze, the
+   * tone stops, and both resume from the same phase when it comes back. Losing the foreground can no
+   * longer *finish* the moment — only an answer (or a timeout it was actually awake for) can. An
+   * unanswered moment therefore always still exists, and its notification is still there to return to.
    */
   override fun onPause() {
+    visible = false
+    handler.removeCallbacksAndMessages(null) // freeze the phase timers — never run unseen
     stopSound()
     super.onPause()
   }
 
   override fun onResume() {
     super.onResume()
+    visible = true
+    if (phase.isNotEmpty()) render(phase) // resume exactly where we were (re-arms this phase's timers)
     maybeStartSound()
   }
 
-  /** Ring only when: the user asked for sound on this block, and we're in a phase that should ring. */
+  /** Ring only when: the user asked for sound on this block, we're visible, and the phase should ring. */
   private fun maybeStartSound() {
-    if (!wantSound) return
-    if ((mode == "commit" || mode == "recheck") && player == null) startSound()
+    if (!wantSound || !visible) return
+    if ((phase == "commit" || phase == "recheck") && player == null) startSound()
   }
 
   override fun onDestroy() {
@@ -214,26 +230,41 @@ class ExecutionActivity : Activity() {
    * **No in-flow escape** (PRD R7 · design-principle A2 · CLAUDE.md): once the moment is up, the only
    * ways out are the moment's own answers (응, 할게 / 응, 했어 / 아직 안 했어 → 나가) or its timeouts.
    * Back was a silent side door — it let the deliberating brain leave mid-countdown, which is exactly
-   * what the countdown exists to prevent. It is deliberately a no-op. (The intentional skip is the
-   * PRE-fire "오늘은 쉼" toggle; nothing here punishes leaving — an unanswered moment stays pending.)
+   * what the countdown exists to prevent. It is deliberately a no-op.
+   *
+   * Both back mechanisms are covered: the legacy `onBackPressed` **and** Android 13+'s predictive back,
+   * which **ignores that override entirely** when the app opts in — a silent hole that would reopen the
+   * escape the moment the app (or a future Expo template) enables it.
    */
   @Suppress("DEPRECATION", "MissingSuperCall")
   override fun onBackPressed() {
     // no-op
   }
 
+  private fun registerBackGuard() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      onBackInvokedDispatcher.registerOnBackInvokedCallback(
+        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY
+      ) {
+        // consume: predictive back must not escape the moment either
+      }
+    }
+  }
+
   private fun render(phase: String) {
+    this.phase = phase
     handler.removeCallbacksAndMessages(null)
     // The tone rings while the moment is ASKING (commit / re-check); once answered it hands off to haptics.
     if (phase != "commit" && phase != "recheck") stopSound()
     when (phase) {
       "commit" -> {
         setContentView(commitView())
+        maybeStartSound()
         after(30_000) { dismiss() } // COMMIT idle → close (the re-check is already armed)
       }
       "recheck" -> {
-        vibrate(60)
         setContentView(recheckView())
+        maybeStartSound()
         after(90_000) { render("pending") } // ignored re-check → PENDING (no-guilt catch-up later)
       }
       "leave" -> {
@@ -314,7 +345,10 @@ class ExecutionActivity : Activity() {
 
   // --- helpers ---
 
+  /** Idempotent: the "done" phase can be re-rendered when the moment resumes, and a DONE must be one DONE. */
   private fun recordDone() {
+    if (doneRecorded) return
+    doneRecorded = true
     PendingOutcomes.record(this, taskId, title, occurrenceYmd(), "done", System.currentTimeMillis())
   }
 
