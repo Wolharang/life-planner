@@ -12,6 +12,25 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Other apps' overlays
+
+### D48. The moment renders as an OVERLAY window and re-claims the top — because an activity always loses
+- **Problem (founder, on-device):** 캐시워크 (a lock-screen/ad app) draws **over** the execution moment, so
+  the moment is up but the user sees an ad.
+- **Why it isn't a small bug:** such apps use a `TYPE_APPLICATION_OVERLAY` window, and **an overlay is always
+  above every ordinary activity**. While the moment is *only* an Activity, it **structurally loses** — no
+  amount of flags fixes that. Android also offers **no "always topmost" grade** (if it did, ad apps would own
+  it). Within the overlay layer the rule is simply: **the most recently added window is on top.**
+- **Decision:** the moment **renders into its own overlay window** (the Activity stays underneath to do what
+  only an Activity can: turn the screen on, show over the keyguard, own the lifecycle), and while it is
+  **unanswered** it **re-asserts itself every ~2s** (detach + re-attach → back on top of whatever appeared
+  over it). It needs the **"다른 앱 위에 표시"** grant we already require (D41); without it we fall back to a
+  plain activity, and an overlay app can still cover us — which the readiness banner already warns about.
+- **Bounded by design (B1/R14):** we out-*layer* other apps; we do not trap the user. The answers are always
+  one tap away, and leaving still just leaves the outcome pending.
+- **Tied to D46:** the overlay window is torn down when the activity stops — a window that outlived the
+  moment would be exactly the "state that runs unseen" that D46 forbids.
+
 ## 2026-07-11 — The moment exists only on screen
 
 ### D46. Nothing about the execution moment advances while it is not visible (generalizes D44)

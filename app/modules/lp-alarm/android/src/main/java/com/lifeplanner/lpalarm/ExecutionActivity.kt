@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -18,7 +19,10 @@ import android.os.Vibrator
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.provider.Settings
 import android.view.WindowManager
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.Calendar
@@ -52,6 +56,9 @@ class ExecutionActivity : Activity() {
   private var visible = false   // the moment only advances (timers, tone) while it is actually on screen
   private var doneRecorded = false // recordDone() must be idempotent: re-rendering "done" must not re-record
   private var resummons = 0 // how many times we pulled ourselves back after being sent away (bounded)
+  private var wm: WindowManager? = null
+  private var overlayRoot: FrameLayout? = null // the moment lives in an overlay window so ad/lock-screen
+                                              // overlays (캐시워크 …) cannot sit on top of it
   private var count = 5
   private var player: MediaPlayer? = null
   private var savedAlarmVolume = -1
@@ -60,6 +67,7 @@ class ExecutionActivity : Activity() {
   // The sound cap gets its own handler: render() clears `handler` on every phase change, which would
   // otherwise silently drop the safety timer that guarantees a tone can never ring forever.
   private val soundHandler = Handler(Looper.getMainLooper())
+  private val topHandler = Handler(Looper.getMainLooper()) // re-asserts the moment as the topmost window
 
   // v5 "Toss-form" tokens — the CONFIRMED skin (D39, 2026-07-11), mirroring app/tailwind.config.js.
   // The moment stays LIGHT (never a dark takeover); gold is reserved for the single DONE mark, and the
@@ -95,6 +103,9 @@ class ExecutionActivity : Activity() {
     // Pulling an unanswered moment back after home/power. Bounded: insist, never trap (R14).
     private const val RESUMMON_MAX = 3
     private const val RESUMMON_DELAY_MS = 700L
+    // How often an unanswered moment re-claims the top of the overlay layer (another app can add a window
+    // over ours at any time; the most recently added one wins).
+    private const val TOP_REASSERT_MS = 2_000L
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -240,6 +251,10 @@ class ExecutionActivity : Activity() {
    */
   override fun onStop() {
     super.onStop()
+    // The overlay window would happily outlive the activity — exactly the class of bug D44/D46 exist to
+    // forbid (a moment that keeps existing where nothing can govern it). It goes when we go, and the
+    // re-summon below is what brings the whole thing back.
+    detachOverlay()
     val unanswered = alarmId.isNotEmpty() && !resolved.contains(alarmId)
     if (!unanswered || isFinishing) return
     if (resummons >= RESUMMON_MAX) return // don't trap the user — the notification is still the way back
@@ -273,8 +288,93 @@ class ExecutionActivity : Activity() {
     if ((phase == "commit" || phase == "recheck") && player == null) startSound()
   }
 
+  // ── Staying on top of OTHER apps' overlays ────────────────────────────────────────────────────────
+  //
+  // A lock-screen/ad app (캐시워크 and friends) draws a `TYPE_APPLICATION_OVERLAY` window — and an overlay
+  // is ALWAYS above every ordinary activity. So as long as the moment is only an Activity, it structurally
+  // loses: our screen is up, but their ad is what the user sees. Android offers **no "always topmost"
+  // grade** (if it did, ad apps would already own it): within the overlay layer, **the most recently added
+  // window wins**.
+  //
+  // So the moment renders into an **overlay window of its own** (the Activity stays underneath to do what
+  // only an Activity can: turn the screen on, show over the keyguard, own the lifecycle) — and, while it is
+  // unanswered, it **re-asserts itself** on a slow tick: detach + re-attach puts it back on top of anything
+  // that appeared over it. Bounded in effort, never a fight the user can't win: they can always answer.
+  private fun setMomentView(view: View) {
+    if (!canOverlay()) {
+      setContentView(view) // no grant → plain activity content (an overlay app can still cover us)
+      return
+    }
+    val manager = wm ?: (getSystemService(Context.WINDOW_SERVICE) as WindowManager).also { wm = it }
+    detachOverlay()
+    val root = FrameLayout(this).apply {
+      setBackgroundColor(bg)
+      addView(view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+    }
+    try {
+      manager.addView(root, overlayParams())
+      overlayRoot = root
+      setContentView(View(this).apply { setBackgroundColor(bg) }) // the activity itself is just the ground
+      scheduleTopReassert()
+    } catch (e: Exception) {
+      overlayRoot = null
+      setContentView(view) // overlay refused → fall back to being a normal activity
+    }
+  }
+
+  private fun overlayParams(): WindowManager.LayoutParams {
+    val type =
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+    @Suppress("DEPRECATION")
+    return WindowManager.LayoutParams(
+      MATCH_PARENT,
+      MATCH_PARENT,
+      type,
+      WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+      PixelFormat.OPAQUE
+    )
+  }
+
+  /** Re-attaching moves us back to the top of the overlay layer — the only lever Android actually gives. */
+  private fun scheduleTopReassert() {
+    topHandler.removeCallbacksAndMessages(null)
+    topHandler.postDelayed(
+      object : Runnable {
+        override fun run() {
+          val root = overlayRoot ?: return
+          if (isFinishing || alarmId.isEmpty() || resolved.contains(alarmId)) return
+          try {
+            wm?.removeView(root)
+            wm?.addView(root, overlayParams()) // last added = on top of any overlay that appeared over us
+          } catch (e: Exception) {
+            // window gone — nothing to re-assert
+          }
+          topHandler.postDelayed(this, TOP_REASSERT_MS)
+        }
+      },
+      TOP_REASSERT_MS
+    )
+  }
+
+  private fun detachOverlay() {
+    topHandler.removeCallbacksAndMessages(null)
+    overlayRoot?.let { root ->
+      try {
+        wm?.removeView(root)
+      } catch (e: Exception) {
+        // already gone
+      }
+    }
+    overlayRoot = null
+  }
+
   override fun onDestroy() {
     handler.removeCallbacksAndMessages(null)
+    detachOverlay()
     stopSound()
     super.onDestroy()
   }
@@ -294,6 +394,9 @@ class ExecutionActivity : Activity() {
     // no-op
   }
 
+  private fun canOverlay(): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+
   private fun registerBackGuard() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -311,12 +414,12 @@ class ExecutionActivity : Activity() {
     if (phase != "commit" && phase != "recheck") stopSound()
     when (phase) {
       "commit" -> {
-        setContentView(commitView())
+        setMomentView(commitView())
         maybeStartSound()
         after(30_000) { dismiss() } // COMMIT idle → close (the re-check is already armed)
       }
       "recheck" -> {
-        setContentView(recheckView())
+        setMomentView(recheckView())
         maybeStartSound()
         after(90_000) { render("pending") } // ignored re-check → PENDING (no-guilt catch-up later)
       }
@@ -326,13 +429,13 @@ class ExecutionActivity : Activity() {
       }
       "leavego" -> {
         vibrate(40)
-        setContentView(leaveGoView())
+        setMomentView(leaveGoView())
         after(3_500) { dismiss() } // pushed out; outcome stays pending (no guilt) — catch-up resolves it
       }
       "done" -> {
         recordDone()
         vibrate(90)
-        setContentView(doneView())
+        setMomentView(doneView())
       }
       "pending" -> dismiss()
     }
@@ -358,7 +461,7 @@ class ExecutionActivity : Activity() {
   }
 
   private fun renderLeaveCountdown() {
-    setContentView(countView(count))
+    setMomentView(countView(count))
     vibrate(25)
     if (count <= 1) after(1_000) { render("leavego") }
     else after(1_000) { count -= 1; renderLeaveCountdown() }

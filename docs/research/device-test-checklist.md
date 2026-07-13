@@ -69,6 +69,12 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
       trap you; the notification stays as the way back and the outcome stays **pending**.
 - [ ] You must **not** be able to leave the moment with **back** (button *or* gesture).
 
+### Other apps' overlays (D48)
+- [ ] With **캐시워크** (or any lock-screen/ad overlay app) installed and active, fire a moment → **ours is on
+      top**. If theirs pops up again, ours **comes back on top within ~2 seconds**.
+- [ ] Without the **"다른 앱 위에 표시"** grant this is expected to FAIL (we fall back to a plain activity) —
+      the home banner must be telling you the grant is missing.
+
 ### The unstoppable-alarm guard (D44) — check this one carefully
 - [ ] While the moment is on the lock screen **ringing**, turn the screen **off**, wait, turn it **on** again.
       → The tone must **never keep playing with no screen**. It stops when the moment isn't visible, and the

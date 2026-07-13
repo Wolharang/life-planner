@@ -7,6 +7,29 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — Another app's overlay covered the moment → the moment becomes an overlay too (D48)
+
+- **Symptom (founder):** 캐시워크 (a lock-screen/ad app) pops **over** our execution moment; the moment is up,
+  but the ad is what you see.
+- **Why an activity can never win:** those apps draw a `TYPE_APPLICATION_OVERLAY` window, and **an overlay is
+  always above every ordinary activity**. No flag fixes that. And Android has **no "always topmost" grade** —
+  if it did, ad apps would already own it. Inside the overlay layer the only rule is: **last added wins.**
+- **Fix:** the moment now **renders into its own overlay window** (the Activity stays underneath for what only
+  an Activity can do — turn the screen on, show over the keyguard, own the lifecycle), and while **unanswered**
+  it **re-claims the top every ~2s** (detach + re-attach). It uses the **"다른 앱 위에 표시"** grant we already
+  require (D41); without the grant we fall back to a plain activity and can still be covered — which is exactly
+  what the readiness banner exists to warn about.
+- **Still bounded (B1/R14):** we out-*layer* other apps, we don't trap the user — the answers are one tap away,
+  and leaving still just leaves the outcome pending.
+- **Tied to D46:** the overlay is torn down when the activity stops. A window that outlived the moment would be
+  precisely the "state that runs unseen" that D46 forbids — and the self-re-summon is what brings it all back.
+
+### Verified
+`typecheck` ✓ · `32 tests` ✓ · `prebuild --clean --platform android` ✓. **Device check:** with 캐시워크
+installed, fire a moment → **ours must be on top**, and stay there if theirs re-appears.
+
+---
+
 ## 2026-07-11 — Device pass #4: the countdown vanished → "the moment exists only on screen" (D46)
 
 - **Symptom (founder):** mid **5·4·3** something was pressed; the countdown disappeared and the app's **main
