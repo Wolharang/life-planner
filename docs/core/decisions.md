@@ -12,6 +12,39 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-13 (late) — the two-device test, and what it exposed
+
+### D65. Loudness has THREE settings — 무음 · 진동 · 소리 (revises D43's boolean)
+- **The gap.** D43 made loudness a per-block boolean: **소리 + 진동**, or **진동만**. There was no way to simply
+  **be seen**. So a block added only so the day is honest (강의, 이동 — the very blocks D62 brought `none` back
+  for) still **buzzed your leg**, every single time.
+- **A vibration is not free.** Every needless buzz spends the budget that keeps the **one loud thing loud**
+  (C1/D30). If the phone twitches twenty times a day, the twenty-first — the one that matters — is just another
+  twitch. The quiet end of the axis has to actually be quiet.
+- **Decision.** Loudness is one choice with three settings, still **independent of the tier** (D43): a `soft`
+  alert can be silent, and **so can the execution moment** — it takes the screen and says nothing at all. *The
+  screen IS the intervention; the noise was only ever its escort.*
+- **Three notification channels**, because Android freezes a channel's sound **and its vibration** at creation
+  and you can only ever ship another one. Old rows read forward (`loudnessOf`): a pre-D65 block lands where its
+  owner left it and **can never become silent by accident**.
+
+### D66. Sync must never claim a write landed when it didn't
+- **The failure (found on the second device).** The founder imported his budget history — 180 expenses — logged
+  in on the other phone, and **not one expense was there**. Meals had synced; expenses had not.
+- **Two faults, and the second is the one that matters.**
+  1. Firestore's outbox **jammed**: 400 writes were queued at import, the meals drained, and the 180 expenses
+     sat there **undelivered, unrejected, and unretried**. Clearing the queue and re-pushing landed all 180 in
+     seven seconds, with zero failures — nothing was ever wrong with the data.
+  2. **The app declared them synced.** A Firestore snapshot **layers your own un-sent writes on top of the
+     server's state**, so `reconcile` read "the cloud has all 180 of these", pushed nothing, and never tried
+     again. The app was confidently, permanently wrong — and said so to nobody.
+- **Decision.** The reconcile — the one moment we decide **what the cloud is missing** — reads with
+  `source: "server"`, never the cache. And because a write is **fire-and-forget by necessity** (awaiting it
+  hangs the save button offline), the app now **keeps books**: what it handed over, what actually landed, and
+  it **shows the difference** on the account screen ("아직 올라가지 못한 기록 N건").
+- **The rule.** *"We don't wait" must never become "we don't know."* A number the user can see is the entire
+  distance between "eventually consistent" and "your year of receipts is gone and nobody said so."
+
 ## 2026-07-13 (night) — what the device found that no audit could
 
 ### D62. "없음" comes back — a block is an HOUR, not only an alert (revises D43)

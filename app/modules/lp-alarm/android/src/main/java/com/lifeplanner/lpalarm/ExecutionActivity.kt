@@ -52,7 +52,8 @@ class ExecutionActivity : Activity() {
   private var alarmId = "" // the raw alarm/notification id ("<taskId>" or "<taskId>#recheck")
   private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
   private var occurrenceDate = "" // the day the OUTCOME belongs to; carried by the re-check (see below)
-  private var wantSound = false // per-block (D43): this block asked for a tone. false = vibration only.
+  private var wantSound = false
+  private var wantVibrate = true // D65: 무음 blocks take the screen and say nothing at all // per-block (D43): this block asked for a tone. false = vibration only.
   private var phase = ""        // the phase currently on screen — so we can resume exactly where we froze
   private var visible = false   // the moment only advances (timers, tone) while it is actually on screen
   private var doneRecorded = false // recordDone() must be idempotent: re-rendering "done" must not re-record
@@ -90,6 +91,8 @@ class ExecutionActivity : Activity() {
     val leadMinutes: Int,
     val mode: String = "commit",
     val sound: Boolean = false,
+    /** D65 — 무음: the moment takes the screen and says nothing. No tone, and **no buzz**. */
+    val vibrate: Boolean = true,
     /** The day the OUTCOME belongs to. Empty on a commit (derivable); carried on a re-check (not). */
     val occurrenceDate: String = ""
   )
@@ -142,6 +145,7 @@ class ExecutionActivity : Activity() {
     leadMinutes = i.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0),
     mode = i.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit",
     sound = i.getBooleanExtra(LpAlarmConstants.EXTRA_SOUND, false),
+    vibrate = i.getBooleanExtra(LpAlarmConstants.EXTRA_VIBRATE, true),
     occurrenceDate = i.getStringExtra(LpAlarmConstants.EXTRA_DATE) ?: ""
   )
 
@@ -167,6 +171,7 @@ class ExecutionActivity : Activity() {
     createdAt = item.createdAt
     leadMinutes = item.leadMinutes
     wantSound = item.sound // per-block (D43); the TONE is the global setting
+    wantVibrate = item.vibrate // D65
     occurrenceDate = item.occurrenceDate
     count = 5
     doneRecorded = false
@@ -208,6 +213,7 @@ class ExecutionActivity : Activity() {
         leadMinutes = 0, // the re-check's "intended" is just now+5m — no lead offset
         mode = "recheck",
         sound = wantSound,
+        vibrate = wantVibrate,
         occurrenceDate = occurrenceYmd() // the block's day — NOT the day the re-check happens to land on
       ),
       persist = true
@@ -746,7 +752,9 @@ class ExecutionActivity : Activity() {
     }
   }
 
+  /** Silent means silent: 무음 blocks do not buzz either (D65). The screen is the intervention. */
   private fun vibrate(ms: Long) {
+    if (!wantVibrate) return
     val v = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))

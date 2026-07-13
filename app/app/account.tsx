@@ -21,6 +21,7 @@ import {
   signUp,
   type Account,
 } from "@/core/data/firebase";
+import { syncStats } from "@/core/data/sync";
 
 type Mode = "signIn" | "signUp";
 
@@ -34,6 +35,16 @@ export default function AccountScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => onAccountChanged(setAccount), []);
+
+  // **Say when sync is behind.** Writes are handed to Firestore and not awaited (awaiting hangs the save
+  // button offline), but the app must not therefore *pretend* they landed: the founder's 180 imported expenses
+  // sat undelivered in Firestore's outbox while the app reported everything synced. This is the number that
+  // would have said so.
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setPending(syncStats().inFlight + syncStats().failed), 1500);
+    return () => clearInterval(t);
+  }, []);
 
   const available = firebaseAvailable();
   const withGoogle = googleAvailable();
@@ -120,9 +131,15 @@ export default function AccountScreen() {
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "600", marginBottom: 14 }}>
               {account.email ?? "로그인됨"}
             </Text>
-            <Text className="text-grey" style={{ fontSize: 13, lineHeight: 20, marginBottom: 18 }}>
+            <Text className="text-grey" style={{ fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
               일정·시간블록·지출·식사가 다른 기기와 자동으로 맞춰져요. 오프라인에서 바꾼 것은 연결되면 올라가요.
             </Text>
+            {pending > 0 && (
+              // Taupe, not red. Being behind is a fact, not a fault (R14) — but it is a fact the user is owed.
+              <Text className="text-miss" style={{ fontSize: 13, fontWeight: "600", marginBottom: 12 }}>
+                아직 올라가지 못한 기록 {pending}건 — 연결되면 자동으로 올라가요.
+              </Text>
+            )}
             <Pressable
               onPress={leave}
               disabled={busy}

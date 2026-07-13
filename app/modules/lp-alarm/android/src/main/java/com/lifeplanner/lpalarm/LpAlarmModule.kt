@@ -129,10 +129,17 @@ class LpAlarmModule : Module() {
 
     // --- scheduling ---
 
-    Function("scheduleExactAlarm") { id: String, fireAt: Double, title: String, recurrence: String, note: String, createdAt: Double, leadMinutes: Int, sound: Boolean ->
+    // `loudness` is one string — "silent" | "vibrate" | "sound" (D65) — rather than two booleans, because
+    // Expo Modules caps a Function at 8 parameters. It also models the truth better: loudness is one choice
+    // with three settings, not two independent flags that can contradict each other.
+    Function("scheduleExactAlarm") { id: String, fireAt: Double, title: String, recurrence: String, note: String, createdAt: Double, leadMinutes: Int, loudness: String ->
       AlarmScheduler.schedule(
         context,
-        AlarmItem(id, fireAt.toLong(), title, recurrence, note, createdAt.toLong(), leadMinutes, "commit", sound)
+        AlarmItem(
+          id, fireAt.toLong(), title, recurrence, note, createdAt.toLong(), leadMinutes, "commit",
+          sound = loudness == "sound",
+          vibrate = loudness != "silent"
+        )
       )
     }
 

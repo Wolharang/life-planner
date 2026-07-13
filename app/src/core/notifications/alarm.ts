@@ -148,8 +148,9 @@ export const alarm = {
     /** minutes the effective fire time is ahead-shifted (set − lead = fireAt); carried so the native
      *  commit line can show the SET time, not the effective time (PRD R3). */
     leadMinutes?: number;
-    /** D43: does THIS block's moment ring, or vibrate only? The tone itself is a global setting. */
-    sound?: boolean;
+    /** D65 — how loudly the moment announces itself: `"silent" | "vibrate" | "sound"`. 무음 means it takes the
+     *  screen and says **nothing**: no tone, no buzz. The tone itself is a global setting (D42). */
+    loudness?: "silent" | "vibrate" | "sound";
   }): void {
     Native().scheduleExactAlarm(
       opts.id,
@@ -159,7 +160,7 @@ export const alarm = {
       opts.note ?? "",
       opts.createdAt ?? Date.now(),
       opts.leadMinutes ?? 0,
-      opts.sound ?? false
+      opts.loudness ?? "vibrate"
     );
   },
   cancel(id: string): void {

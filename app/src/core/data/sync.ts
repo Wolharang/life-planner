@@ -108,11 +108,39 @@ async function readLocal<T extends Syncable>(name: CollectionName): Promise<T[]>
  * eventually, in order, across restarts. So: hand the write to Firestore's cache and return immediately.
  * Latency and connectivity become invisible — which is also why the database's *region* stops mattering.
  */
+/**
+ * **The app must never claim a write is synced when it isn't.**
+ *
+ * `set()` resolves only when the **server** accepts the write. Not awaiting it is right (awaiting hangs the
+ * save button offline — see above), but *"we don't wait"* must not become *"we don't know"*. The founder
+ * imported 180 expenses, Firestore's outbox jammed, and **not one reached the server** — while the app happily
+ * reported everything as synced, because nothing was ever checked. He found out by opening the Firebase console.
+ *
+ * So we keep books: what we handed over, and what actually landed. The difference is **in flight, or stuck**,
+ * and the account screen shows it. A number the user can see is the whole distance between "eventually
+ * consistent" and "your year of receipts is gone and nobody said so".
+ */
+const stats = { sent: 0, acked: 0, failed: 0 };
+
+export function syncStats(): { sent: number; acked: number; failed: number; inFlight: number } {
+  return { ...stats, inFlight: Math.max(0, stats.sent - stats.acked - stats.failed) };
+}
+
 function fire(work: () => Promise<unknown> | undefined): void {
   try {
-    void work()?.catch(() => {
-      // the row is safe locally and queued in Firestore's cache; a rejection here must never reach the user
-    });
+    const pr = work();
+    if (!pr) return; // no account / no native Firebase — nothing was handed over, so nothing is owed
+    stats.sent++;
+    void pr.then(
+      () => {
+        stats.acked++;
+      },
+      () => {
+        // The row is safe locally, and the next session's server reconcile offers it again. This must never
+        // reach the user as an error — but it must not vanish from OUR books either.
+        stats.failed++;
+      },
+    );
   } catch {
     /* native missing / not signed in — local-only, exactly as designed */
   }
@@ -276,7 +304,25 @@ export function planReconcile<T extends Syncable>(
   return { merged: [...merged.values()], toPush, toBury };
 }
 
-async function reconcile(name: CollectionName, snap: any, uid: string): Promise<void> {
+/**
+ * **Ask the SERVER what it has. Never ask the cache.**
+ *
+ * A Firestore snapshot layers **this device's own un-sent writes** on top of the server's state, so a row still
+ * sitting in the outbox looks exactly like a row the server already holds. `reconcile` read a snapshot,
+ * concluded "the cloud has all 180 of these", and pushed nothing — **so a write that never reached the server
+ * was never retried.** The founder's 180 imported expenses sat on the phone forever while the app cheerfully
+ * reported them as synced. `hasPendingWrites` does not save us either: on a fresh launch it reports *pending*
+ * for rows the server accepted long ago.
+ *
+ * So the reconcile — the one moment we decide **what the cloud is missing** — reads with `source: "server"`. It
+ * is one read per collection per session, it cannot lie, and it is the only thing standing between an import
+ * and silent data loss. If it fails (offline), we simply do not reconcile this session: local storage keeps
+ * serving, and the next launch tries again.
+ */
+async function reconcileAgainstServer(name: CollectionName, uid: string): Promise<void> {
+  const snap = await col(uid, name)?.get({ source: "server" });
+  if (!snap) return;
+
   const cloudRows: CloudRow[] = [];
   snap.forEach((doc: any) => {
     const data = doc.data();
@@ -296,38 +342,32 @@ async function reconcile(name: CollectionName, snap: any, uid: string): Promise<
     for (const row of toPush) syncPut(name, row);
     for (const id of toBury) syncRemove(name, id); // a logged-out deletion finally reaches the cloud
   }
-  // Different owner → push NOTHING. These rows are the previous account's; they are already safe in its cloud,
-  // and they are not this account's to hold. The new owner adopts its own data and nothing leaks either way.
+  // Different owner → push NOTHING. Those rows belong to the previous account; they are already safe in its
+  // cloud, and they are not this account's to hold.
 
   await AsyncStorage.setItem(OWNER_KEY, uid);
   await writeLocal(name, merged);
 }
 
 /**
- * **Every** snapshot is a reconcile — never a blind projection.
- *
- * There used to be a second, "steady state" path that simply replaced local storage with whatever the cloud
- * held. It rested on a rule that is **false**: *"absent from the cloud ⇒ deleted"*. It is not. A real deletion
- * leaves a **tombstone document** (§6, D54), so a row that is merely *absent* means the cloud has never
- * received it — a row created offline, a row whose push failed, a row restored from a backup. Projecting over
- * it **deleted the user's block and cancelled its alarm**, silently, with no error anywhere.
- *
- * `planReconcile` already encodes the right rule (tombstone → drop; absent → push; older → push; newer →
- * take), and it is idempotent: once a row has been pushed, the cloud carries the same `updatedAt`, so it is
- * not pushed again and the loop converges. So there is only one path now, and it cannot lose a row.
+ * Steady state: keep local in step with what the listener reports. It **never pushes** — what the cloud is
+ * missing is decided only against real server state (above) and at write time. And it never deletes a row the
+ * cloud has simply never heard of (one made while logged out): `planReconcile` keeps those, and only a
+ * **tombstone** removes anything.
  */
-async function applySnapshot(uid: string, name: CollectionName, snap: any): Promise<void> {
-  const key = `${uid}:${name}`;
+async function project(name: CollectionName, snap: any): Promise<void> {
+  const cloudRows: CloudRow[] = [];
+  snap.forEach((doc: any) => {
+    const data = doc.data();
+    if (data) cloudRows.push({ ...data, id: data.id ?? doc.id } as CloudRow);
+  });
+  const { merged } = planReconcile(await readLocal(name), cloudRows, await deletedIds(name));
+  await writeLocal(name, merged);
+}
 
-  if (!reconciled.has(key)) {
-    // Until we have heard from the SERVER we do not know what was deleted, so we must not act: pushing could
-    // resurrect a tombstoned row, and reconciling against a cold cache could look like "the cloud has nothing"
-    // for rows it actually holds. Local storage keeps serving the app in the meantime — which is the whole
-    // point of being local-first.
-    if (snap.metadata?.fromCache !== false) return;
-    reconciled.add(key);
-  }
-  await reconcile(name, snap, uid);
+async function applySnapshot(uid: string, name: CollectionName, snap: any): Promise<void> {
+  if (!reconciled.has(`${uid}:${name}`)) return; // the server reconcile speaks first
+  await project(name, snap);
 }
 
 /** Turn sync on for `uid`. Idempotent per uid, so the auth listener can call it freely. */
@@ -336,12 +376,21 @@ function enable(uid: string): void {
   disable();
   syncingFor = uid;
 
-  // No blind push here. The first *server* snapshot carries the truth (including tombstones), and the
-  // reconcile that runs on it is the cutover. Until then this device runs on local storage, exactly as it
-  // does logged out.
   for (const name of NAMES) {
+    // 1) Reconcile against the SERVER first — the only source that knows what actually arrived. Until it
+    //    answers, the listener stays silent (`applySnapshot` returns early): acting on a cache that mixes in
+    //    our own undelivered writes is how the imported expenses were declared "synced" and abandoned.
+    void reconcileAgainstServer(name, uid)
+      .then(() => {
+        reconciled.add(`${uid}:${name}`);
+      })
+      .catch(() => {
+        // Offline, or the read was refused. Do nothing: local storage keeps serving the app exactly as it does
+        // logged out, and the next launch reconciles. Never guess.
+      });
+
+    // 2) Then follow it live.
     const unsub = col(uid, name)?.onSnapshot(
-      { includeMetadataChanges: true }, // we must be able to tell a cold cache from real server state
       (snap: any) => {
         void applySnapshot(uid, name, snap);
       },

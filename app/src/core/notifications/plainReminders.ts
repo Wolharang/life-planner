@@ -11,7 +11,7 @@
 // expo-notifications is loaded LAZILY + defensively: if its native module isn't linked yet (e.g. before
 // a full `prebuild` + rebuild), notifications silently no-op instead of crashing the whole app.
 
-import type { ImportantEvent, Task } from "@/core/data/types";
+import { loudnessOf, type BlockLoudness, type ImportantEvent, type Task } from "@/core/data/types";
 
 function getNotifications(): any | null {
   try {
@@ -27,22 +27,30 @@ function getNotifications(): any | null {
 // not pierce. (The execution cue's channel is the opposite by design: HIGH + bypassDnd + PUBLIC, set
 // natively in AlarmNotifications.kt.) Android freezes a channel's settings after creation, so this id
 // is versioned — bump it if the policy ever changes.
-// Two channels, because Android freezes a channel's sound after creation: a **silent** one (vibration
-// only — the default) and an **audible** one (D43: a soft alert may ring if the user wants it to).
-// Neither pierces the lock screen — that stays the execution cue's alone (R15).
-const SOFT_CHANNEL_ID = "lp-soft-v1";
-const SOFT_SOUND_CHANNEL_ID = "lp-soft-sound-v1";
+// **THREE channels**, because Android freezes a channel's sound *and* its vibration after creation — you
+// cannot change either later, you can only ship another channel (data-model §2.3). So one per loudness (D65):
+//   무음  — it appears in the shade and says nothing. No sound, **no vibration**.
+//   진동  — the default.
+//   소리  — it rings (the tone itself is a global setting).
+// None of them pierces the lock screen — that stays the execution cue's alone (R15).
+const SOFT_CHANNELS: Record<BlockLoudness, { id: string; name: string }> = {
+  silent: { id: "lp-soft-silent-v1", name: "알림 (무음)" },
+  vibrate: { id: "lp-soft-v1", name: "알림 (진동만)" },
+  sound: { id: "lp-soft-sound-v1", name: "알림 (소리)" },
+};
 const channelsReady = new Set<string>();
 
-async function ensureSoftChannel(N: any, withSound = false): Promise<string | undefined> {
-  const id = withSound ? SOFT_SOUND_CHANNEL_ID : SOFT_CHANNEL_ID;
+async function ensureSoftChannel(N: any, loudness: BlockLoudness): Promise<string | undefined> {
+  const { id, name } = SOFT_CHANNELS[loudness];
   if (channelsReady.has(id)) return id;
   try {
     await N.setNotificationChannelAsync(id, {
-      name: withSound ? "알림 (소리)" : "알림 (진동만)",
+      name,
       importance: N.AndroidImportance.DEFAULT, // not HIGH → no heads-up takeover, never a lock-screen takeover
-      sound: withSound ? "default" : null,
-      vibrationPattern: [0, 220, 120, 220],
+      sound: loudness === "sound" ? "default" : null,
+      // `null` is the only way to say "do not vibrate" — an empty array still buzzes on some OEMs.
+      vibrationPattern: loudness === "silent" ? null : [0, 220, 120, 220],
+      enableVibrate: loudness !== "silent",
       lockscreenVisibility: N.AndroidNotificationVisibility.PRIVATE,
       bypassDnd: false,
     });
@@ -117,7 +125,7 @@ export async function scheduleReminders(task: Task): Promise<void> {
   if (!N) return;
   try {
     await cancelReminders(task.id);
-    const channelId = await ensureSoftChannel(N);
+    const channelId = await ensureSoftChannel(N, "vibrate");
     for (const offset of task.plainReminderOffsets ?? []) {
       const at = nextReminderAt(task.setTime, offset, task.recurrence, Date.now());
       if (at == null) continue;
@@ -172,6 +180,7 @@ export async function scheduleBlockSoftAlert(
     end?: string;
     alarmLeadMinutes: number;
     alertSound?: boolean;
+    alertLoudness?: BlockLoudness;
     alertLeads?: number[];
   },
   startAt: number
@@ -180,7 +189,7 @@ export async function scheduleBlockSoftAlert(
   if (!N) return;
   try {
     await cancelBlockSoftAlert(block.id);
-    const channelId = await ensureSoftChannel(N, !!block.alertSound);
+    const channelId = await ensureSoftChannel(N, loudnessOf(block));
     const now = Date.now();
 
     const leads = (block.alertLeads?.length ? block.alertLeads : [block.alarmLeadMinutes])
@@ -253,7 +262,7 @@ export async function scheduleEventNotification(event: ImportantEvent): Promise<
     const lead = event.notifyLeadMinutes ?? (await defaultLead());
     const at = eventNotifyAt(event, lead, Date.now());
     if (at == null) return;
-    const channelId = await ensureSoftChannel(N); // R15: soft, quiet, does not pierce the lock screen
+    const channelId = await ensureSoftChannel(N, "vibrate"); // R15: soft, quiet, does not pierce the lock screen
     await N.scheduleNotificationAsync({
       identifier: `${event.id}${EVENT_SUFFIX}`,
       content: {

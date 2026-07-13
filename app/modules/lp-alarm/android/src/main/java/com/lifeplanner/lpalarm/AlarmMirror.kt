@@ -57,7 +57,8 @@ object AlarmMirror {
           mode = o.optString("mode", "commit"),
           occurrenceDate = o.optString("occurrenceDate", ""),
           wallDate = o.optString("wallDate", ""),
-          wallMinute = o.optInt("wallMinute", -1)
+          wallMinute = o.optInt("wallMinute", -1),
+          vibrate = o.optBoolean("vibrate", true)
         )
       )
     }
@@ -81,6 +82,7 @@ object AlarmMirror {
           .put("occurrenceDate", it.occurrenceDate)
           .put("wallDate", it.wallDate)
           .put("wallMinute", it.wallMinute)
+          .put("vibrate", it.vibrate)
       )
     }
     prefs(context).edit().putString(KEY, arr.toString()).apply()

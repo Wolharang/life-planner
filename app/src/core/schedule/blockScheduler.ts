@@ -7,7 +7,7 @@
 //    by itself once that date arrives** — no midnight job. A block created on the day snapshots its
 //    creation values (data-model §2.3, spec §3.6).
 
-import type { TimeBlock } from "@/core/data/types";
+import { loudnessOf, type TimeBlock } from "@/core/data/types";
 import { alarm } from "@/core/notifications/alarm";
 import { cancelBlockSoftAlert, scheduleBlockSoftAlert } from "@/core/notifications/plainReminders";
 
@@ -80,7 +80,9 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
       note: block.microStartNote ?? "",
       createdAt: block.createdAt,
       leadMinutes: block.alarmLeadMinutes,
-      sound: !!block.alertSound, // D43: the moment itself can be vibration-only
+      // D43/D65 — the moment announces at the block's own loudness. 무음 means it takes the screen and says
+      // nothing at all: no tone, no buzz. The screen IS the intervention; the noise was only ever its escort.
+      loudness: loudnessOf(block),
     });
   } else {
     // The soft tier owns its own moments (alertLeads), so it needs the block's START, not one fire time.

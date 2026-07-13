@@ -157,10 +157,19 @@ export type BlockStatus = "planned" | "success" | "fail" | "skipped";
  *    **3 moments the user picks** (`alertLeads`, D45). For blocks that need telling, not forcing (점심, 약속).
  *  · `execution` — **the default**: the exact alarm + the full-screen moment over the lock screen (R7).
  *    The lever is the product, so a new block gets it unless you say otherwise.
- * Either kind can be **silent (vibration only) or audible** (`alertSound`) — the tier and the loudness are
- * independent choices (D43).
+ * **Loudness is an independent axis with three settings** (`alertLoudness`, D65): **무음 · 진동 · 소리**. The
+ * tier says *how hard the app pushes*; loudness says *how loudly it announces*. They are orthogonal — the
+ * execution moment may be silent, an ordinary alert may ring.
+ *
+ * 무음 exists because a **buzz is not free**. A block you added only so the day is honest (강의, 이동) still has
+ * to be able to *appear* without vibrating your leg for the twentieth time — and every needless buzz spends the
+ * budget that keeps the one loud thing loud (C1/D30). Before D65 the axis was a boolean and the quiet end of it
+ * was still a vibration; there was no way to simply be seen.
  */
 export type BlockAlert = "none" | "soft" | "execution";
+
+/** How loudly an alert announces itself — independent of which tier it is (D43/D65). */
+export type BlockLoudness = "silent" | "vibrate" | "sound";
 
 /**
  * TimeBlock — the day plan's unit, the execution lever's target, and the evaluation subject
@@ -185,7 +194,10 @@ export interface TimeBlock {
   alarmLeadMinutes: number;
   /** sound on this block's alert? `false` (default) = **vibration only**. Applies to BOTH tiers (D43) —
    *  the execution moment can be silent, and a soft alert can be audible. The tone itself is a setting. */
+  /** LEGACY (pre-D65): `true` = sound. Read forward into `alertLoudness`; never written. */
   alertSound?: boolean;
+  /** 무음 (appears, says nothing) · 진동 (default) · 소리 (D65). Independent of the tier (D43). */
+  alertLoudness?: BlockLoudness;
   /**
    * `soft` only — **when** its notifications arrive: minutes before `start`, **one entry per notification**,
    * **max 3** (D45). e.g. `[60, 15, 0]` = an hour before, 15 minutes before, and on the dot. The user picks
@@ -229,4 +241,14 @@ export interface ImportantEvent {
   memo?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * The loudness a block actually announces with. Reads the **old boolean forward**: rows written before D65
+ * carry `alertSound` (true = 소리, false = 진동만) and no `alertLoudness`. There was no way to say 무음 back
+ * then, so an old row can never *become* silent by accident — it lands where its owner left it.
+ */
+export function loudnessOf(b: { alertLoudness?: BlockLoudness; alertSound?: boolean }): BlockLoudness {
+  if (b.alertLoudness) return b.alertLoudness;
+  return b.alertSound ? "sound" : "vibrate";
 }

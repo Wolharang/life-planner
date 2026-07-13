@@ -18,7 +18,7 @@ import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { alarm } from "@/core/notifications/alarm";
-import type { BlockAlert, BlockKind } from "@/core/data/types";
+import { loudnessOf, type BlockAlert, type BlockKind, type BlockLoudness } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const KINDS: { label: string; v: BlockKind }[] = [
@@ -55,6 +55,12 @@ const SOFT_LEAD_PRESETS = [
   { label: "1시간 전", v: 60 },
 ];
 const MAX_ALERTS = 3;
+// The loudness axis (D65) — three settings, independent of the tier.
+const LOUDNESS: { label: string; v: BlockLoudness }[] = [
+  { label: "무음", v: "silent" },
+  { label: "진동", v: "vibrate" },
+  { label: "소리", v: "sound" },
+];
 const leadText = (v: number) => (v === 0 ? "정각" : v % 60 === 0 ? `${v / 60}시간 전` : `${v}분 전`);
 const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
 
@@ -87,7 +93,7 @@ export default function AddBlock() {
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
   const [alert, setAlert] = useState<BlockAlert>("execution"); // the lever is the default (D43)
-  const [alertSound, setAlertSound] = useState(false); // false = vibration only (both tiers, D43)
+  const [loudness, setLoudness] = useState<BlockLoudness>("vibrate"); // D65 — 무음/진동/소리
   const [leads, setLeads] = useState<number[]>([0]); // soft only: the moments the user picked (D45)
   const [addingLead, setAddingLead] = useState(false);
   const [leadInput, setLeadInput] = useState("");
@@ -111,9 +117,11 @@ export default function AddBlock() {
       // The global 설정 → 소리 switch is the DEFAULT for a new block (D49) — the block's own flag is what
       // actually fires (D43), so the switch cannot silently govern alarms the user thinks he set per block.
       try {
-        setAlertSound(alarm.getSound());
+        // The global 설정 → 소리 switch is the DEFAULT for a new block (D49) — the block's own choice is what
+        // actually fires (D43), so the switch can never silently govern an alarm the user set per block.
+        setLoudness(alarm.getSound() ? "sound" : "vibrate");
       } catch {
-        // native not linked (dev skew) — keep the vibration-only default
+        // native not linked (dev skew) — keep the vibration default
       }
     })();
   }, [editId]);
@@ -139,7 +147,7 @@ export default function AddBlock() {
       setKind(b.kind);
       setLocation(b.location ?? "");
       setAlert(b.alert);
-      setAlertSound(!!b.alertSound);
+      setLoudness(loudnessOf(b));
       setLeads(b.alertLeads?.length ? b.alertLeads : [b.alarmLeadMinutes]);
       setLead(b.alarmLeadMinutes);
       if (!LEAD_PRESET_VALUES.includes(b.alarmLeadMinutes)) {
@@ -203,7 +211,7 @@ export default function AddBlock() {
       kind,
       location: location.trim() || undefined,
       alert,
-      alertSound,
+      alertLoudness: loudness,
       alertLeads: alert === "soft" ? sortedLeads : undefined,
       alarmLeadMinutes: alert === "soft" ? (sortedLeads[0] ?? 0) : effectiveLead,
       microStartNote: note.trim() || undefined,
@@ -433,24 +441,43 @@ export default function AddBlock() {
             : "알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."}
         </Text>
 
-        {/* 소리 / 진동 — independent of the tier (D43): the moment can be silent, an alert can ring. */}
-        <View className="flex-row items-center justify-between" style={{ marginTop: 18 }}>
-          <View className="flex-1 pr-3">
+        {/* 무음 / 진동 / 소리 (D65) — independent of the tier (D43): the moment can be silent, an alert can ring.
+            무음 exists because a buzz is not free: a block added only so the day is honest (강의, 이동) must be
+            able to *appear* without vibrating your leg for the twentieth time, and every needless buzz spends
+            the budget that keeps the one loud thing loud (C1/D30). */}
+        {alert !== "none" && (
+          <View style={{ marginTop: 18 }}>
             <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700" }}>
-              소리
+              알림 방식
             </Text>
-            <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
-              {alertSound ? "소리 + 진동" : "진동만"}
+            <Text className="text-grey mt-0.5 mb-2" style={{ fontSize: 12.5 }}>
+              {loudness === "silent"
+                ? alert === "execution"
+                  ? "화면만 떠요 — 소리도 진동도 없어요"
+                  : "알림만 남아요 — 소리도 진동도 없어요"
+                : loudness === "sound"
+                  ? "소리 + 진동"
+                  : "진동만"}
             </Text>
+            <View className="flex-row" style={{ gap: 8 }}>
+              {LOUDNESS.map((l) => (
+                <Pressable
+                  key={l.v}
+                  onPress={() => setLoudness(l.v)}
+                  className={loudness === l.v ? "bg-brand" : "bg-group"}
+                  style={{ flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}
+                >
+                  <Text
+                    className={loudness === l.v ? "" : "text-ink"}
+                    style={{ fontSize: 14, fontWeight: "700", color: loudness === l.v ? "#FFFFFF" : undefined }}
+                  >
+                    {l.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-          <Switch
-            value={alertSound}
-            onValueChange={setAlertSound}
-            trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor="#E5E8EB"
-          />
-        </View>
+        )}
 
         {/* 알림 시점 (D45) — the user picks WHEN, up to 3 moments. Not a fixed repeat interval: nobody
             wants "every 5 minutes"; they want "an hour before, 15 minutes before, and on the dot". */}

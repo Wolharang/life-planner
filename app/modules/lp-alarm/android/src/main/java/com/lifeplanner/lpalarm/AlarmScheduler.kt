@@ -17,7 +17,14 @@ data class AlarmItem(
   val createdAt: Long = 0L,    // when the task was created — for the time-accurate commit line
   val leadMinutes: Int = 0,    // set − lead = fireAt; carried so the commit line shows the SET time (PRD R3)
   val mode: String = "commit", // "commit" (normal moment) | "recheck" (the ~5-min "진짜 했어?" follow-up)
-  val sound: Boolean = false,  // per-block (D43): false = vibration only. The TONE itself is a global setting.
+  val sound: Boolean = false,  // per-block (D43): does the moment ring? The TONE itself is a global setting.
+  /**
+   * **D65 — 무음.** `false` = the moment takes the screen and says **nothing**: no tone *and* no buzz.
+   * A vibration is not free. A block that exists only so the day is honest (강의, 이동) must be able to appear
+   * without buzzing your leg for the twentieth time, and every needless buzz spends the budget that keeps the
+   * one loud thing loud (C1/D30). The screen IS the intervention; the noise was only ever its escort.
+   */
+  val vibrate: Boolean = true,
   /**
    * The day the OUTCOME belongs to (YYYY-MM-DD), when it cannot be derived from `fireAt`.
    *
@@ -56,6 +63,7 @@ object LpAlarmConstants {
   const val EXTRA_MODE = "mode"
   const val EXTRA_SOUND = "sound"
   const val EXTRA_DATE = "occurrenceDate"
+  const val EXTRA_VIBRATE = "vibrate"
 }
 
 /**
@@ -163,6 +171,8 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
       putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
       putExtra(LpAlarmConstants.EXTRA_DATE, item.occurrenceDate)
+      putExtra(LpAlarmConstants.EXTRA_VIBRATE, item.vibrate)
+      putExtra(LpAlarmConstants.EXTRA_VIBRATE, item.vibrate)
     }
     return PendingIntent.getBroadcast(context, item.id.hashCode(), intent, IMMUTABLE_UPDATE)
   }
@@ -182,6 +192,8 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
       putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
       putExtra(LpAlarmConstants.EXTRA_DATE, item.occurrenceDate)
+      putExtra(LpAlarmConstants.EXTRA_VIBRATE, item.vibrate)
+      putExtra(LpAlarmConstants.EXTRA_VIBRATE, item.vibrate)
     }
     return PendingIntent.getActivity(context, item.id.hashCode() + 1, intent, IMMUTABLE_UPDATE)
   }
