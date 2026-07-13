@@ -107,12 +107,26 @@ export function googleAvailable(): boolean {
 export async function signInWithGoogle(): Promise<void> {
   if (!loadGoogle()) throw new Error("cloud-unavailable");
   await googleMod.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
   const result = await googleMod.signIn();
   // v13+ returns {type, data}; older builds returned the user object flat. Accept both.
   const idToken: string | undefined = result?.data?.idToken ?? result?.idToken;
   if (!idToken) throw new Error("auth/cancelled"); // the user backed out — not an error to shout about
+
+  // **Both tokens, not just the id token.** `GoogleAuthProvider.credential(idToken)` alone threw
+  // `auth/unknown: accessToken cannot be empty` — React Native Firebase's native binding requires the OAuth
+  // access token too, and `signIn()`'s payload does not carry one. `getTokens()` does.
+  //
+  // This cost hours, because the failure *looked* like a configuration problem: the sign-in sheet appeared,
+  // Google accepted the account, and only then did Firebase refuse — so we went and re-verified the SHA-1
+  // against the actual APK signature, the web client id, the enabled providers. All were correct. It was one
+  // missing argument, hidden behind a caught error that said only "로그인에 실패했어요". The lesson is the
+  // error message, not the argument: **an error that says nothing costs more than one that looks technical.**
+  const { accessToken } = await googleMod.getTokens();
   const authNs = require("@react-native-firebase/auth");
-  await authMod().signInWithCredential(authNs.default.GoogleAuthProvider.credential(idToken));
+  await authMod().signInWithCredential(
+    authNs.default.GoogleAuthProvider.credential(idToken, accessToken)
+  );
 }
 
 /** Logout stops sync but **keeps every local row** (D20) — the app carries on exactly as it did before login.
