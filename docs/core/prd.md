@@ -329,9 +329,13 @@ kills it just as dead as a denied exact-alarm, and the banner must watch **all t
 
 **R17 — Plan-vs-actual evaluation (LATER).** **[P2 / Later]** Per time-block **success/fail + free-text
 failReason** (D5), evaluated against the **D-1 snapshot** (D23); a simple month rollup of executed-vs-planned and a
-place that collects the failure reasons. **No** auto-suggestions, **no** quantitative dashboard (D29). Build only
-after R1–R11 are validated.
-- *Acceptance:* a block is markable success/fail with a reason; a month view shows executed vs planned counts.
+place that collects the failure reasons. **No** auto-suggestions, **no** quantitative dashboard (D29).
+**The reason is OFFERED, never demanded** (founder, 2026-07-11 — the only way D5 and B1 can both hold): the miss
+is recorded **first**, then a skippable prompt appears; **"그냥 닫기" is a first-class answer**, and a reason can
+be added later from 돌아보기 instead. Nothing is ever blocked on a reason, and a missing one is never chased.
+- *Acceptance:* a block is markable success/fail, **with or without** a reason; a reason can be added/edited/
+  removed later; a month view shows executed vs planned counts (and how many were pre-committed at D-1); **no**
+  streak, score, or suggestion appears anywhere on the screen.
 
 ### 7.2 — Excluded (deliberately not built now)
 - **Google / social login** (id+password first; Google later, D12). **Quantitative evaluation dashboards / auto

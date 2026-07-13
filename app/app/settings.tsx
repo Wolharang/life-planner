@@ -270,7 +270,29 @@ export default function Settings() {
           </Pressable>
         </View>
 
-        {/* 측정 — a REAL prototype feature (S1–S4), dev-only */}
+        {/* 돌아보기 — 계획 대 실제 (R17). Counts + the collected reasons; no score, no auto-suggestion (D29/D5). */}
+        <GroupLabel>돌아보기</GroupLabel>
+        <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
+          <Link href="/review" asChild>
+            <Pressable>
+              <Row>
+                <View className="flex-1 pr-3">
+                  <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                    계획 대 실제
+                  </Text>
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                    이 달의 해냄·미스와, 못 한 이유들
+                  </Text>
+                </View>
+                <Text className="text-faint" style={{ fontSize: 18 }}>
+                  ›
+                </Text>
+              </Row>
+            </Pressable>
+          </Link>
+        </View>
+
+        {/* 측정 — the self-experiment's instrument (S1–S5, PRD §4), dev-only */}
         {__DEV__ && (
           <>
             <GroupLabel>개발</GroupLabel>
@@ -280,10 +302,10 @@ export default function Settings() {
                   <Row>
                     <View className="flex-1 pr-3">
                       <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                        측정 (S1–S4)
+                        측정 (S1–S5)
                       </Text>
                       <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                        정시 발화 · 착수율 · 행동 변화 · 무죄책 복귀
+                        실행률 · 알람 신뢰성 · 전날 계획 · 기록 마찰 · 무죄책 복귀
                       </Text>
                     </View>
                     <Text className="text-faint" style={{ fontSize: 18 }}>

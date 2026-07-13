@@ -7,6 +7,35 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — F5: 돌아보기 (R17) — plan vs actual, with the reason OPTIONAL
+
+The last phase before the backend. The whole design tension here is **D5 (a fail needs a reason) vs B1 (never
+nag, never guilt)**. Founder's call (2026-07-11): **offer the reason, never demand it** — you can always just
+close, and an empty reason is a first-class outcome, not an unfinished task.
+
+### What
+- **Optional fail reason.** When a miss is recorded (the R6 catch-up "미룸"), the record is **already closed**;
+  only *then* does a gentle card appear — "왜 못 했는지 한 줄 남길까요? · 안 남겨도 괜찮아요" — with **남기기 /
+  그냥 닫기**. Nothing is blocked, nothing is re-asked. Writes `TimeBlock.failReason` (D5), which until now
+  was declared and never written.
+- **`/review` (돌아보기)** — month rollup **executed vs planned** (해냄 · 미스 · 쉼 · 계획), with the D-1 line:
+  "그중 N개는 전날 미리 정해둔 것" (**D23** — the plan of record is judged, not the same-day edit) · **아직 안
+  남긴 것**: past unresolved blocks markable 해냄/미스 right there (R17 acceptance) · **못 한 이유들**: every
+  fail gathered in one place, each reason addable/editable/removable **later** (so a skipped reason isn't lost
+  forever). Reachable from 설정 and the day summary.
+- **What it deliberately does NOT do (D29/D5):** no success-rate score to optimize, **no quantitative
+  plan-vs-actual** (planned 60min vs actual 90min), **no auto-suggestions** — the screen says so out loud:
+  *"앱은 계획을 대신 고쳐주지 않아요. 이유를 모아둘 뿐이고, 다음 계획은 내가 정해요."* No streak (R14).
+
+### Known gap (needs F0)
+spec §3.6: "a block in the D-1 plan but **soft-deleted on the day counts as fail**". We hard-delete today —
+tombstones (`deletedAt`) arrive with F0's sync model, so that rule lands then.
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (28). No native change → no prebuild.
+
+---
+
 ## 2026-07-11 — F4: 하루 요약 (R10) — the day, linked but not merged
 
 The one place the two surfaces meet. Built exactly to the constraint the docs put on it: **integration is a

@@ -160,6 +160,20 @@ export default function Summary() {
           )}
         </View>
 
+        {/* R17 — 계획 대 실제는 자기 화면에서 (하루 요약은 '연결'만, 평가는 별개) */}
+        <Pressable
+          onPress={() => router.push("/review")}
+          className="bg-group rounded-card flex-row items-center justify-between mt-5"
+          style={{ paddingHorizontal: 14, paddingVertical: 12 }}
+        >
+          <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+            돌아보기 · 계획 대 실제
+          </Text>
+          <Text className="text-grey" style={{ fontSize: 16, fontWeight: "700" }}>
+            ›
+          </Text>
+        </Pressable>
+
         <Text className="text-faint" style={{ fontSize: 12, marginTop: 16, lineHeight: 18 }}>
           하루를 한곳에 모으되 섞지는 않아요 — 계획·실행과 그때그때의 기록은 서로 다른 일이니까요.
         </Text>

@@ -167,9 +167,11 @@ tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
   data-model §2.6 — no stored rollup) + **`/summary?date=`**: 계획·실행 and 기록 as **two distinct sections**
   (D32 — links, never merges), reachable from the calendar day panel and the day view. 운동/러닝 O·X derived
   from success blocks (D22).
-- **F5 evaluation (R17, Later):** ⬜ — the last phase. Needs: per-block success/fail **+ free-text
-  failReason** (D5; today's miss paths record no reason — that data is being lost as it accrues), and a month
-  rollup of executed-vs-planned against the **D-1 snapshot** (D23; `snap*`/`plannedAt` are already captured).
+- **F5 evaluation (R17):** ✅ **built** (2026-07-11) — **`/review` 돌아보기**: month rollup executed-vs-planned
+  (+ how many were **pre-committed at D-1**, D23) · past blocks markable 해냄/미스 · **못 한 이유들** gathered in
+  one place, editable later. **The fail reason is offered, never demanded** (founder call: D5 ∧ B1) — the miss is
+  recorded first, then a skippable "한 줄 남길까요? · 그냥 닫기". No score, no quantitative comparison, no
+  auto-suggestion (D29/D5). **Gap:** "D-1 계획인데 당일 삭제 = fail" (spec §3.6) needs soft-delete tombstones → F0.
 
 **Loose ends / caveats to remember:**
 - **The native execution moment can't be compile-checked here** (Kotlin builds only at `npx expo run:android`).

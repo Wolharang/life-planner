@@ -6,7 +6,7 @@
 // The switch on a card IS the R7 "오늘은 쉼" pre-fire toggle (ON = armed, OFF = 쉼) — never an
 // alarm on/off switch, and it disappears once the moment has passed (no in-flow escape).
 
-import { View, Text, Pressable, FlatList, Alert, AppState, Switch } from "react-native";
+import { View, Text, Pressable, FlatList, Alert, AppState, Switch, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -87,6 +87,8 @@ export default function Home() {
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
   const [catchUps, setCatchUps] = useState<CatchUpItem[]>([]);
   const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean; notif: boolean } | null>(null);
+  const [askReason, setAskReason] = useState<{ id: string; title: string } | null>(null);
+  const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -303,6 +305,9 @@ export default function Home() {
   };
 
   // R6: resolve a catch-up occurrence, or dismiss for this session (re-shows on the next open).
+  // On a miss we offer — never demand — a one-line reason (D5 needs it for R17; B1 forbids nagging for
+  // it). The record is already closed by the time the field appears, so "그냥 닫기" is a real option and
+  // costs nothing: an empty reason is a perfectly valid outcome.
   const resolveCatchUp = async (f: CatchUpItem, status: "done" | "miss") => {
     await settle(f.taskId, f.date, f.title, status, "catch-up");
     const fires = await listFires();
@@ -310,6 +315,19 @@ export default function Home() {
     const misses = await listMisses();
     await setMisses(misses.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
     setCatchUps((prev) => prev.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
+    if (status === "miss") setAskReason({ id: f.taskId, title: f.title });
+    load();
+  };
+
+  /** Attach the optional reason to the block (D5 free text). Blank → nothing is written. */
+  const saveReason = async () => {
+    const text = reason.trim();
+    if (askReason && text) {
+      const b = (await listBlocks()).find((x) => x.id === askReason.id);
+      if (b) await updateBlock({ ...b, failReason: text, updatedAt: Date.now() });
+    }
+    setAskReason(null);
+    setReason("");
     load();
   };
   const dismissCatchUp = (f: CatchUpItem) => {
@@ -401,6 +419,50 @@ export default function Home() {
           )}
           ListHeaderComponent={
             <View>
+              {/* Optional fail reason (D5) — offered, never demanded (B1). The miss is ALREADY recorded;
+                  this only adds a note for 돌아보기, and closing without one is a first-class choice. */}
+              {askReason && (
+                <View className="bg-group rounded-card px-4 py-3.5 mb-2 mt-3">
+                  <Text className="text-ink" style={{ fontSize: 14, fontWeight: "700" }}>
+                    {askReason.title} — 왜 못 했는지 한 줄 남길까요?
+                  </Text>
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 12 }}>
+                    안 남겨도 괜찮아요. 나중에 나에게 힌트가 될 뿐이에요.
+                  </Text>
+                  <TextInput
+                    value={reason}
+                    onChangeText={setReason}
+                    placeholder="예: 야근, 너무 피곤함"
+                    placeholderTextColor="#B0B8C1"
+                    className="bg-surface text-ink mt-2.5"
+                    style={{ fontSize: 14, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }}
+                  />
+                  <View className="flex-row items-center mt-2.5" style={{ gap: 14 }}>
+                    <Pressable
+                      onPress={saveReason}
+                      hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                      className="bg-brand rounded-full px-4 py-1.5"
+                    >
+                      <Text className="text-white" style={{ fontSize: 12, fontWeight: "700" }}>
+                        남기기
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setAskReason(null);
+                        setReason("");
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                      className="px-3 py-1.5"
+                    >
+                      <Text className="text-faint" style={{ fontSize: 12 }}>
+                        그냥 닫기
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
               {/* R6 catch-up prompts */}
               {catchUps.map((f, i) => (
                 <View key={i} className="bg-brand-soft rounded-card px-4 py-3.5 mb-2 mt-3">
