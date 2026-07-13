@@ -12,6 +12,27 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-13 — words that lied (found on the device)
+
+### D56. A miss may only be recorded by someone who said they missed it — "미룸" → "안 했어"
+- **The failure.** The catch-up card (R18) offered **했어 / 미룸 / 나중에**. **미룸** ("postponed") recorded a
+  **permanent, irreversible miss** — while the button right next to it, **나중에**, really did only defer the
+  prompt. **Two buttons that both read as "I'll do it later", doing opposite things.** The founder pressed
+  미룸 meaning *defer*, and the app heard *I failed*, closed the occurrence, and asked him for a reason.
+- **Decision.** The button says what it does: **안 했어** — the same words the execution moment already uses
+  ("아직 안 했어"). **나중에** keeps deferring. **A miss is now only ever recorded by someone who said they
+  missed it.** The PRD's own R18 wording carried the bad name and has been corrected too — fixing only the code
+  would have let the document put it back.
+- **Why this matters more than a label.** A false miss is not a cosmetic error: **S1 is the number the whole
+  product lives or dies by** (the falsification condition). A word that quietly logs failures the user never
+  admitted poisons the only evidence we have — and it does it while claiming to be the no-guilt path.
+- **Related, same day, same root:** the home card's **해냄** — a filled pill in the settled-badge slot, a noun,
+  reading as a *verdict* ("the app says I did it") when it was in fact a *button* offering to record one. Now
+  an outlined **했어요** (first person; an answer you give), and the card states its own state ("아직 안 했어요",
+  taupe, never red) instead of leaving the user to infer it.
+- **The rule to keep:** *for any control that writes an outcome, the label must be the outcome.* If a word
+  could plausibly mean "not now", it may not mean "failed".
+
 ## 2026-07-13 — F0 (backend)
 
 ### D55. A "<id>#recheck" alarm is NOT an orphan — the sweep that kept alarms honest was eating the lever

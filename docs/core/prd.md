@@ -359,7 +359,12 @@ be added later from 돌아보기 instead. Nothing is ever blocked on a reason, a
 **R18 — The no-guilt catch-up net (the miss half of the lever).** **[P0]** A flagged block whose moment fired
 but was left unanswered, **or never fired at all** (device off, alarm never armed), must **not** silently
 become a miss. On the next app open the home surface offers a **gentle prompt** — **"[제목] 아직 안 했죠"**
-(it fired) / **"[제목] 놓쳤어요"** (it never did) — with **했어 / 미룸 / 나중에**. Unresolved past a window it
+(it fired) / **"[제목] 놓쳤어요"** (it never did) — with **했어 / 안 했어 / 나중에**.
+**"안 했어" was called "미룸" until 2026-07-13 and that was a bug in the words, not the code** (D56): it
+recorded a permanent, irreversible **miss** while *saying* "postponed", and it sat next to **나중에**, which
+really does only defer. Two buttons that both read as "later", doing opposite things — the founder pressed
+미룸 meaning *defer* and the app heard *I failed*. **A miss may only ever be recorded by someone who said
+they missed it.** Unresolved past a window it
 is **auto-archived as a neutral miss** (never chased). A miss may carry an **optional** one-line reason
 (R17). Outcomes record their **source** (`execution-screen` / `catch-up` / `pre-skip`) so **S1 counts only what
 the moment itself produced** — a catch-up "했어" is a real win but not the lever's proof.

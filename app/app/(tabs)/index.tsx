@@ -493,8 +493,14 @@ export default function Home() {
                   <Text className="text-ink-soft mt-0.5" style={{ fontSize: 12 }}>
                     {f.date} · {f.kind === "missed" ? "지금이라도?" : "지금 할까요?"}
                   </Text>
-                  {/* 했어/미룸 are opposite, non-undoable outcomes → wider gap + hitSlop so a mis-tap
-                      can't silently log a false miss (no-guilt); ≥48dp effective target (A3). */}
+                  {/* Three answers, and only two words may mean "later" — or the user picks the wrong one.
+                      This button used to say **미룸** ("postponed") while it permanently and irreversibly
+                      recorded a **miss**. Next to it sat **나중에**, which really does just defer. Two
+                      buttons that both read as "I'll do it later", doing opposite things: the founder
+                      pressed 미룸 meaning "defer" and the app heard "I failed". The word now matches the
+                      deed — **안 했어**, the same phrase the execution moment uses — so a miss is only ever
+                      recorded by someone who said they missed it. Wide gap + hitSlop: 했어/안 했어 are
+                      opposite and non-undoable, so a mis-tap must not log a false outcome (≥48dp, A3). */}
                   <View className="flex-row items-center mt-2.5" style={{ gap: 14 }}>
                     <Pressable
                       onPress={() => resolveCatchUp(f, "done")}
@@ -511,7 +517,7 @@ export default function Home() {
                       className="bg-group rounded-full px-4 py-1.5"
                     >
                       <Text className="text-ink-soft" style={{ fontSize: 12 }}>
-                        미룸
+                        안 했어
                       </Text>
                     </Pressable>
                     <Pressable
