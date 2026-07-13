@@ -115,7 +115,7 @@ export default function DayPlan() {
             ←
           </Text>
         </Pressable>
-        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700", letterSpacing: -0.3 }}>
           {headerLabel(date)}
         </Text>
         <View className="flex-row items-center" style={{ gap: 10 }}>
@@ -168,7 +168,7 @@ export default function DayPlan() {
               style={{ padding: 14, opacity: isSkipped(b) ? 0.55 : 1 }}
             >
               <View style={{ width: 62 }}>
-                <Text className="text-ink" style={{ fontSize: 15, fontWeight: "800", letterSpacing: -0.2 }}>
+                <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }}>
                   {b.start}
                 </Text>
                 {b.end && (
@@ -212,7 +212,7 @@ export default function DayPlan() {
         {/* free-slot hint — the day's real empty gaps (H3/H10) */}
         {slots.length > 0 && (
           <>
-            <Text className="text-ink mt-6 mb-2 px-1" style={{ fontSize: 14, fontWeight: "800" }}>
+            <Text className="text-ink mt-6 mb-2 px-1" style={{ fontSize: 14, fontWeight: "700" }}>
               비어 있는 시간
             </Text>
             <View className="flex-row flex-wrap" style={{ gap: 8 }}>

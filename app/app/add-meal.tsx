@@ -158,7 +158,7 @@ export default function AddMeal() {
           </View>
         )}
 
-        <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>
           {editId ? "식사 수정" : "식사"}
         </Text>
 
@@ -215,7 +215,7 @@ export default function AddMeal() {
             placeholder="0"
             placeholderTextColor="#D1D6DB"
             className="text-ink flex-1"
-            style={{ fontSize: 28, fontWeight: "800", letterSpacing: -0.8 }}
+            style={{ fontSize: 28, fontWeight: "700", letterSpacing: -0.8 }}
           />
           <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700" }}>
             kcal

@@ -461,7 +461,7 @@ export default function Home() {
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       {/* top bar — date + settings */}
       <View className="flex-row items-baseline justify-between px-5 pt-4 pb-1">
-        <Text className="text-ink" style={{ fontSize: 22, fontWeight: "800", letterSpacing: -0.4 }}>
+        <Text className="text-ink" style={{ fontSize: 22, fontWeight: "700", letterSpacing: -0.4 }}>
           {d.getMonth() + 1}월 {d.getDate()}일{" "}
           <Text className="text-grey" style={{ fontSize: 15, fontWeight: "600" }}>
             {WD[d.getDay()]}
@@ -647,7 +647,7 @@ export default function Home() {
                       </View>
                     )}
                   </View>
-                  <Text className="text-ink" style={{ fontSize: 30, fontWeight: "800", letterSpacing: -0.8, marginTop: 6 }}>
+                  <Text className="text-ink" style={{ fontSize: 30, fontWeight: "700", letterSpacing: -0.8, marginTop: 6 }}>
                     {hero.block.start}
                     <Text style={{ fontSize: 19, fontWeight: "700" }}>  {hero.block.title}</Text>
                   </Text>
@@ -710,7 +710,7 @@ export default function Home() {
           renderItem={({ item }) => {
             if (item.kind === "section") {
               return (
-                <Text className="text-ink px-1 mt-6 mb-2" style={{ fontSize: 15, fontWeight: "800" }}>
+                <Text className="text-ink px-1 mt-6 mb-2" style={{ fontSize: 15, fontWeight: "700" }}>
                   {item.title}
                 </Text>
               );

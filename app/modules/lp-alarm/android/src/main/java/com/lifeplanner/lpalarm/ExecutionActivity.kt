@@ -478,7 +478,7 @@ class ExecutionActivity : Activity() {
 
   private fun commitView(): View = column().apply {
     addView(label("내가 정한 약속", 13, soft))
-    addView(label(commitLine(), 23, ink, top = 12, bold = true))
+    addView(label(commitLine(), 23, ink, top = 12, bold = true, voice = true))
     // A2: ask for the 5-second FIRST MOVE, not the task. The micro-start note lost its screen when the
     // flow became commit → re-check, so it lives here now — the one thing to do in the next 5 seconds.
     if (note.isNotEmpty()) addView(label("딱 첫 동작 — $note", 17, soft, top = 14))
@@ -488,7 +488,7 @@ class ExecutionActivity : Activity() {
 
   private fun recheckView(): View = column().apply {
     addView(label("아까 하기로 한 거", 13, soft))
-    addView(label("진짜 했어?", 30, ink, top = 12, bold = true))
+    addView(label("진짜 했어?", 30, ink, top = 12, bold = true, voice = true))
     addView(brandButton("응, 했어") { render("done") })
     addView(textLink("아직 안 했어", top = 22) { render("leave") })
   }
@@ -528,7 +528,7 @@ class ExecutionActivity : Activity() {
 
   private fun doneView(): View = column(Gravity.CENTER).apply {
     addView(label("✓", 44, gold, bold = true))
-    addView(label("안 하던 걸 해냈다.", 24, gold, top = 12, bold = true))
+    addView(label("안 하던 걸 해냈다.", 24, gold, top = 12, bold = true, voice = true))
     addView(textLink("닫기", top = 40) { dismiss() })
   }
 
@@ -581,13 +581,39 @@ class ExecutionActivity : Activity() {
       layoutParams = lp(top = top)
     }
 
-  private fun label(text: String, sizeSp: Int, color: Int, top: Int = 0, bold: Boolean = false): TextView =
+  /**
+   * **The execution voice.** `design-system.md §1` gives the moment its own typeface — a GowunBatang serif —
+   * precisely because this screen must not feel like the rest of the app: it is yesterday's you speaking, not a
+   * utility. The font was **loaded at app start and blocked the splash on it**, and then **used by nothing**:
+   * the moment is native, and native never asked for it. We paid the cost and shipped the design centrepiece in
+   * the wrong voice.
+   *
+   * Loaded from the module's own assets, so it works with no JS process alive — which is the normal case for
+   * this screen.
+   */
+  private val serif: Typeface? by lazy {
+    try {
+      Typeface.createFromAsset(assets, "fonts/GowunBatang-Regular.ttf")
+    } catch (e: Exception) {
+      null // the moment must render in *some* font rather than not render
+    }
+  }
+
+  private fun label(
+    text: String,
+    sizeSp: Int,
+    color: Int,
+    top: Int = 0,
+    bold: Boolean = false,
+    voice: Boolean = false // the serif — reserved for what the moment SAYS, never for buttons or numbers
+  ): TextView =
     TextView(this).apply {
       this.text = text
       setTextColor(color)
       gravity = Gravity.CENTER
       setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
-      if (bold) setTypeface(typeface, Typeface.BOLD)
+      if (voice && serif != null) setTypeface(serif, if (bold) Typeface.BOLD else Typeface.NORMAL)
+      else if (bold) setTypeface(typeface, Typeface.BOLD)
       layoutParams = lp(top = top)
     }
 

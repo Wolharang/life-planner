@@ -146,7 +146,7 @@ export default function AddExpense() {
             ←
           </Text>
         </Pressable>
-        <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>
           {editId ? "지출 수정" : "지출"}
         </Text>
 
@@ -186,7 +186,7 @@ export default function AddExpense() {
             placeholder="0"
             placeholderTextColor="#D1D6DB"
             className="text-ink flex-1"
-            style={{ fontSize: 34, fontWeight: "800", letterSpacing: -1 }}
+            style={{ fontSize: 34, fontWeight: "700", letterSpacing: -1 }}
           />
           <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>
             원

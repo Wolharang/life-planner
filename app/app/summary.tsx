@@ -61,7 +61,7 @@ export default function Summary() {
             ←
           </Text>
         </Pressable>
-        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700", letterSpacing: -0.3 }}>
           {headerLabel(date)}
         </Text>
         <View className="flex-row" style={{ gap: 10 }}>
@@ -124,7 +124,7 @@ export default function Summary() {
           <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
             지출
           </Text>
-          <Text className="text-ink" style={{ fontSize: 24, fontWeight: "800", letterSpacing: -0.6, marginTop: 2 }}>
+          <Text className="text-ink" style={{ fontSize: 24, fontWeight: "700", letterSpacing: -0.6, marginTop: 2 }}>
             {won(agg.expenseTotal)}
           </Text>
           {dist.length > 0 && (
@@ -145,7 +145,7 @@ export default function Summary() {
           <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
             칼로리
           </Text>
-          <Text className="text-ink" style={{ fontSize: 24, fontWeight: "800", letterSpacing: -0.6, marginTop: 2 }}>
+          <Text className="text-ink" style={{ fontSize: 24, fontWeight: "700", letterSpacing: -0.6, marginTop: 2 }}>
             {agg.kcalTotal}
             <Text style={{ fontSize: 14, fontWeight: "700" }}> / {DAILY_KCAL_TARGET}kcal</Text>
           </Text>
@@ -187,7 +187,7 @@ export default function Summary() {
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <Text className="text-ink" style={{ fontSize: 15, fontWeight: "800", marginTop: 16, marginBottom: 10 }}>
+    <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", marginTop: 16, marginBottom: 10 }}>
       {children}
     </Text>
   );
@@ -197,7 +197,7 @@ function Tally({ label, value, tone }: { label: string; value: number; tone: "go
   const color = tone === "gold" ? "#B0862A" : tone === "miss" ? "#8B7E74" : tone === "faint" ? "#B0B8C1" : "#191F28";
   return (
     <View>
-      <Text style={{ fontSize: 20, fontWeight: "800", color, letterSpacing: -0.4 }}>{value}</Text>
+      <Text style={{ fontSize: 20, fontWeight: "700", color, letterSpacing: -0.4 }}>{value}</Text>
       <Text className="text-grey" style={{ fontSize: 11.5, marginTop: 1 }}>
         {label}
       </Text>

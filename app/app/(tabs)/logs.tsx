@@ -74,7 +74,7 @@ export default function Logs() {
         <Pressable onPress={() => shiftMonth(-1)} hitSlop={10} className="px-2">
           <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
         </Pressable>
-        <Text className="text-ink" style={{ fontSize: 18, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink" style={{ fontSize: 18, fontWeight: "700", letterSpacing: -0.3 }}>
           {view.y}. {view.m + 1}
         </Text>
         <Pressable onPress={() => shiftMonth(1)} hitSlop={10} className="px-2">
@@ -119,7 +119,7 @@ export default function Logs() {
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
                 이번 달 총 지출
               </Text>
-              <Text className="text-ink" style={{ fontSize: 27, fontWeight: "800", letterSpacing: -0.7, marginTop: 4 }}>
+              <Text className="text-ink" style={{ fontSize: 27, fontWeight: "700", letterSpacing: -0.7, marginTop: 4 }}>
                 {won(total)}
               </Text>
               {dist.length > 0 && (
@@ -153,7 +153,7 @@ export default function Logs() {
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
                 오늘의 기록
               </Text>
-              <Text className="text-ink" style={{ fontSize: 27, fontWeight: "800", letterSpacing: -0.7, marginTop: 4 }}>
+              <Text className="text-ink" style={{ fontSize: 27, fontWeight: "700", letterSpacing: -0.7, marginTop: 4 }}>
                 {summary.total}
                 <Text style={{ fontSize: 15, fontWeight: "700" }}> / {DAILY_KCAL_TARGET}kcal</Text>
               </Text>
@@ -184,7 +184,7 @@ export default function Logs() {
               : `${(items as MealEntry[]).reduce((s, m) => s + m.kcal, 0)}kcal`;
           return (
             <View className="flex-row items-center justify-between mt-4 mb-1.5 px-1">
-              <Text className="text-ink" style={{ fontSize: 13, fontWeight: "800" }}>
+              <Text className="text-ink" style={{ fontSize: 13, fontWeight: "700" }}>
                 {dayHeader(section.title)}
               </Text>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>

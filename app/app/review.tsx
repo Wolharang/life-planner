@@ -114,7 +114,7 @@ export default function Review() {
             ←
           </Text>
         </Pressable>
-        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700", letterSpacing: -0.3 }}>
           돌아보기
         </Text>
         <View className="flex-row items-center" style={{ gap: 8 }}>
@@ -274,7 +274,7 @@ export default function Review() {
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <Text className="text-ink" style={{ fontSize: 15, fontWeight: "800", marginTop: 22, marginBottom: 8 }}>
+    <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", marginTop: 22, marginBottom: 8 }}>
       {children}
     </Text>
   );
@@ -283,7 +283,7 @@ function SectionTitle({ children }: { children: string }) {
 function Tally({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <View>
-      <Text style={{ fontSize: 21, fontWeight: "800", color, letterSpacing: -0.4 }}>{value}</Text>
+      <Text style={{ fontSize: 21, fontWeight: "700", color, letterSpacing: -0.4 }}>{value}</Text>
       <Text className="text-grey" style={{ fontSize: 11.5, marginTop: 1 }}>
         {label}
       </Text>

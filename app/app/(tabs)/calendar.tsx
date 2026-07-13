@@ -86,7 +86,7 @@ export default function Calendar() {
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       {/* month header */}
       <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
-        <Text className="text-ink" style={{ fontSize: 22, fontWeight: "800", letterSpacing: -0.4 }}>
+        <Text className="text-ink" style={{ fontSize: 22, fontWeight: "700", letterSpacing: -0.4 }}>
           {view.y}년 {view.m + 1}월
         </Text>
         <View className="flex-row items-center" style={{ gap: 6 }}>
@@ -182,7 +182,7 @@ export default function Calendar() {
       {/* selected-day detail */}
       <View className="flex-1" style={{ borderTopWidth: 1, borderTopColor: "#F2F4F6", marginTop: 6 }}>
         <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
-          <Text className="text-ink" style={{ fontSize: 16, fontWeight: "800" }}>
+          <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
             {sm}월 {sd}일 <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600" }}>{selWeekday}</Text>
           </Text>
           <Link href={{ pathname: "/add-event", params: { date: selected } }} asChild>
@@ -234,7 +234,7 @@ export default function Calendar() {
             onPress={() => router.push({ pathname: "/day", params: { date: selected } })}
             className="flex-row items-center justify-between mt-5 mb-2"
           >
-            <Text className="text-ink" style={{ fontSize: 14, fontWeight: "800" }}>
+            <Text className="text-ink" style={{ fontSize: 14, fontWeight: "700" }}>
               하루 설계
             </Text>
             <Text className="text-brand" style={{ fontSize: 12.5, fontWeight: "700" }}>

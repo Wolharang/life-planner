@@ -129,7 +129,10 @@ surface, which stays bright.
   no custom font = no maintenance/weight (C2).
 - **Numbers = tabular / mono** (times, amounts, countdown) — calculator.js uses `Menlo`/`monospace`. **기준:**
   aligned digits; steady countdown (no width jitter).
-- **Weights limited to 400 / 500 / 600** (no black). **기준:** restraint = calm/adult (B2/C1).
+- **Weights: 400 / 500 / 600 / 700** — 700 is the heaviest, used for headings and the one primary action.
+  **No 800/900 (black).** *(2026-07-13: the doc said 400/500/600 while the code used 800 nearly everywhere. The
+  v5 skin does want a real bold for headings, so the scale admits 700 — but 800 is outside any of it, and only
+  the Regular cut ships, so it was being synthesized anyway.)* **기준:** restraint = calm/adult (B2/C1).
 - **Line-height ~1.4**, and **respect the user's font-size setting** (never truncate scaled text). **기준:** A3 +
   accessibility.
 

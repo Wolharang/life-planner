@@ -208,7 +208,7 @@ export default function Settings() {
               <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600", marginBottom: 8 }}>
                 {account ? "동기화" : "로그인"}
               </Text>
-              <Text className="text-ink" style={{ fontSize: 24, fontWeight: "800", lineHeight: 33 }}>
+              <Text className="text-ink" style={{ fontSize: 24, fontWeight: "700", lineHeight: 33 }}>
                 {account ? "다른 기기와 자동으로\n맞춰지고 있어요" : "다른 기기에서도 그대로 쓰려면\n로그인하세요"}
               </Text>
             </View>
@@ -230,7 +230,7 @@ export default function Settings() {
             className="bg-brand items-center"
             style={{ borderRadius: 16, paddingVertical: 17, marginTop: 18 }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "700" }}>
               {account ? "계정 관리" : "로그인 하기"}
             </Text>
           </View>
@@ -260,7 +260,7 @@ export default function Settings() {
             <Text style={{ fontSize: 24 }}>{allReady ? "⚡" : "🔔"}</Text>
           </View>
           <View className="flex-1" style={{ marginLeft: 14 }}>
-            <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800" }}>
+            <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700" }}>
               실행 준비 상태
             </Text>
             <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>

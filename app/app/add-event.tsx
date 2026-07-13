@@ -142,7 +142,7 @@ export default function AddEvent() {
             ←
           </Text>
         </Pressable>
-        <Text className="text-ink mb-6" style={{ fontSize: 20, fontWeight: "800", letterSpacing: -0.3 }}>
+        <Text className="text-ink mb-6" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>
           {editId ? "일정 수정" : "일정 추가"}
         </Text>
 
