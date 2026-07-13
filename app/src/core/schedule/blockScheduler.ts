@@ -42,6 +42,7 @@ export const isExecution = (block: TimeBlock) => block.alert === "execution" && 
  */
 export function blockFireAt(block: TimeBlock): number | null {
   if (isSkipped(block)) return null;
+  if (block.alert === "none") return null; // it holds the hour; it never speaks (D62)
   const lead =
     block.alert === "soft" && block.alertLeads?.length
       ? Math.max(...block.alertLeads)
@@ -67,6 +68,8 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
 
   const fireAt = blockFireAt(block);
   if (fireAt == null || fireAt <= now) return;
+
+  if (block.alert === "none") return; // both paths were already cancelled above — that is all a `none` needs
 
   if (block.alert === "execution") {
     alarm.schedule({

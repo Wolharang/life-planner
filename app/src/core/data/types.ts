@@ -139,17 +139,28 @@ export type BlockKind = "normal" | "workout" | "run";
 export type BlockStatus = "planned" | "success" | "fail" | "skipped";
 
 /**
- * How a block announces itself (**D40**, revised by **D43** 2026-07-11). A block carries **exactly one**
- * alert, and there are exactly **two** kinds — a block with *no* alert is a block you'd never act on, so
- * the founder removed that option:
+ * How a block announces itself (**D40** → **D43** → **D62**, 2026-07-13). A block carries **exactly one**
+ * alert, and there are **three** kinds.
+ *
+ * `none` was removed by D43 on the reasoning that "a block you'd never be told about isn't worth adding".
+ * **That reasoning was wrong, and D62 brings it back.** A block is not only an alert — it is also an *hour of
+ * your day that is taken*. You need to be able to put 강의, 알바, 이동 on the plan so that the day is **honest**:
+ * so the free-slot hint doesn't offer you a gap that isn't free, so you don't double-book, so tomorrow's
+ * workout lands somewhere it can actually happen. Forcing such a block to carry a notification means the app
+ * pesters you about a lecture you are already sitting in — and every needless notification spends the budget
+ * that keeps the ONE loud thing loud (C1/D30).
+ *
+ * The three:
+ *  · `none` — **silent**. It occupies the day and shapes the plan (free slots, double-booking), and says
+ *    nothing, ever. Not evaluated by the lever; it is context, not a commitment (D62).
  *  · `soft` — a plain notification. It **tells** you; it never takes the screen. It arrives at up to
- *    **3 moments the user picks** (`alertLeads`, D45). For blocks that need telling, not forcing (강의, 점심).
+ *    **3 moments the user picks** (`alertLeads`, D45). For blocks that need telling, not forcing (점심, 약속).
  *  · `execution` — **the default**: the exact alarm + the full-screen moment over the lock screen (R7).
  *    The lever is the product, so a new block gets it unless you say otherwise.
  * Either kind can be **silent (vibration only) or audible** (`alertSound`) — the tier and the loudness are
  * independent choices (D43).
  */
-export type BlockAlert = "soft" | "execution";
+export type BlockAlert = "none" | "soft" | "execution";
 
 /**
  * TimeBlock — the day plan's unit, the execution lever's target, and the evaluation subject

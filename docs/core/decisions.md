@@ -12,6 +12,49 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-13 (night) — what the device found that no audit could
+
+### D62. "없음" comes back — a block is an HOUR, not only an alert (revises D43)
+- **D43 deleted the `none` tier** with the reasoning: *"a block you'd never be told about isn't worth adding."*
+  **That reasoning mistook a block for an alert.** A block is also **an hour of your day that is taken.**
+- **The founder's case (2026-07-13):** 강의, 알바, 이동 must be on the plan **so the day is honest** — so the
+  free-slot hint doesn't offer a gap that isn't free, so you don't double-book, so **tomorrow's workout lands
+  somewhere it can actually happen**. That is *calendar design*, and it has nothing to do with wanting a
+  notification. Forcing such a block to carry one means being **pestered about a lecture you are already sitting
+  in** — and every needless notification spends the budget that keeps the **one loud thing loud** (C1/D30).
+- **Decision.** Three tiers again: **없음** (silent; it holds the hour and never speaks) · **알림** · **실행**
+  (still the default). A `none` block arms nothing, is not the lever's business, and is not in S1.
+
+### D63. Moving a settled block to a new time RE-OPENS the occurrence
+- **The device failure, and it is the worst kind — the app looked broken and the founder looked wrong.** He
+  missed a block, **moved it to a later time to actually do it**, committed at the moment ("응, 할게") — and the
+  app showed **미스** immediately and **"진짜 했어?" never came.**
+- **The cause.** The block kept `status: "fail"` from the earlier miss. So: the card read 미스 before the new
+  time had even arrived · the old `miss` outcome still keyed `taskId|date`, so when the moment fired again the
+  catch-up net saw the occurrence as **already resolved and threw the fire marker away** · and `scheduleBlock`
+  cancels `<id>#recheck` for any block that is not `planned`, so **the re-check was cancelled**. **The alarm
+  rang into an app that had already decided the answer.**
+- **"I missed the 15:58 gym, I'll move it to 17:27 and do it" is the most natural thing a person does with this
+  product** — and it was the one thing the product silently refused to let work.
+- **Decision.** If a **settled** block's `start`/`date` moves, the occurrence is **re-opened**: status back to
+  `planned`, verdict cleared, stale outcome and fire/missed markers removed. It cannot fire by accident —
+  `settle()` and the 쉼 toggle don't move the clock. **Evaluation stays honest** because the **D-1 snapshot does
+  not move** (D23): 돌아보기 still knows you promised 15:58; you just get to actually do the thing.
+
+### D64. A deletion made while LOGGED OUT must still reach the cloud
+- **The device failure:** the founder deleted blocks **while logged out**, then logged in — and **every one of
+  them came back**.
+- **The cause.** `syncRemove` is a **no-op with no account** (no `uid` → no document to tombstone), which is
+  correct as far as it goes — but it means the deletion left **no trace anywhere**. The cloud still held the
+  rows from an earlier session, and the login reconcile honestly handed them straight back. **D53/D54 closed
+  resurrection for deletes made while logged *in*; this was the same bug in the state the app spends most of its
+  life in** — an app that insists you don't need an account (D20).
+- **Decision.** A delete **always** writes a **local tombstone** (`lp.tombstones.v1`), account or not. At the
+  next reconcile those are pushed up as real tombstones and the rows are buried. Kept 180 days — long enough to
+  outlive any plausible logged-out gap.
+- **The general rule, and it is the third time today:** *an invariant that must survive being offline or logged
+  out cannot live in the code path that only runs when you are online and logged in.*
+
 ## 2026-07-13 — the full audit (5 independent auditors: PRD · spec/data/arch · design · research · code)
 
 ### D57. An alarm means a WALL CLOCK, not an instant

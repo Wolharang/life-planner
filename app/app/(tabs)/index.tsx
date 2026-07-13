@@ -725,7 +725,13 @@ export default function Home() {
                   <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
                     {b.start}
                     {b.end ? `–${b.end}` : ""}
-                    {skipped ? " · 오늘은 쉼" : b.alert === "execution" ? " · 실행 알림" : " · 알림"}
+                    {skipped
+                      ? " · 오늘은 쉼"
+                      : b.alert === "execution"
+                        ? " · 실행 알림"
+                        : b.alert === "soft"
+                          ? " · 알림"
+                          : " · 알림 없음"}
                     {b.location ? ` · ${b.location}` : ""}
                   </Text>
                   {awaiting.has(`${b.id}|${b.date}`) && !settled && (

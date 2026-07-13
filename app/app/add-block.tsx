@@ -32,10 +32,16 @@ const LEADS = [
   { label: "1시간 전", v: 60 },
 ];
 const LEAD_PRESET_VALUES = LEADS.map((l) => l.v);
-// A block carries exactly one of these (D40/D43). **Default = 실행**: the lever is the product, so a new
-// block gets it unless you say otherwise. There is no "없음" — a block you'd never be told about isn't
-// worth adding (founder, 2026-07-11).
+// A block carries exactly one of these (D40 → D43 → **D62**). **Default = 실행**: the lever is the product,
+// so a new block gets it unless you say otherwise.
+//
+// **없음 is back (D62).** D43 removed it because "a block you'd never be told about isn't worth adding" — but
+// that mistook a block for an alert. A block is also **an hour of your day that is taken**: 강의, 알바, 이동 have
+// to be on the plan so the day is honest — so the free-slot hint doesn't offer a gap that isn't free, and
+// tomorrow's workout lands where it can actually happen. Forcing them to carry a notification means being
+// pestered about a lecture you are already sitting in.
 const ALERTS: { label: string; v: BlockAlert }[] = [
+  { label: "없음", v: "none" },
   { label: "알림", v: "soft" },
   { label: "실행", v: "execution" },
 ];

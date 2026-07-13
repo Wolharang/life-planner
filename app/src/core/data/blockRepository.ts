@@ -17,7 +17,8 @@ import { alarm } from "@/core/notifications/alarm";
 import { cancelReminders } from "@/core/notifications/plainReminders";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
 import { syncPut, syncPutMany, syncRemove } from "./sync";
-import { recordOutcome } from "./outcomeRepository";
+import { recordOutcome, removeOutcome } from "./outcomeRepository";
+import { forgetOccurrence } from "./firedRepository";
 
 const KEY = "lp.blocks.v1";
 const LEGACY_KEY = "lp.tasks.v1";
@@ -106,16 +107,18 @@ async function ensureMigrated(): Promise<void> {
 /**
  * Read old rows forward. Two shapes predate the current one:
  *  · pre-D40 blocks carry `executionAlarm: boolean` instead of `alert`.
- *  · D40 blocks may carry `alert: "none"` — a tier D43 **deleted**. `none` is no longer a `BlockAlert`,
- *    and `scheduleBlock` matches on the two live tiers, so a `none` row would arm **nothing**: a block
- *    sitting in the plan that can never announce itself. Land it on `soft` (it still tells you) rather
- *    than `execution` (never silently *add* a lock-screen takeover to a block that opted out of one).
+ *  · `alert: "none"` is a **live tier again** (D62) — D43 had deleted it and this function used to rewrite
+ *    such rows to `soft`, which silently gave a lecture block a notification its owner never asked for.
  * `alertRepeat` (D40's fixed interval) is dropped — D45 replaced it with user-picked `alertLeads`.
  */
 function normalize(raw: any): TimeBlock {
   const { executionAlarm, alertRepeat, ...rest } = raw;
   const alert: BlockAlert =
-    rest.alert === "execution" || (rest.alert === undefined && executionAlarm) ? "execution" : "soft";
+    rest.alert === "execution" || rest.alert === "none" || rest.alert === "soft"
+      ? rest.alert
+      : executionAlarm
+        ? "execution" // pre-D40 rows carried a boolean
+        : "soft";
   return { ...rest, alert } as TimeBlock;
 }
 
@@ -140,11 +143,42 @@ export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
   syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
 }
 
+/**
+ * **Moving a settled block to a new time RE-OPENS it.**
+ *
+ * "I missed the 15:58 gym — I'll move it to 17:27 and do it" is the most natural thing a person does with this
+ * app, and the app silently refused to let it work. The block kept `status: "fail"`, so:
+ *  · the card showed **미스** the moment you looked at it, before the new time had even arrived;
+ *  · the old `miss` outcome still keyed `taskId|date`, so when the moment fired again the catch-up net saw the
+ *    occurrence as **already resolved** and **threw the fire marker away**;
+ *  · and `scheduleBlock` cancels `<id>#recheck` for any block that is not `planned`, so **"진짜 했어?" never
+ *    came**. The alarm rang into an app that had already decided the answer.
+ *
+ * So: if a **settled** block's `start` or `date` moves, the occurrence is re-opened — status back to
+ * `planned`, verdict cleared, and the stale outcome and markers removed. This cannot erase a miss by accident:
+ * `settle()` and the 쉼 toggle don't move the clock, so they never trigger it.
+ *
+ * The evaluation stays honest anyway: the **D-1 snapshot** (`snapStart`) does **not** move (D23), so 돌아보기
+ * still knows you had promised 15:58 — you just get to actually do the thing.
+ */
 export async function updateBlock(block: TimeBlock): Promise<void> {
   const blocks = await listBlocks();
-  await writeBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
-  await scheduleBlock(block); // re-arms the block's ONE alert, or cancels both paths (D40)
-  syncPut("blocks", block);
+  const prev = blocks.find((b) => b.id === block.id);
+
+  const wasSettled = prev?.status === "success" || prev?.status === "fail";
+  const moved = !!prev && (prev.start !== block.start || prev.date !== block.date);
+  const verdictUnchanged = prev?.status === block.status; // settle() would have changed it — this is an edit
+
+  let next = block;
+  if (wasSettled && moved && verdictUnchanged) {
+    next = { ...block, status: "planned", completedAt: undefined, failReason: undefined };
+    await removeOutcome(prev!.id, prev!.date); // the old verdict was for a time that no longer exists
+    await forgetOccurrence(prev!.id, prev!.date); // and so were its fire / missed markers
+  }
+
+  await writeBlocks(blocks.map((b) => (b.id === next.id ? next : b)));
+  await scheduleBlock(next); // re-arms the block's ONE alert, or cancels every path
+  syncPut("blocks", next);
 }
 
 /** Was this block part of the plan of record — i.e. committed on an EARLIER day than the one it sits on? */

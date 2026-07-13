@@ -35,6 +35,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { currentAccount, db, onAccountChanged } from "./firebase";
+import { deletedIds, rememberDeletion } from "./tombstones";
 
 /** Everything we sync is identified and versioned the same way. */
 interface Syncable {
@@ -148,8 +149,17 @@ export function syncPutMany<T extends Syncable>(name: CollectionName, rows: T[])
   for (const row of rows) syncPut(name, row);
 }
 
-/** Soft-delete (§6). The tombstone is what actually travels; the row is already gone locally. */
+/**
+ * Soft-delete (§6). The tombstone is what actually travels; the row is already gone locally.
+ *
+ * **It also records the deletion LOCALLY, even with no account** — because that was the hole. With no `uid`
+ * there is no document to tombstone, so a delete made while logged out left no trace anywhere: the cloud (which
+ * may still hold the row from an earlier session) never heard about it, and the next login's reconcile handed it
+ * straight back. **The founder's deleted blocks resurrected on login.** The local tombstone is what the reconcile
+ * now pushes up.
+ */
 export function syncRemove(name: CollectionName, id: string): void {
+  void rememberDeletion(name, id); // always — this is what survives being logged out
   const account = currentAccount();
   if (!account) return;
   fire(() => col(account.uid, name)?.doc(id).set({ id, deletedAt: Date.now() }, { merge: true }));
@@ -195,7 +205,9 @@ export type CloudRow = Syncable & { deletedAt?: number | null };
 export function planReconcile<T extends Syncable>(
   local: T[],
   cloudRows: CloudRow[],
-): { merged: T[]; toPush: T[] } {
+  /** Ids THIS device deleted — including while logged out, when no cloud tombstone could be written. */
+  locallyDeleted: Set<string> = new Set(),
+): { merged: T[]; toPush: T[]; toBury: string[] } {
   const dead = new Set<string>();
   const cloud = new Map<string, T>();
   for (const row of cloudRows) {
@@ -206,17 +218,28 @@ export function planReconcile<T extends Syncable>(
     }
   }
 
+  // A row this device deleted is dead too — even if the cloud still holds it alive because we were logged out
+  // when we deleted it and could write no tombstone. Bury it now.
+  const toBury: string[] = [];
+  for (const id of locallyDeleted) {
+    if (cloud.has(id)) {
+      cloud.delete(id);
+      toBury.push(id);
+    }
+    dead.add(id);
+  }
+
   const merged = new Map(cloud);
   const toPush: T[] = [];
   for (const row of local) {
-    if (dead.has(row.id)) continue; // deleted elsewhere — respect it; never push over a tombstone
+    if (dead.has(row.id)) continue; // deleted elsewhere (or here) — never push over a tombstone
     const remote = cloud.get(row.id);
     if (!remote || row.updatedAt > (remote.updatedAt ?? 0)) {
       toPush.push(row); // the cloud is missing this, or is behind it
       merged.set(row.id, row);
     }
   }
-  return { merged: [...merged.values()], toPush };
+  return { merged: [...merged.values()], toPush, toBury };
 }
 
 async function reconcile(name: CollectionName, snap: any): Promise<void> {
@@ -226,8 +249,13 @@ async function reconcile(name: CollectionName, snap: any): Promise<void> {
     if (data) cloudRows.push({ ...data, id: data.id ?? doc.id } as CloudRow);
   });
 
-  const { merged, toPush } = planReconcile(await readLocal(name), cloudRows);
+  const { merged, toPush, toBury } = planReconcile(
+    await readLocal(name),
+    cloudRows,
+    await deletedIds(name)
+  );
   for (const row of toPush) syncPut(name, row);
+  for (const id of toBury) syncRemove(name, id); // a deletion made while logged out finally reaches the cloud
   await writeLocal(name, merged);
 }
 

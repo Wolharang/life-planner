@@ -4,6 +4,7 @@
 // (done/miss recorded) or auto-archived after the catch-up window.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { listMisses, setMisses } from "./missedRepository";
 
 const KEY = "lp.fires.v1";
 
@@ -30,4 +31,15 @@ export async function appendFires(list: FireRecord[]): Promise<void> {
   if (list.length === 0) return;
   const all = await listFires();
   await setFires([...all, ...list]);
+}
+
+/**
+ * Forget an occurrence's markers entirely (fire + never-fired). Used when a settled block is **moved to a new
+ * time** and its occurrence is re-opened (`blockRepository.updateBlock`): the old markers describe a moment
+ * that no longer exists, and leaving them behind makes the catch-up net argue about a time the user already
+ * abandoned.
+ */
+export async function forgetOccurrence(taskId: string, date: string): Promise<void> {
+  await setFires((await listFires()).filter((f) => !(f.taskId === taskId && f.date === date)));
+  await setMisses((await listMisses()).filter((m) => !(m.taskId === taskId && m.date === date)));
 }

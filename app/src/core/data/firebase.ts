@@ -136,7 +136,18 @@ export async function signOut(): Promise<void> {
 export function authErrorMessage(err: any): string {
   // Backing out of the Google sheet is a choice, not a failure — say nothing.
   if (err?.message === "auth/cancelled" || err?.code === "SIGN_IN_CANCELLED" || err?.code === "-5") return "";
+
+  // The generic fallback below was hiding the one thing we needed: WHICH failure this was. Google sign-in kept
+  // failing with a message that said nothing, so we kept guessing at the cause. An error the user can read
+  // back to us is worth more than a tidy one — the copy stays calm, the code rides along.
+  // eslint-disable-next-line no-console
+  console.warn("[auth] sign-in failed:", err?.code, err?.message, JSON.stringify(err ?? {}));
+
   switch (err?.code) {
+    case "auth/account-exists-with-different-credential":
+      return "이 이메일은 이미 다른 방법으로 가입돼 있어요. 이메일·비밀번호로 로그인해 주세요.";
+    case "auth/operation-not-allowed":
+      return "이 로그인 방식이 아직 켜져 있지 않아요.";
     case "auth/invalid-email":
       return "이메일 형식이 아니에요.";
     case "auth/email-already-in-use":
@@ -152,6 +163,7 @@ export function authErrorMessage(err: any): string {
     case "auth/too-many-requests":
       return "잠시 후에 다시 시도해 주세요.";
     default:
-      return "로그인에 실패했어요. 앱은 그대로 쓸 수 있어요.";
+      // Show the code. A message that says nothing costs more than one that looks technical.
+      return `로그인에 실패했어요. 앱은 그대로 쓸 수 있어요.${err?.code ? `\n(${err.code})` : ""}`;
   }
 }

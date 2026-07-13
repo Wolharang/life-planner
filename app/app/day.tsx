@@ -181,7 +181,13 @@ export default function DayPlan() {
                   {[
                     KIND_LABEL[b.kind],
                     b.location,
-                    isSkipped(b) ? "오늘은 쉼" : b.alert === "execution" ? "실행 알림" : "알림",
+                    isSkipped(b)
+                      ? "오늘은 쉼"
+                      : b.alert === "execution"
+                        ? "실행 알림"
+                        : b.alert === "soft"
+                          ? "알림"
+                          : "알림 없음",
                     b.status === "success" ? "해냄" : b.status === "fail" ? "미스" : null,
                   ]
                     .filter(Boolean)

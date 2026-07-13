@@ -81,6 +81,28 @@ describe("planReconcile — rejoining the cloud", () => {
   });
 });
 
+describe("planReconcile — a deletion made while LOGGED OUT still wins", () => {
+  // The hole the founder fell into: he deleted blocks while logged out, then logged in — and they all came
+  // back. syncRemove is a no-op with no account (no uid, no document to tombstone), so the deletion left no
+  // trace anywhere, and the cloud (which still held them from an earlier session) handed them straight back.
+  it("a locally-deleted id is buried, not resurrected, even though the cloud still holds it alive", () => {
+    const cloud: CloudRow[] = [{ id: "gone", updatedAt: 5, title: "헬스" } as CloudRow];
+    const { merged, toBury } = planReconcile<Row>([], cloud, new Set(["gone"]));
+    expect(merged.length).toBe(0); // it does not come back
+    expect(toBury).toEqual(["gone"]); // and the cloud is finally told
+  });
+
+  it("a local deletion does not disturb rows it never touched", () => {
+    const cloud: CloudRow[] = [
+      { id: "gone", updatedAt: 5 } as CloudRow,
+      { id: "keep", updatedAt: 5 } as CloudRow,
+    ];
+    const { merged, toBury } = planReconcile<Row>([], cloud, new Set(["gone"]));
+    expect(ids(merged)).toEqual(["keep"]);
+    expect(toBury).toEqual(["gone"]);
+  });
+});
+
 describe("putPayload — a push can never undo a delete", () => {
   // The three-device case that reconcile alone cannot catch (D54):
   //   Mon: A, B, C all hold X.        Tue: B (offline) deletes X — tombstone goes into B's queue.
