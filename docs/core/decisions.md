@@ -12,6 +12,33 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Alert model, round 2 (from the second device pass)
+
+### D43. Two tiers, not three · 실행 is the DEFAULT · repeat · sound is per-block (revises D40)
+- **Decisions (founder, 2026-07-11, on-device):**
+  1. **`none` is removed.** A block you would never be told about isn't worth adding. `alert` = **`soft` |
+     `execution`** only. (Old `none` rows read forward as `soft`.)
+  2. **`execution` is the DEFAULT for a new block.** The lever is the product (D30) — you should have to
+     *opt out* of being made to do the thing, not opt in.
+  3. **A soft alert may REPEAT** (`alertRepeat`, 5-min spacing, ≤5). A single missable buzz is how a soft
+     alert quietly becomes useless.
+  4. **Sound is per-block and independent of the tier** (`alertSound`, default off = **vibration only**):
+     the **execution moment can be silent**, and a **soft alert can ring**. Two separate questions — *how
+     hard does it push* (tier) and *how loud is it* (sound) — were wrongly fused into one.
+- **Kept from D40:** exactly **one** alert per block; only `execution` may pierce the lock screen (R15) —
+  the soft tier rides a quiet channel (silent or audible, both DEFAULT importance, lock-screen PRIVATE).
+
+### D44. The alarm tone may never outlive the screen it belongs to (safety)
+- **Problem (founder, on-device):** the moment fired on the lock screen, the screen was cycled off→on, and
+  then **the tone kept playing with no window and no notification** — nothing to tap, no way to stop it. A
+  no-guilt app that traps the user in an unstoppable alarm is a contradiction, and it is also just *scary*.
+- **Decision:** the tone belongs to the **moment on screen**, so it lives and dies with it: it stops the
+  instant the activity loses the foreground (`onPause`), resumes if the moment comes back, and is
+  **hard-capped** regardless. **No path may leave audio running without a visible way to stop it.**
+- **Also:** a finished moment must leave **no tappable ghost** — its notification is cancelled on
+  resolution and answered occurrences are never replayed; but an **unanswered** moment keeps its
+  notification, because that is the user's way *back* to it.
+
 ## 2026-07-11 — Skin lock · alert tiers · the moment must actually appear
 
 ### D39. Design skin LOCKED: v5 "Toss-form" (supersedes D36's forest/gold baseline)

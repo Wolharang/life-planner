@@ -227,8 +227,13 @@ export default function Review() {
                         저장
                       </Text>
                     </Pressable>
-                    <Pressable onPress={() => setEditing(null)} className="px-2 py-1.5">
-                      <Text className="text-faint" style={{ fontSize: 12 }}>
+                    {/* an equally visible way out — never make "no reason" feel like the wrong answer */}
+                    <Pressable
+                      onPress={() => setEditing(null)}
+                      className="bg-surface rounded-full px-4 py-1.5"
+                      style={{ borderWidth: 1, borderColor: "#E5E8EB" }}
+                    >
+                      <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
                         그냥 닫기
                       </Text>
                     </Pressable>

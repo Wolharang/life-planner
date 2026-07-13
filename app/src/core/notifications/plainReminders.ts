@@ -27,22 +27,27 @@ function getNotifications(): any | null {
 // not pierce. (The execution cue's channel is the opposite by design: HIGH + bypassDnd + PUBLIC, set
 // natively in AlarmNotifications.kt.) Android freezes a channel's settings after creation, so this id
 // is versioned — bump it if the policy ever changes.
+// Two channels, because Android freezes a channel's sound after creation: a **silent** one (vibration
+// only — the default) and an **audible** one (D43: a soft alert may ring if the user wants it to).
+// Neither pierces the lock screen — that stays the execution cue's alone (R15).
 const SOFT_CHANNEL_ID = "lp-soft-v1";
-let softChannelReady = false;
+const SOFT_SOUND_CHANNEL_ID = "lp-soft-sound-v1";
+const channelsReady = new Set<string>();
 
-async function ensureSoftChannel(N: any): Promise<string | undefined> {
-  if (softChannelReady) return SOFT_CHANNEL_ID;
+async function ensureSoftChannel(N: any, withSound = false): Promise<string | undefined> {
+  const id = withSound ? SOFT_SOUND_CHANNEL_ID : SOFT_CHANNEL_ID;
+  if (channelsReady.has(id)) return id;
   try {
-    await N.setNotificationChannelAsync(SOFT_CHANNEL_ID, {
-      name: "알림 (조용히)",
-      importance: N.AndroidImportance.DEFAULT, // not HIGH → no heads-up takeover
-      sound: null, // C1: sound off by default; the cue is the only loud thing
-      vibrationPattern: [0, 120],
+    await N.setNotificationChannelAsync(id, {
+      name: withSound ? "알림 (소리)" : "알림 (진동만)",
+      importance: N.AndroidImportance.DEFAULT, // not HIGH → no heads-up takeover, never a lock-screen takeover
+      sound: withSound ? "default" : null,
+      vibrationPattern: [0, 220, 120, 220],
       lockscreenVisibility: N.AndroidNotificationVisibility.PRIVATE,
       bypassDnd: false,
     });
-    softChannelReady = true;
-    return SOFT_CHANNEL_ID;
+    channelsReady.add(id);
+    return id;
   } catch {
     return undefined; // channel API unavailable (non-Android / not linked) — schedule without it
   }
@@ -134,36 +139,65 @@ export async function scheduleReminders(task: Task): Promise<void> {
 // Identifiers `${blockId}-b` (task reminders `-r*`, events `-e`).
 
 const BLOCK_SUFFIX = "-b";
+/** A soft alert may repeat so it isn't missed (D43). Spacing between repeats, and the ceiling we cancel to. */
+export const SOFT_REPEAT_GAP_MS = 5 * 60_000;
+export const SOFT_REPEAT_MAX = 5;
 
 export async function cancelBlockSoftAlert(blockId: string): Promise<void> {
   const N = getNotifications();
   if (!N) return;
-  try {
-    await N.cancelScheduledNotificationAsync(`${blockId}${BLOCK_SUFFIX}`);
-  } catch {
-    // best-effort — nothing scheduled under that id
+  for (let i = 0; i < SOFT_REPEAT_MAX; i++) {
+    try {
+      await N.cancelScheduledNotificationAsync(`${blockId}${BLOCK_SUFFIX}${i}`);
+    } catch {
+      // best-effort — nothing scheduled under that id
+    }
   }
 }
 
+/**
+ * The soft tier (D40/D43): a plain notification that **tells** you. It may **repeat** N times, 5 minutes
+ * apart, because one easily-missed buzz is how a soft alert quietly becomes useless — but it still never
+ * takes the screen, so it can never turn into a second execution cue (R15).
+ */
 export async function scheduleBlockSoftAlert(
-  block: { id: string; title: string; start: string; end?: string; alarmLeadMinutes: number },
+  block: {
+    id: string;
+    title: string;
+    start: string;
+    end?: string;
+    alarmLeadMinutes: number;
+    alertSound?: boolean;
+    alertRepeat?: number;
+  },
   fireAt: number
 ): Promise<void> {
   const N = getNotifications();
   if (!N) return;
   try {
     await cancelBlockSoftAlert(block.id);
-    if (fireAt <= Date.now()) return;
-    const channelId = await ensureSoftChannel(N);
+    const channelId = await ensureSoftChannel(N, !!block.alertSound);
     const lead = block.alarmLeadMinutes;
-    await N.scheduleNotificationAsync({
-      identifier: `${block.id}${BLOCK_SUFFIX}`,
-      content: {
-        title: block.title,
-        body: lead > 0 ? `${lead}분 후 · ${block.start}${block.end ? `–${block.end}` : ""}` : `지금 · ${block.start}`,
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(fireAt), channelId },
-    });
+    const times = Math.min(Math.max(block.alertRepeat ?? 1, 1), SOFT_REPEAT_MAX);
+    const now = Date.now();
+
+    for (let i = 0; i < times; i++) {
+      const at = fireAt + i * SOFT_REPEAT_GAP_MS;
+      if (at <= now) continue; // a repeat whose moment already passed is simply skipped
+      await N.scheduleNotificationAsync({
+        identifier: `${block.id}${BLOCK_SUFFIX}${i}`,
+        content: {
+          title: block.title,
+          body:
+            i > 0
+              ? `아직이에요 · ${block.start}`
+              : lead > 0
+                ? `${lead}분 후 · ${block.start}${block.end ? `–${block.end}` : ""}`
+                : `지금 · ${block.start}`,
+        },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
+      });
+    }
   } catch {
     // best-effort
   }

@@ -41,7 +41,7 @@ function fromTask(t: Task, date: string): TimeBlock {
     start: t.setTime,
     title: t.title,
     kind: guessKind(t.title),
-    alert: t.executionAlarm ? "execution" : "none", // D40 tiers; the prototype only had on/off
+    alert: t.executionAlarm ? "execution" : "soft", // D40/D43: the prototype only had the cue on/off
     alarmLeadMinutes: t.leadMinutes,
     microStartNote: t.microStartNote,
     snapStart: t.setTime,

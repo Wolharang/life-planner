@@ -458,15 +458,19 @@ export default function Home() {
                         남기기
                       </Text>
                     </Pressable>
+                    {/* "그냥 닫기" is a FIRST-CLASS answer, so it must LOOK like one (founder): a faint
+                        text link reads as "you really should write something", and that friction is
+                        exactly what makes people quietly stop using an app (C2/B1). */}
                     <Pressable
                       onPress={() => {
                         setAskReason(null);
                         setReason("");
                       }}
                       hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-                      className="px-3 py-1.5"
+                      className="bg-surface rounded-full px-4 py-1.5"
+                      style={{ borderWidth: 1, borderColor: "#E5E8EB" }}
                     >
-                      <Text className="text-faint" style={{ fontSize: 12 }}>
+                      <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
                         그냥 닫기
                       </Text>
                     </Pressable>
@@ -550,7 +554,7 @@ export default function Home() {
                           : " · 잠금화면 큐"}
                       </>
                     ) : (
-                      hero.block.alert === "soft" ? "알림만 (전체화면 없음)" : "알림 없음"
+                      "알림만 · 전체화면 없음"
                     )}
                   </Text>
                 </Pressable>
@@ -615,7 +619,7 @@ export default function Home() {
                   <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
                     {b.start}
                     {b.end ? `–${b.end}` : ""}
-                    {b.alert === "none" ? "" : skipped ? " · 오늘은 쉼" : b.alert === "execution" ? " · 실행 알림" : " · 알림"}
+                    {skipped ? " · 오늘은 쉼" : b.alert === "execution" ? " · 실행 알림" : " · 알림"}
                     {b.location ? ` · ${b.location}` : ""}
                   </Text>
                 </View>
@@ -636,7 +640,7 @@ export default function Home() {
                   // before the moment → the "오늘은 쉼" toggle (the only intentional skip, R7)
                   <Switch
                     value={!skipped}
-                    disabled={b.alert === "none"}
+
                     onValueChange={() => toggleSkip(b)}
                     trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
                     thumbColor="#FFFFFF"

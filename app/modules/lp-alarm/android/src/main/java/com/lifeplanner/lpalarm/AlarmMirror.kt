@@ -37,7 +37,8 @@ object AlarmMirror {
           recurrence = o.optString("recurrence", "none"),
           note = o.optString("note", ""),
           createdAt = o.optLong("createdAt", 0L),
-          leadMinutes = o.optInt("leadMinutes", 0)
+          leadMinutes = o.optInt("leadMinutes", 0),
+          sound = o.optBoolean("sound", false)
         )
       )
     }
@@ -56,6 +57,7 @@ object AlarmMirror {
           .put("note", it.note)
           .put("createdAt", it.createdAt)
           .put("leadMinutes", it.leadMinutes)
+          .put("sound", it.sound)
       )
     }
     prefs(context).edit().putString(KEY, arr.toString()).apply()

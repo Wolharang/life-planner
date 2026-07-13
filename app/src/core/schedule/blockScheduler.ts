@@ -36,9 +36,9 @@ export const isSkipped = (block: TimeBlock) => block.status === "skipped";
 /** Does this block get the lock-screen execution moment (as opposed to a soft alert / silence)? D40. */
 export const isExecution = (block: TimeBlock) => block.alert === "execution" && !isSkipped(block);
 
-/** When an alerting block should fire: `start − lead`. Null when it carries no alert (or is skipped). */
+/** When a block should fire: `start − lead`. Null only when it is pre-skipped ("오늘은 쉼", R7). */
 export function blockFireAt(block: TimeBlock): number | null {
-  if (block.alert === "none" || isSkipped(block)) return null;
+  if (isSkipped(block)) return null;
   return blockStartAt(block) - block.alarmLeadMinutes * 60_000;
 }
 
@@ -70,6 +70,7 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
       note: block.microStartNote ?? "",
       createdAt: block.createdAt,
       leadMinutes: block.alarmLeadMinutes,
+      sound: !!block.alertSound, // D43: the moment itself can be vibration-only
     });
   } else {
     await scheduleBlockSoftAlert(block, fireAt);
@@ -118,6 +119,7 @@ export function pastUnfiredBlocks(
   now: number = Date.now()
 ): TimeBlock[] {
   return blocks.filter((b) => {
+    if (!isExecution(b)) return false; // only the CUE can be "missed" — a soft alert just informed you
     const fireAt = blockFireAt(b);
     return fireAt != null && fireAt <= now && fireAt > from && !stillArmed.has(b.id);
   });

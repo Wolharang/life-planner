@@ -139,16 +139,17 @@ export type BlockKind = "normal" | "workout" | "run";
 export type BlockStatus = "planned" | "success" | "fail" | "skipped";
 
 /**
- * How loudly a block announces itself (**D40**, founder 2026-07-11 — supersedes D38). A block still
- * carries **exactly one** kind of alert; there are now three to choose from:
- *  · `none` — silent. The plan is just a plan. (default)
- *  · `soft` — a plain notification + vibration at `start − lead`. It **tells** you; it does not take the
- *    screen. For the many blocks that don't need forcing (강의, 점심) — the thing that was missing.
- *  · `execution` — the core lever: the exact alarm + the full-screen moment over the lock screen (R7).
- *    Reserve it for the skip-prone few (운동) — "one loud thing" (C1/D30) survives precisely because a
- *    softer tier now exists to absorb everything else.
+ * How a block announces itself (**D40**, revised by **D43** 2026-07-11). A block carries **exactly one**
+ * alert, and there are exactly **two** kinds — a block with *no* alert is a block you'd never act on, so
+ * the founder removed that option:
+ *  · `soft` — a plain notification at `start − lead`. It **tells** you; it never takes the screen. Can
+ *    repeat (`alertRepeat`) so it isn't missed. For the blocks that need telling, not forcing (강의, 점심).
+ *  · `execution` — **the default**: the exact alarm + the full-screen moment over the lock screen (R7).
+ *    The lever is the product, so a new block gets it unless you say otherwise.
+ * Either kind can be **silent (vibration only) or audible** (`alertSound`) — the tier and the loudness are
+ * independent choices (D43).
  */
-export type BlockAlert = "none" | "soft" | "execution";
+export type BlockAlert = "soft" | "execution";
 
 /**
  * TimeBlock — the day plan's unit, the execution lever's target, and the evaluation subject
@@ -168,10 +169,14 @@ export interface TimeBlock {
   location?: string;
   /** workout/run blocks marked success ARE the workout record — no separate log (D22) */
   kind: BlockKind;
-  /** which alert this block carries (D40). `execution` = the lock-screen moment (R7); `soft` = a plain
-   *  notification + vibration; `none` = silent. Both alerting kinds fire at `start − alarmLeadMinutes`. */
+  /** which alert this block carries (D40/D43) — fires at `start − alarmLeadMinutes`. Default `execution`. */
   alert: BlockAlert;
   alarmLeadMinutes: number;
+  /** sound on this block's alert? `false` (default) = **vibration only**. Applies to BOTH tiers (D43) —
+   *  the execution moment can be silent, and a soft alert can be audible. The tone itself is a setting. */
+  alertSound?: boolean;
+  /** `soft` only: how many times the notification repeats (5-min spacing), so it isn't missed. 1 = once. */
+  alertRepeat?: number;
   /** the 5-second first move (A2) — shown on the execution moment's commit card */
   microStartNote?: string;
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes

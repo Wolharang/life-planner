@@ -129,8 +129,11 @@ class LpAlarmModule : Module() {
 
     // --- scheduling ---
 
-    Function("scheduleExactAlarm") { id: String, fireAt: Double, title: String, recurrence: String, note: String, createdAt: Double, leadMinutes: Int ->
-      AlarmScheduler.schedule(context, AlarmItem(id, fireAt.toLong(), title, recurrence, note, createdAt.toLong(), leadMinutes))
+    Function("scheduleExactAlarm") { id: String, fireAt: Double, title: String, recurrence: String, note: String, createdAt: Double, leadMinutes: Int, sound: Boolean ->
+      AlarmScheduler.schedule(
+        context,
+        AlarmItem(id, fireAt.toLong(), title, recurrence, note, createdAt.toLong(), leadMinutes, "commit", sound)
+      )
     }
 
     Function("cancelAlarm") { id: String ->

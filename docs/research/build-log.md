@@ -7,6 +7,44 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — Device pass #3: the unstoppable alarm (D44) · alert model round 2 (D43)
+
+### THE SERIOUS ONE — a tone playing with no screen and no notification (D44)
+- **Symptom (founder):** the moment fired on the lock screen; the screen was cycled off→on; then **the alarm
+  tone kept playing with no window and no notification** — nothing to tap, **no way to stop it**.
+- **Cause:** the tone is a looping `MediaPlayer` owned by `ExecutionActivity`. If the activity survived but
+  stopped being **visible**, the loop kept running — and (since the previous fix) its notification was
+  already cancelled, so there was no way back to the screen that owned the sound.
+- **Fix — the tone lives and dies with the screen it belongs to:** it stops on `onPause` (the instant we lose
+  the foreground), resumes on `onResume` if the moment is still asking, and is **hard-capped** by its own
+  handler that no phase change can clear. **No path can leave audio running without a visible way to stop it.**
+- **And the ghost/return trade-off is now right:** the notification is cancelled **on resolution** (not on
+  takeover) and answered occurrences are never replayed — but an **unanswered** moment KEEPS its notification,
+  because that is the user's way *back* to it. (The previous fix cancelled too early: it removed the very
+  thing that could have rescued this situation.)
+
+### Alert model, round 2 (D43)
+1. **`없음` removed** — a block you'd never be told about isn't worth adding. Two tiers: **알림 / 실행**.
+2. **`실행` is now the DEFAULT** for a new block — the lever is the product; you should have to opt *out*.
+3. **A soft alert can REPEAT** — 1 / 2 / 3 / 5 times, 5 minutes apart. One missable buzz is how a soft alert
+   quietly becomes useless.
+4. **Sound is per-block and independent of the tier** — the **execution moment can be vibration-only**, and a
+   **soft alert can ring**. (Two questions — *how hard does it push* vs *how loud is it* — had been fused.)
+   Threaded natively (`AlarmItem.sound` → intent → mirror), because the moment reads it at fire time.
+   The soft path got a second channel (audible) since Android freezes a channel's sound after creation.
+- Consequence in the catch-up net: **only an `execution` block can be "missed"** — a soft alert merely
+  informed you, so it never manufactures a miss.
+
+### "그냥 닫기" is now a real button
+The optional fail-reason's escape was a faint text link — which reads as *"you really should write something"*.
+That friction is exactly how an app quietly stops being used (C2/B1). It is now a **bordered pill of equal
+weight** to 남기기, in both the home card and 돌아보기.
+
+### Verified
+`typecheck` ✓ · `31 tests` ✓ · `prebuild --clean --platform android` ✓.
+
+---
+
 ## 2026-07-11 — The moment must be a ONE-SHOT: the stale notification could replay it
 
 Second round of founder device findings. Answers + one more real defect.

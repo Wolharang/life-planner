@@ -20,6 +20,7 @@ class AlarmReceiver : BroadcastReceiver() {
     val createdAt = intent.getLongExtra(LpAlarmConstants.EXTRA_CREATED, 0L)
     val leadMinutes = intent.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0)
     val mode = intent.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit"
+    val sound = intent.getBooleanExtra(LpAlarmConstants.EXTRA_SOUND, false)
     val firedAt = System.currentTimeMillis()
 
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -32,7 +33,7 @@ class AlarmReceiver : BroadcastReceiver() {
       wakeLock.acquire(15_000L)
 
       // Pierce the lock screen, re-arm recurrence / evict one-shot, and report to JS if alive.
-      AlarmScheduler.fireNow(context, AlarmItem(id, intended, title, recurrence, note, createdAt, leadMinutes, mode), firedAt)
+      AlarmScheduler.fireNow(context, AlarmItem(id, intended, title, recurrence, note, createdAt, leadMinutes, mode, sound), firedAt)
     } finally {
       if (wakeLock.isHeld) wakeLock.release()
     }

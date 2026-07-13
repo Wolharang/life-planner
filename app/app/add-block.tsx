@@ -31,12 +31,15 @@ const LEADS = [
   { label: "1시간 전", v: 60 },
 ];
 const LEAD_PRESET_VALUES = LEADS.map((l) => l.v);
-// A block carries exactly one of these (D40). Default = 없음: the plan is just a plan until you say so.
+// A block carries exactly one of these (D40/D43). **Default = 실행**: the lever is the product, so a new
+// block gets it unless you say otherwise. There is no "없음" — a block you'd never be told about isn't
+// worth adding (founder, 2026-07-11).
 const ALERTS: { label: string; v: BlockAlert }[] = [
-  { label: "없음", v: "none" },
   { label: "알림", v: "soft" },
   { label: "실행", v: "execution" },
 ];
+// A soft alert may repeat so it isn't missed (D43) — 5-min spacing.
+const REPEATS = [1, 2, 3, 5];
 const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -67,7 +70,9 @@ export default function AddBlock() {
   const [endM, setEndM] = useState((params.end ?? "22:00").split(":")[1]);
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
-  const [alert, setAlert] = useState<BlockAlert>("none"); // silent by default (D40; "select few" get the cue)
+  const [alert, setAlert] = useState<BlockAlert>("execution"); // the lever is the default (D43)
+  const [alertSound, setAlertSound] = useState(false); // false = vibration only (both tiers, D43)
+  const [alertRepeat, setAlertRepeat] = useState(1); // soft only
   const [lead, setLead] = useState(0);
   const [leadCustomOn, setLeadCustomOn] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
@@ -109,6 +114,8 @@ export default function AddBlock() {
       setKind(b.kind);
       setLocation(b.location ?? "");
       setAlert(b.alert);
+      setAlertSound(!!b.alertSound);
+      setAlertRepeat(b.alertRepeat ?? 1);
       setLead(b.alarmLeadMinutes);
       if (!LEAD_PRESET_VALUES.includes(b.alarmLeadMinutes)) {
         setLeadCustomOn(true);
@@ -150,6 +157,8 @@ export default function AddBlock() {
       kind,
       location: location.trim() || undefined,
       alert,
+      alertSound,
+      alertRepeat: alert === "soft" ? alertRepeat : undefined,
       alarmLeadMinutes: effectiveLead,
       microStartNote: note.trim() || undefined,
     };
@@ -351,13 +360,50 @@ export default function AddBlock() {
         </View>
         <Text className="text-grey mt-2" style={{ fontSize: 12.5, lineHeight: 18 }}>
           {alert === "execution"
-            ? "그 시각에 잠금화면을 뚫고 실행 화면이 떠요. 미루기 쉬운 일(운동)에만 쓰세요."
-            : alert === "soft"
-              ? "진동과 함께 알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."
-              : "아무 알림도 오지 않아요. 계획으로만 남아요."}
+            ? "그 시각에 잠금화면을 뚫고 실행 화면이 떠요. 미루기 쉬운 일(운동)에 쓰세요."
+            : "알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."}
         </Text>
 
-        {alert !== "none" && (
+        {/* 소리 / 진동 — independent of the tier (D43): the moment can be silent, an alert can ring. */}
+        <View className="flex-row items-center justify-between" style={{ marginTop: 18 }}>
+          <View className="flex-1 pr-3">
+            <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700" }}>
+              소리
+            </Text>
+            <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
+              {alertSound ? "소리 + 진동" : "진동만"}
+            </Text>
+          </View>
+          <Switch
+            value={alertSound}
+            onValueChange={setAlertSound}
+            trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
+            thumbColor="#FFFFFF"
+            ios_backgroundColor="#E5E8EB"
+          />
+        </View>
+
+        {/* 알림 횟수 — a soft alert that's missed once is useless; let it repeat (D43). */}
+        {alert === "soft" && (
+          <>
+            <SectionLabel>알림 횟수</SectionLabel>
+            <ChipRow>
+              {REPEATS.map((n) => (
+                <Chip
+                  key={n}
+                  label={n === 1 ? "1번" : `${n}번`}
+                  on={alertRepeat === n}
+                  onPress={() => setAlertRepeat(n)}
+                />
+              ))}
+            </ChipRow>
+            <Text className="text-grey mt-2" style={{ fontSize: 12.5 }}>
+              {alertRepeat > 1 ? `5분 간격으로 ${alertRepeat}번 알려줘요.` : "한 번만 알려줘요."}
+            </Text>
+          </>
+        )}
+
+        {(
           <>
             <SectionLabel>언제</SectionLabel>
             <ChipRow>

@@ -125,10 +125,11 @@ the plan-vs-actual bookkeeping — is the real target.
   `expo-notifications` on a quiet channel (DEFAULT importance · no sound · lock-screen PRIVATE) — it informs and
   **never pierces**; (b) the **execution cue** = the native **exact-alarm + full-screen** path (Android 12+
   exact-alarm + FSI + **"다른 앱 위에 표시"**, D41 — without the last one it only takes over a *locked* screen).
-- **A block carries exactly ONE alert — chosen from three (D40, revises this section):** `none` (silent) ·
-  `soft` (a plain notification + vibration at `start − lead` — tells you, forces nothing) · `execution` (the
-  cue). Default `none`. "Select few" = the blocks set to `execution`; the soft tier exists precisely so that
-  set stays small (**that** is what keeps the cue loud, C1/D30). Important events use the soft path (R3).
+- **A block carries exactly ONE alert — one of two (D40 → D43, revises this section):** `soft` (a plain
+  notification at `start − lead` — tells you, forces nothing; **may repeat**, 5-min spacing) · `execution`
+  (the cue). **Default = `execution`** — the lever is the product, so you opt *out*, not in. There is no
+  "silent block" option. **Sound is a separate axis** (`alertSound`, default off = vibration only): the
+  execution moment may be silent and a soft alert may ring (D43). Important events use the soft path (R3).
 
 ## 4. Data model sketch (draft)
 

@@ -132,6 +132,8 @@ export const alarm = {
     /** minutes the effective fire time is ahead-shifted (set − lead = fireAt); carried so the native
      *  commit line can show the SET time, not the effective time (PRD R3). */
     leadMinutes?: number;
+    /** D43: does THIS block's moment ring, or vibrate only? The tone itself is a global setting. */
+    sound?: boolean;
   }): void {
     Native.scheduleExactAlarm(
       opts.id,
@@ -140,7 +142,8 @@ export const alarm = {
       opts.recurrence ?? "none",
       opts.note ?? "",
       opts.createdAt ?? Date.now(),
-      opts.leadMinutes ?? 0
+      opts.leadMinutes ?? 0,
+      opts.sound ?? false
     );
   },
   cancel(id: string): void {

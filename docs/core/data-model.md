@@ -69,7 +69,9 @@
 | `location` | string | ○ | D-1 | |
 | `kind` | enum `normal\|workout\|run` | ✓ | D-1 | **운동 통합**(D22): 별도 기록 없음 |
 | — 실행 — | | | | |
-| `alert` | enum `none\|soft\|execution` (기본 `none`) | ✓ | D-1 | 이 블록이 갖는 **단 하나의** 알림(D40). `execution`=핵심 레버. **발화는 live `start − alarmLeadMinutes` — 스냅샷 아님** |
+| `alert` | enum `soft\|execution` (**기본 `execution`**) | ✓ | D-1 | 이 블록이 갖는 **단 하나의** 알림(D40/D43). `execution`=핵심 레버(기본값). **발화는 live `start − alarmLeadMinutes` — 스냅샷 아님** |
+| `alertSound` | boolean (기본 false) | ○ | D-1 | **진동만 vs 소리+진동**. 단계와 **독립**(D43): 실행도 무음일 수 있고, 알림도 울릴 수 있다. 톤 자체는 전역 설정 |
+| `alertRepeat` | number (기본 1, ≤5) | ○ | D-1 | **`soft` 전용** — 5분 간격 반복 횟수(D43). 한 번 놓치면 그만인 알림은 무용지물이 되므로 |
 | `alarmLeadMinutes` | number | ○ | D-1 | 리드타임(D28) |
 | `microStartNote` | string | ○ | D-1 | "지금 신발 신기" |
 | — D-1 스냅샷(평가 기준, D23) — | | | | |
@@ -82,9 +84,10 @@
 | `createdAt/updatedAt` | timestamp | ✓ | 자동 | |
 - **반복 없음(D37)**: TimeBlock은 **날짜별 단일 인스턴스**다(recurrence 필드 없음). "매일 헬스"는 **추가 화면에서 여러
   날짜를 한 번에 선택** → 날짜마다 **독립 블록**이 하나씩 생긴다(반복이 아니라 일괄 생성). 프로토타입의 `Recurrence`는 폐기.
-- **알림은 하나뿐 — 단, 세 단계 중 하나(D40, D38 대체)**: `alert` = **`none`**(무음) / **`soft`**(진동+알림만, 화면을
-  뚫지 않음) / **`execution`**(잠금화면 실행 순간). 기본 `none`. 한 블록은 여전히 **정확히 하나**의 알림만 갖는다.
-  소프트 단계가 있어야 실행 큐를 **드물게** 쓸 수 있고, 드물어야 큐가 세다(C1/D30).
+- **알림은 하나뿐 — 두 단계 중 하나(D40 → D43로 개정)**: `alert` = **`soft`**(알림만 — 화면을 뚫지 않음) /
+  **`execution`**(잠금화면 실행 순간). **기본값 = `execution`** — 레버가 곧 제품이므로 *빠지려면 명시적으로 빼야* 한다.
+  **`none`은 폐지**(알림이 안 오는 블록은 넣을 이유가 없다; 옛 `none` 행은 `soft`로 읽는다).
+  **소리(`alertSound`)는 단계와 독립** — 실행이 무음일 수도, 알림이 울릴 수도 있다(D43).
 - **`status`**: `planned|success|fail` + **`skipped`**(발화 전 "오늘은 쉼" 토글 — 무죄책, 미스 아님, 실행률 분모에서 제외).
 - **생성 위치/시점**: Day 뷰에서 **D-1 설계**(D6). 당일 수정 가능하되 **평가는 스냅샷 기준**(D23). 홈=실행 카드에서 실행/done.
 - **저장**: `/users/{uid}/timeblocks/{id}` + 로컬 미러. **현재 로컬 구현(2026-07-11)**: AsyncStorage `lp.blocks.v1`

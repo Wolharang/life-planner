@@ -37,8 +37,8 @@ describe("blockFireAt (R7)", () => {
     expect(blockFireAt(block({ start: "21:00", snapStart: "20:00", alarmLeadMinutes: 30 }))).toBe(at(2026, 8, 1, 20, 30));
   });
 
-  it("does not fire when the block carries no alert", () => {
-    expect(blockFireAt(block({ alert: "none" }))).toBe(null);
+  it("a soft-alert block also fires (it just fires as a notification, not as the moment)", () => {
+    expect(blockFireAt(block({ alert: "soft" }))).toBe(at(2026, 8, 1, 21, 0));
   });
 
   it("does not fire on a pre-skipped block (오늘은 쉼)", () => {
@@ -109,10 +109,10 @@ describe("pastUnfiredBlocks (R6 never-fired net)", () => {
     expect(pastUnfiredBlocks([block()], new Set(["b1"]), now - 86_400_000, now)).toEqual([]);
   });
 
-  it("ignores blocks with no cue and future blocks", () => {
+  it("ignores future blocks, and soft-alert blocks (only the CUE can be 'missed')", () => {
     const future = block({ id: "b2", date: "2026-09-01" });
-    const noCue = block({ id: "b3", alert: "none" });
-    expect(pastUnfiredBlocks([future, noCue], new Set(), now - 86_400_000, now)).toEqual([]);
+    const softOnly = block({ id: "b3", alert: "soft" }); // past, but it only informed — not a miss
+    expect(pastUnfiredBlocks([future, softOnly], new Set(), now - 86_400_000, now)).toEqual([]);
   });
 });
 

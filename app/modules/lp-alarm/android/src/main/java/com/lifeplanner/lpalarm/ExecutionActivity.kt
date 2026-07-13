@@ -47,11 +47,15 @@ class ExecutionActivity : Activity() {
   private var taskId = ""
   private var alarmId = "" // the raw alarm/notification id ("<taskId>" or "<taskId>#recheck")
   private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
+  private var wantSound = false // per-block (D43): this block asked for a tone. false = vibration only.
   private var count = 5
   private var player: MediaPlayer? = null
   private var savedAlarmVolume = -1
 
   private val handler = Handler(Looper.getMainLooper())
+  // The sound cap gets its own handler: render() clears `handler` on every phase change, which would
+  // otherwise silently drop the safety timer that guarantees a tone can never ring forever.
+  private val soundHandler = Handler(Looper.getMainLooper())
 
   // v5 "Toss-form" tokens — the CONFIRMED skin (D39, 2026-07-11), mirroring app/tailwind.config.js.
   // The moment stays LIGHT (never a dark takeover); gold is reserved for the single DONE mark, and the
@@ -71,15 +75,17 @@ class ExecutionActivity : Activity() {
     val intended: Long,
     val createdAt: Long,
     val leadMinutes: Int,
-    val mode: String = "commit"
+    val mode: String = "commit",
+    val sound: Boolean = false
   )
 
   companion object {
     // Occurrences that fired while one was already showing (R2 sequential queue).
     private val queue = ArrayDeque<Item>()
-    // Alarm ids already run in this process — so a stale notification / duplicate intent can't replay a
-    // moment the user has already answered.
-    private val handled = HashSet<String>()
+    // Alarm ids the user has already ANSWERED in this process — a stale notification must not replay them.
+    private val resolved = HashSet<String>()
+    // A tone may never ring longer than this, no matter what (safety net for the "sound with no screen" bug).
+    private const val SOUND_MAX_MS = 60_000L
     // ~5 min after COMMIT, re-open at "진짜 했어?" (founder 2026-07-11). [TBD] — could become a setting.
     private const val RECHECK_DELAY_MS = 5 * 60_000L
   }
@@ -105,10 +111,21 @@ class ExecutionActivity : Activity() {
     intended = i.getLongExtra(LpAlarmConstants.EXTRA_INTENDED, System.currentTimeMillis()),
     createdAt = i.getLongExtra(LpAlarmConstants.EXTRA_CREATED, 0L),
     leadMinutes = i.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0),
-    mode = i.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit"
+    mode = i.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit",
+    sound = i.getBooleanExtra(LpAlarmConstants.EXTRA_SOUND, false)
   )
 
   private fun startItem(item: Item) {
+    // Already ANSWERED in this process → a stale notification / duplicate intent must not replay it
+    // (the founder saw "진짜 했어?" a second time after answering; a stale *commit* would even arm a
+    // second re-check). Note the guard is on *resolution*, not on start: an unanswered moment that got
+    // backgrounded must still be re-openable from its notification — that is the user's way back.
+    if (resolved.contains(item.taskId)) {
+      AlarmNotifications.cancel(this, item.taskId)
+      dismiss()
+      return
+    }
+
     mode = item.mode
     alarmId = item.taskId // the raw alarm id ("<taskId>" or "<taskId>#recheck") — keys its notification
     // The re-check alarm's id is "<taskId>#recheck"; outcomes/markers must key the ORIGINAL task.
@@ -118,21 +135,12 @@ class ExecutionActivity : Activity() {
     intended = item.intended
     createdAt = item.createdAt
     leadMinutes = item.leadMinutes
+    wantSound = item.sound // per-block (D43); the TONE is the global setting
     count = 5
     stopSound()
 
-    // The moment is a ONE-SHOT. Kill the notification that brought us here, so it can't sit in the shade
-    // and re-run the occurrence when tapped later (a second "진짜 했어?" after answering — and a stale
-    // *commit* tap would arm a SECOND re-check). Guard the same occurrence twice within this process too.
-    AlarmNotifications.cancel(this, alarmId)
-    if (!handled.add(alarmId)) {
-      // already ran in this process (a stale notification / duplicate intent) → do not run it again
-      dismiss()
-      return
-    }
-
     vibrate(60) // FIRING pulse
-    if (SoundSetting.isOn(this)) startSound() // audible only if enabled (default off = vibration-only)
+    maybeStartSound()
     if (mode == "recheck") {
       render("recheck")
     } else {
@@ -155,7 +163,8 @@ class ExecutionActivity : Activity() {
         note = note,
         createdAt = createdAt,
         leadMinutes = 0, // the re-check's "intended" is just now+5m — no lead offset
-        mode = "recheck"
+        mode = "recheck",
+        sound = wantSound
       ),
       persist = false
     )
@@ -163,9 +172,36 @@ class ExecutionActivity : Activity() {
 
   /** End the current occurrence: show the next queued one, or finish if none (R2 sequential). */
   private fun dismiss() {
-    AlarmNotifications.cancel(this, alarmId) // never leave a tappable ghost of a moment that is over
+    stopSound()
+    if (alarmId.isNotEmpty()) {
+      resolved.add(alarmId) // answered → any stale notification for it must never replay it
+      AlarmNotifications.cancel(this, alarmId) // and never leave a tappable ghost of a finished moment
+    }
     val next = queue.removeFirstOrNull()
     if (next != null) startItem(next) else finish()
+  }
+
+  /**
+   * **The alarm may only ring while the moment is actually on screen.** The founder hit the worst possible
+   * failure: after an off→on screen cycle the tone kept playing with **no window and no notification** —
+   * nothing to tap, no way to stop it. The tone belongs to the *screen*, so it lives and dies with the
+   * screen: it stops the instant we lose the foreground, resumes if we come back, and is hard-capped
+   * anyway. It can no longer outlive what it belongs to.
+   */
+  override fun onPause() {
+    stopSound()
+    super.onPause()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    maybeStartSound()
+  }
+
+  /** Ring only when: the user asked for sound on this block, and we're in a phase that should ring. */
+  private fun maybeStartSound() {
+    if (!wantSound) return
+    if ((mode == "commit" || mode == "recheck") && player == null) startSound()
   }
 
   override fun onDestroy() {
@@ -188,7 +224,8 @@ class ExecutionActivity : Activity() {
 
   private fun render(phase: String) {
     handler.removeCallbacksAndMessages(null)
-    if (phase != "commit") stopSound() // the alarm tone rings during COMMIT, then hands off to haptics
+    // The tone rings while the moment is ASKING (commit / re-check); once answered it hands off to haptics.
+    if (phase != "commit" && phase != "recheck") stopSound()
     when (phase) {
       "commit" -> {
         setContentView(commitView())
@@ -373,6 +410,9 @@ class ExecutionActivity : Activity() {
   }
 
   private fun startSound() {
+    // Hard cap — a tone must never outlive the moment (see onPause: it also dies with the screen).
+    soundHandler.removeCallbacksAndMessages(null)
+    soundHandler.postDelayed({ stopSound() }, SOUND_MAX_MS)
     try {
       // The execution moment should be loud regardless of a low/locked alarm slider — max the ALARM
       // stream during the moment and restore it on dismiss.
@@ -406,6 +446,7 @@ class ExecutionActivity : Activity() {
   }
 
   private fun stopSound() {
+    soundHandler.removeCallbacksAndMessages(null)
     try {
       player?.stop()
       player?.release()

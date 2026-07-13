@@ -16,7 +16,8 @@ data class AlarmItem(
   val note: String = "",       // micro-start note (e.g. "지금 신발 신기")
   val createdAt: Long = 0L,    // when the task was created — for the time-accurate commit line
   val leadMinutes: Int = 0,    // set − lead = fireAt; carried so the commit line shows the SET time (PRD R3)
-  val mode: String = "commit"  // "commit" (normal moment) | "recheck" (the ~5-min "진짜 했어?" follow-up)
+  val mode: String = "commit", // "commit" (normal moment) | "recheck" (the ~5-min "진짜 했어?" follow-up)
+  val sound: Boolean = false   // per-block (D43): false = vibration only. The TONE itself is a global setting.
 )
 
 object LpAlarmConstants {
@@ -30,6 +31,7 @@ object LpAlarmConstants {
   const val EXTRA_CREATED = "createdAt"
   const val EXTRA_LEAD = "leadMinutes"
   const val EXTRA_MODE = "mode"
+  const val EXTRA_SOUND = "sound"
 }
 
 /**
@@ -91,6 +93,7 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_CREATED, item.createdAt)
       putExtra(LpAlarmConstants.EXTRA_LEAD, item.leadMinutes)
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
+      putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
     }
     return PendingIntent.getBroadcast(context, item.id.hashCode(), intent, IMMUTABLE_UPDATE)
   }
@@ -108,6 +111,7 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_CREATED, item.createdAt)
       putExtra(LpAlarmConstants.EXTRA_LEAD, item.leadMinutes)
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
+      putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
     }
     return PendingIntent.getActivity(context, item.id.hashCode() + 1, intent, IMMUTABLE_UPDATE)
   }

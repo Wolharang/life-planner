@@ -238,9 +238,10 @@ in enables sync** from that point (D20). Auth = **id + password** (D12; Google l
 
 **R5 — D-1 time-block planning.** **[P0]** Tapping a date opens that day's **time-block schedule**; blocks are
 **free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and **one
-alert chosen from three (D40)**: **없음** (silent) · **단순 알림** (a plain notification + vibration at
-`start − lead` — it tells you and forces nothing) · **실행 알림** (the lock-screen execution cue, + micro-start
-note). Default = 없음. Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
+alert, one of two (D40/D43)**: **알림** (a plain notification at `start − lead` — it tells you and forces
+nothing; **repeatable**, 5-min spacing) · **실행 알림** (the lock-screen execution cue + micro-start note).
+**Default = 실행 알림** (the lever is the product — you opt *out*). **Sound is an independent per-block
+choice** (default off = **vibration only**): the moment may be silent, an alert may ring. Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
 follows the **live** `start − lead` (D23). A block belongs to **one date and does not repeat**; to cover a
 routine, the add screen places the same block on **several dates at once**, each an independent block (D37).
 - *Acceptance:* create blocks for tomorrow; a `workout` block is marked as such; ticking N dates creates N
@@ -301,9 +302,9 @@ live sync store; JSON is a manual backup path.
 - *Acceptance:* export produces a valid JSON file; import merge/overwrite both work and re-derive scheduling; a
   corrupt/foreign file is rejected with a gentle message, changing nothing.
 
-**R13 — Minimal settings.** **[P1]** App-level preferences: execution **sound** (default **off** = **vibration
-only**) and, when on, a **choosable alarm tone** (pick from the device's tones with preview, or follow the device
-default — D42; read natively at fire time);
+**R13 — Minimal settings.** **[P1]** App-level preferences: the **alarm tone** (pick from the device's tones
+with preview, or follow the device default — D42; read natively at fire time; whether a given block *uses* a
+tone is a per-block choice, D43) — **and a tone may never outlive the moment it belongs to (D44)**;
 **default lead-time** (per-event/-block default if unset — full-app default e.g. **`[TBD: ~30 min]`**, D28);
 account/sync; backup (R12); battery-optimization guidance. Settings persist and take effect on the next firing.
 - *Acceptance:* toggling sound persists and applies at the next execution moment; the default lead pre-fills new

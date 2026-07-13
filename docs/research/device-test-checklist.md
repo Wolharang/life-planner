@@ -50,12 +50,18 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 - [ ] **오늘은 쉼** toggle OFF on a future block → no fire. Toggle it back ON → it fires again. **(R7)**
       The toggle **disappears** once the moment has passed (no in-flow escape).
 
-### Alert tiers (D40) and sound (D42)
-- [ ] A block set to **알림** (soft) → at its time you get **a notification + vibration only** — no full-screen,
-      no lock-screen takeover, nothing forced.
-- [ ] A block set to **없음** → nothing fires at all.
-- [ ] 설정 → **소리 OFF** → the moment vibrates but is **silent**. **소리 ON** → **알림음** lets you pick a tone
-      (tap = preview) and the moment plays **that** tone.
+### Alert tiers + sound (D40/D42/D43)
+- [ ] A new block defaults to **실행**. **(D43)**
+- [ ] A block set to **알림** → at its time you get **a notification only** — no full-screen, no lock-screen
+      takeover, nothing forced. With **횟수 3번** → it arrives **3 times, 5 minutes apart**.
+- [ ] Per-block **소리** OFF → **vibration only** (for BOTH tiers). ON → it rings — including an 알림-tier block.
+- [ ] 설정 → **알림음**: pick a tone (tap = preview); the execution moment plays **that** tone.
+
+### The unstoppable-alarm guard (D44) — check this one carefully
+- [ ] While the moment is on the lock screen **ringing**, turn the screen **off**, wait, turn it **on** again.
+      → The tone must **never keep playing with no screen**. It stops when the moment isn't visible, and the
+      moment must still be reachable (its notification is still there until you answer it).
+- [ ] Leave a ringing moment untouched → the tone **stops by itself** (hard cap), it does not ring forever.
 
 ## 2. Migration from the prototype (must not lose or ghost anything)
 
