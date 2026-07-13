@@ -7,6 +7,54 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — F2: TimeBlock + day plan + My Day (Task fully retired)
+
+The prototype's `Task` is **gone**; the app now runs on the full-app **`TimeBlock`** (data-model §2.3) — one
+system, one integrated day. Two founder decisions were logged first (**D37**, **D38**) because the code had
+drifted from the docs.
+
+### Decisions taken before coding
+- **D37 — no recurrence.** The docs' TimeBlock is strictly **per-date**; the prototype's `daily|weekly` had no
+  home in it (no `date` → no D-1 snapshot, no per-day status, nothing for the day view to own). Kept the docs;
+  replaced the need with **multi-date add**: tick N dates → **N independent blocks** (the UI says "반복이 아니라
+  각각 따로예요"). Migrated recurring tasks land as **one block on today**.
+- **D38 — one notification per block.** spec §3.9 as written: a block's only alert is the **execution cue**. The
+  prototype's soft per-task "단순 알림" is dropped for blocks; the soft path lives on as the event advance
+  notification (R3).
+
+### What
+- **`TimeBlock`** (`types.ts`) — date · start/end · title · location · kind(normal|workout|run) · executionAlarm
+  + alarmLeadMinutes + microStartNote · **skipped** (the pre-fire "오늘은 쉼") · **snapStart/snapEnd/snapTitle/
+  plannedAt** (D-1 snapshot) · status(planned|success|fail|**skipped**) · failReason · completedAt.
+- **`blockRepository`** (`lp.blocks.v1`) — CRUD + `blocksOn` + `groupByDate`, and the **one-time Task migration**
+  (`lp.tasks.v1` → blocks, **ids preserved** so existing outcomes/fires/latencies stay attached, then the old key
+  is dropped). `kind` is guessed from the title. Old (prototype) JSON backups still import — the restore lands
+  as tasks and the next read migrates them.
+- **`blockScheduler`** — `blockFireAt` = **live** `date+start − lead` (D23: the snapshot never schedules);
+  `scheduleBlock`/`unscheduleBlock` (one-shot; skipped/off/past → cancel); **`snapshotFor`** (mirrors while the
+  date is future, **freezes by itself once the date arrives** — no midnight job; a block created on the day
+  snapshots its creation values); **`pastUnfiredBlocks`** (R6 never-fired net, now trivially date-based);
+  **`freeSlots`** (the day's real empty gaps).
+- **`/day`** (new) — the day's schedule in clock order + the **free-slot hint** ("진짜로 비어 있는 시간이에요.
+  운동은 여기에 놓으면 실제로 하게 돼요") which pre-fills the add screen's start/end.
+- **`/add-block`** (replaces `/add`) — title · start(–end) · kind · **multi-date picker (21 days)** · location ·
+  execution cue + lead + micro-start.
+- **Home = My Day** — today's blocks as execution cards (next-up hero), the "오늘은 쉼" switch **only before the
+  moment** (no in-flow escape), a calm **해냄** after it, plus a **"내일 하루 설계하기"** nudge (S3, the biggest
+  adoption risk). Catch-up net (R6), permission banner (§8) and the no-guilt outcome model carry over unchanged.
+  Outcomes now also write back to the block (`status`/`completedAt`) so R17 evaluation can read it off the block.
+- **Calendar** — the selected-day panel gained a **하루 설계** section (that day's blocks) opening `/day` (D21).
+- Retired: `taskRepository`, `taskScheduler` (+test), `/add`.
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (17 — **new `blockScheduler.test.ts`** covers: fire = live start − lead;
+cue off / skipped → no fire; snapshot mirrors-then-freezes; same-day edit does **not** move the plan of record;
+never-fired reconstruction skips blocks the native backup will still re-fire; free-slot gaps). **No native change
+→ no prebuild.** On-device pending: migration of existing tasks, multi-date add, `/day` free slots, a flagged
+block firing the execution moment.
+
+---
+
 ## 2026-07-11 — F1 완결분: important-event advance notification (R3, local · no backend)
 
 **Why now (a plan correction).** F1's advance notification was filed as "waits for F0 (backend)". A code

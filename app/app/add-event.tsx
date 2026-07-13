@@ -10,7 +10,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addEvent, updateEvent, deleteEvent, listEvents, type ImportantEvent } from "@/core/data/eventRepository";
 import { scheduleEventNotification, cancelEventNotification } from "@/core/notifications/plainReminders";
 import { getSettings } from "@/core/data/settingsRepository";
-import { todayYmd } from "@/core/schedule/taskScheduler";
+import { todayYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const COLORS = ["#3182F6", "#B0862A", "#46466B", "#3C7A89", "#B5533C", "#7C5295", "#8B7E74"];

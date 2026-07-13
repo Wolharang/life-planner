@@ -78,8 +78,14 @@
 | `failReason` | string | ○(fail 시) | 당일 | 자유 텍스트; **정량 비교 없음**(D29) |
 | `completedAt` | timestamp | ○ | 당일 | done 시각 |
 | `createdAt/updatedAt` | timestamp | ✓ | 자동 | |
+- **반복 없음(D37)**: TimeBlock은 **날짜별 단일 인스턴스**다(recurrence 필드 없음). "매일 헬스"는 **추가 화면에서 여러
+  날짜를 한 번에 선택** → 날짜마다 **독립 블록**이 하나씩 생긴다(반복이 아니라 일괄 생성). 프로토타입의 `Recurrence`는 폐기.
+- **알림은 하나뿐(D38)**: 블록이 갖는 알림은 **실행 큐(`executionAlarm`, 기본 off)** 뿐 — 소프트 "단순 알림"은 블록에 없다
+  (그건 ImportantEvent의 사전 알림 R3). spec §3.9 그대로.
+- **`status`**: `planned|success|fail` + **`skipped`**(발화 전 "오늘은 쉼" 토글 — 무죄책, 미스 아님, 실행률 분모에서 제외).
 - **생성 위치/시점**: Day 뷰에서 **D-1 설계**(D6). 당일 수정 가능하되 **평가는 스냅샷 기준**(D23). 홈=실행 카드에서 실행/done.
-- **저장**: `/users/{uid}/timeblocks/{id}` + 로컬 미러.
+- **저장**: `/users/{uid}/timeblocks/{id}` + 로컬 미러. **현재 로컬 구현(2026-07-11)**: AsyncStorage `lp.blocks.v1`
+  (`app/src/core/data/blockRepository.ts`) — Firestore/uid는 F0에서 인터페이스 뒤로 추가(architecture §7).
 - **연결**: `uid` 소유 · `date`로 하루에 묶임 · `kind=workout/run`+`status=success` → 하루 **운동 완료** 집계(D22) · `executionAlarm=true` → 네이티브 알람 예약 대상.
 
 ### 2.4 Expense — 지출(가계부) (계층2)
@@ -239,6 +245,10 @@
 
 ### 8.4 프로토타입 매핑·비적용
 - **매핑**: Task↔전체앱 TimeBlock(`setTime`=`start`; `end`/`kind`/D-1 스냅샷 `snap*`/`plannedAt`=**전체앱 전용·프로토타입 미수집**). `pending/done/miss`≙`planned/success/fail`.
+- **실제 이관(2026-07-11 구현)**: `lp.tasks.v1` → `lp.blocks.v1` **1회 자동 변환**(`blockRepository.ensureMigrated`,
+  블록을 처음 읽을 때 수행 후 옛 키 삭제). id 유지 → 기존 outcome/fire/latency 기록이 그대로 블록에 붙는다.
+  `kind`는 제목에서 추정(운동/러닝), `snap*`=생성값, `status="planned"`. **반복(daily/weekly)은 전체앱에 자리가 없어
+  (D37) 오늘 날짜의 블록 하나로 이관**된다 — 미래 발생은 애초에 실체화된 적이 없다. 블록의 소프트 "단순 알림"은 폐기(D38).
 - **비적용(프로토타입)**: `/users/{uid}` 컬렉션 · Firebase Auth/`loginId` · Firestore-as-store · `serverTimestamp` 충돌판정 · 소프트삭제 툼스톤 · DayAggregate(지출/칼로리 없음). 전부 §2–§7의 **전체 앱** 사항.
 
 ---

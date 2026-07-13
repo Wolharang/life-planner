@@ -1,13 +1,15 @@
 // 캘린더 (PRD R1) — month calendar of important events. Square day cells (date number top-left); a day
-// with events shows a horizontal colored bar. Tapping a day selects it and the panel below shows that
-// day's events in detail. Local-only for now (eventRepository); sync + advance notification come later.
+// with events shows a horizontal colored bar. Tapping a day selects it; the panel below shows that day's
+// events **and** its time-block plan, and opens the day view (D21: tap a date → that day's schedule).
+// Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { listEvents, groupByDate, type ImportantEvent } from "@/core/data/eventRepository";
-import { todayYmd } from "@/core/schedule/taskScheduler";
+import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
+import { todayYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const BRAND = "#3182F6";
@@ -36,10 +38,12 @@ export default function Calendar() {
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() }); // m = 0-based
   const [selected, setSelected] = useState<string>(today);
   const [events, setEvents] = useState<ImportantEvent[]>([]);
+  const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       listEvents().then(setEvents);
+      listBlocks().then(setBlocks);
     }, [])
   );
 
@@ -56,6 +60,7 @@ export default function Calendar() {
   };
 
   const selEvents = byDate[selected] ?? [];
+  const selBlocks = blocksOn(blocks, selected);
   const [sy, sm, sd] = selected.split("-").map(Number);
   const selWeekday = WD[new Date(sy, sm - 1, sd).getDay()];
 
@@ -202,6 +207,47 @@ export default function Calendar() {
                     </Text>
                   )}
                 </View>
+              </Pressable>
+            ))
+          )}
+
+          {/* the day's time-block plan (D21) — tap through to design/edit the whole day */}
+          <Pressable
+            onPress={() => router.push({ pathname: "/day", params: { date: selected } })}
+            className="flex-row items-center justify-between mt-5 mb-2"
+          >
+            <Text className="text-ink" style={{ fontSize: 14, fontWeight: "800" }}>
+              하루 설계
+            </Text>
+            <Text className="text-brand" style={{ fontSize: 12.5, fontWeight: "700" }}>
+              {selBlocks.length > 0 ? `${selBlocks.length}개 · 열기 ›` : "짜기 ›"}
+            </Text>
+          </Pressable>
+          {selBlocks.length === 0 ? (
+            <Text className="text-grey" style={{ fontSize: 13 }}>
+              이 날의 시간 계획은 아직 없어요.
+            </Text>
+          ) : (
+            selBlocks.map((b) => (
+              <Pressable
+                key={b.id}
+                onPress={() => router.push({ pathname: "/add-block", params: { id: b.id } })}
+                className="flex-row items-center"
+                style={{ paddingVertical: 7 }}
+              >
+                <Text className="text-ink" style={{ fontSize: 13, fontWeight: "700", width: 46 }}>
+                  {b.start}
+                </Text>
+                <Text className="text-ink-soft flex-1" style={{ fontSize: 13.5 }} numberOfLines={1}>
+                  {b.title}
+                </Text>
+                {b.executionAlarm && !b.skipped && (
+                  <View className="bg-brand-soft rounded-full px-2 py-0.5">
+                    <Text className="text-brand" style={{ fontSize: 10.5, fontWeight: "700" }}>
+                      실행
+                    </Text>
+                  </View>
+                )}
               </Pressable>
             ))
           )}

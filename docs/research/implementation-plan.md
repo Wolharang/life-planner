@@ -151,11 +151,13 @@ tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
   (`lp.events.v1`) + `add-event.tsx`; **R3 advance notification ✅** (soft local alert at
   `time − notifyLeadMinutes`, default lead when unset; `plainReminders.ts` event path + re-arm on app-open
   and after backup import). **Remaining: R2 sync only (needs F0).**
-- **F2 time-blocks + execution:** ⬜ NOT started — BUT the execution moment already got a **founder R7 flow change**
-  (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** re-check → 응했어=DONE / 아직안했어=5·4·3·2·1→나가
-  (pending). Implemented in `app/modules/lp-alarm/` (`EXTRA_MODE` + `ExecutionActivity.scheduleRecheck()`/recheck
-  phases). PRD R7 + design-principles A2 revised. Time-blocks themselves (TimeBlock entity, My Day, D-1 snapshot)
-  are still ⬜.
+- **F2 time-blocks + execution:** ✅ **built local-first** (2026-07-11). `TimeBlock` (`lp.blocks.v1`) +
+  `blockScheduler` (live `start − lead`; D-1 snapshot mirrors→freezes) + **`/day`** day plan w/ free-slot hint +
+  **`/add-block`** (multi-date add) + **Home = My Day** execution cards. **The prototype's `Task` is retired**
+  (one-time migration, ids preserved). Two decisions logged: **D37** (no recurrence → multi-date add instead) ·
+  **D38** (a block's only notification is the execution cue). The execution moment also carries the founder's
+  **R7 re-check** (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** → 응했어=DONE /
+  아직안했어=5·4·3·2·1→나가 (pending). **Remaining in F2:** on-device verification; evaluation UI is R17/F5.
 - **F3 logs · F4 day summary · F5 evaluation:** ⬜.
 
 **Loose ends / caveats to remember:**

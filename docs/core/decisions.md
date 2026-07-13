@@ -12,6 +12,30 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Full-app build decisions (F2: time-blocks)
+
+### D37. No recurrence on a TimeBlock; instead, add the same block to SEVERAL DATES at once
+- **Decision (founder, 2026-07-11)**: The full-app `TimeBlock` stays **strictly per-date, with no recurrence
+  field** — the model in `data-model.md` §2.3 / `spec.md` §3.2 is kept as written. To cover the practical need
+  the prototype's `recurrence` served ("매일 21시 헬스"), the **add-block screen lets the user tick several dates
+  at once**; each ticked date produces **its own independent block**. The UI says so plainly
+  (**"반복이 아니라 각각 따로예요"**).
+- **This supersedes D35's prototype-only `Recurrence`** (`none|daily|weekly`), which D35 itself flagged as a
+  prototype addition ("net-new; no prior decision covered repetition — D14/D22 were single-instance").
+- **Rationale**: A recurring rule and a *plan of record* fight each other — a repeat has no `date`, so it has no
+  D-1 snapshot (D23), no per-day `status` (D5), and nothing for the day view (D21) to own. Independent per-date
+  blocks keep evaluation honest and each day editable, while bulk-add keeps the entry cost near zero.
+- **Consequence**: the prototype's `Task` is retired; existing tasks migrate to blocks (data-model §8.4). Since a
+  repeat's future dates were never materialized, a migrated recurring task lands as **one block on today** — the
+  founder re-places it with the multi-date picker.
+
+### D38. A TimeBlock carries exactly ONE notification: the execution cue (no soft per-block reminder)
+- **Decision**: Follow **spec §3.9 as written** — a block's only notification is the **execution cue**
+  (`executionAlarm`, default off). The prototype's **soft multi-offset "단순 알림" per task (D35) is dropped for
+  blocks.** The soft path survives where the spec puts it: the **important-event advance notification** (R3).
+- **Rationale**: Two notification tiers on the *same* object blurred the one thing that must stay unmistakable —
+  the cue that pierces the lock screen (D30/C1: "one loud thing"). Events get gentle alerts; blocks get the lever.
+
 ## 2026-07-09 — Trigger-prototype scope & v0.3 product decisions
 
 ### D36. Base design system: shadcn-for-RN (react-native-reusables / gluestack-ui v2 on NativeWind), skinned with our tokens

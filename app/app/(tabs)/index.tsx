@@ -1,10 +1,10 @@
-// Home = 오늘 (할 일 목록, PRD R1). Real tasks from the local store; tap ＋ to add. Creating a task
-// schedules its exact alarm (taskScheduler); long-press → delete cancels it (no ghost fire — R1).
+// Home = **My Day** (PRD R6): today's TimeBlocks as execution cards — next-up as the hero, flagged
+// (실행 알림) blocks prominent. Plan/execution surface ONLY: spending & meals never appear here (D32).
+// The R6 catch-up net, the §8 permission banner and the no-guilt outcome model carry over unchanged
+// from the prototype; only the unit changed (Task → TimeBlock, per-date, no recurrence).
 //
-// v5 skin round #2 (PROVISIONAL, iterating) — matches the reference mockup: date header · next-execution
-// hero · 오늘 = grey cards with a switch · 지난 기록 = icon + relative time + 됨/미스 badge. Logic
-// UNCHANGED from the wired version (catch-up net R6, permission banner §8, real repositories). The 오늘
-// switch IS the R1 "오늘은 쉼" toggle (ON = 대기/armed today, OFF = 쉼) — not an alarm on/off switch.
+// The switch on a card IS the R7 "오늘은 쉼" pre-fire toggle (ON = armed, OFF = 쉼) — never an
+// alarm on/off switch, and it disappears once the moment has passed (no in-flow escape).
 
 import { View, Text, Pressable, FlatList, Alert, AppState, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,38 +12,30 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import Svg, { Path, Circle } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { listTasks, deleteTask, updateTask, type Task } from "@/core/data/taskRepository";
+import { listBlocks, blocksOn, deleteBlock, updateBlock, type TimeBlock } from "@/core/data/blockRepository";
 import {
-  unscheduleTask,
-  scheduleTask,
+  unscheduleBlock,
+  scheduleBlock,
+  blockFireAt,
+  blockStartAt,
+  pastUnfiredBlocks,
   todayYmd,
-  pastOccurrenceFires,
-  nextEffectiveFireAt,
-  occurrenceDateForFire,
-} from "@/core/schedule/taskScheduler";
+  shiftYmd,
+} from "@/core/schedule/blockScheduler";
 import { recordOutcome, removeOutcome, listOutcomes, type OutcomeRecord } from "@/core/data/outcomeRepository";
 import { listFires, setFires, appendFires, type FireRecord } from "@/core/data/firedRepository";
 import { listMisses, setMisses, appendMisses, type MissedRecord } from "@/core/data/missedRepository";
 import { appendLatencies } from "@/core/data/latencyRepository";
-import { scheduleReminders, cancelReminders, rearmEventNotifications } from "@/core/notifications/plainReminders";
+import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 import { listEvents } from "@/core/data/eventRepository";
 import { alarm } from "@/core/notifications/alarm";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 
-const recurrenceLabel = (r: Task["recurrence"]) =>
-  r === "daily" ? "매일" : r === "weekly" ? "매주" : "한 번";
-
 const pad2 = (n: number) => String(n).padStart(2, "0");
-
 const hmFromMs = (ms: number) => {
   const d = new Date(ms);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-};
-
-const dateFromMs = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
 
 // Relative label for the next-execution hero ("곧 / N분 후 / N시간 후").
@@ -59,7 +51,7 @@ const relLabel = (ms: number | null) => {
   return mm ? `${h}시간 ${mm}분 후` : `${h}시간 후`;
 };
 
-// Relative day for the 지난 기록 log ("오늘 / 어제 / N일 전"), from the occurrence date.
+// Relative day for the 지난 기록 log ("오늘 / 어제 / N일 전").
 const relDay = (dateStr: string) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const then = new Date(y, m - 1, d);
@@ -72,25 +64,18 @@ const relDay = (dateStr: string) => {
   return `${diff}일 전`;
 };
 
-// The Task model carries no explicit kind, so the log icon is inferred from the title (workout / run),
-// with a neutral fallback — purely cosmetic, never affects logic. [follow-up: a real Task.kind field]
-type IconKind = "workout" | "run" | "generic";
-const iconKind = (title: string): IconKind => {
-  if (/헬스|운동|웨이트|근력|짐|gym|workout|리프트/i.test(title)) return "workout";
-  if (/러닝|런닝|달리기|조깅|마라톤|산책|run|jog|walk/i.test(title)) return "run";
-  return "generic";
-};
+type IconKind = TimeBlock["kind"];
 
 type HomeRow =
   | { kind: "section"; title: string }
-  | { kind: "upcoming"; task: Task; fireAt: number | null; date: string; time: string; skipped: boolean }
+  | { kind: "block"; block: TimeBlock; fireAt: number | null; started: boolean }
   | { kind: "history"; outcome: OutcomeRecord };
 
-// A gentle catch-up prompt (R6). `kind` decides the copy: an occurrence whose intervention NEVER fired
+// A gentle catch-up prompt (R6). `kind` decides the copy: a block whose intervention NEVER fired
 // (device off / alarm not armed → no fire marker) uses "놓쳤어요"; one that fired but was deferred
-// ("아직"/timeout → has a fire marker) uses "아직 안 했죠". (PRD R6; impl-plan Phase 4.)
+// ("아직" at the re-check) uses "아직 안 했죠".
 type CatchUpItem = {
-  taskId: string;
+  taskId: string; // = block id (the outcome stores keep the prototype's field name)
   title: string;
   date: string;
   intended?: number;
@@ -98,51 +83,68 @@ type CatchUpItem = {
 };
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [blocks, setBlocks] = useState<TimeBlock[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
   const [catchUps, setCatchUps] = useState<CatchUpItem[]>([]);
   const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setTasks(await listTasks());
+    setBlocks(await listBlocks());
     setOutcomes((await listOutcomes()).slice().reverse()); // most recent first
     setLoading(false);
   }, []);
 
   const router = useRouter();
+  const today = todayYmd();
 
-  // R6 catch-up — two both-gentle paths (PRD R6; impl-plan Phase 4):
-  //  (a) fired-but-not-done: a fire marker with no outcome for its date → "아직 안 했죠".
-  //  (b) never-fired: a recurring occurrence that should have fired but left NO marker (device off /
-  //      alarm not armed), derived from the task's recurrence → "놓쳤어요".
+  // Record an outcome AND reflect it on the block itself (status/​completedAt) so the plan-vs-actual
+  // evaluation (R17, Later) can read it straight off the block (data-model §2.3).
+  const settle = useCallback(
+    async (blockId: string, date: string, title: string, status: "done" | "miss", source: OutcomeRecord["source"], at = Date.now()) => {
+      await recordOutcome({ taskId: blockId, title, date, status, source, at });
+      const all = await listBlocks();
+      const b = all.find((x) => x.id === blockId);
+      if (b) {
+        await updateBlock({
+          ...b,
+          status: status === "done" ? "success" : "fail",
+          completedAt: status === "done" ? at : undefined,
+          updatedAt: Date.now(),
+        });
+      }
+    },
+    []
+  );
+
+  // R6 catch-up — three gentle paths, all no-guilt:
+  //  (a) fired-but-not-done: a fire marker with no outcome → "아직 안 했죠".
+  //  (b) native missed markers (boot/backup scans) → "놓쳤어요".
+  //  (c) never-fired: a past flagged block that left NO marker (device off / not armed) → "놓쳤어요".
   // Unresolved past the window → auto-archived as `miss` (no guilt), then it drops out of the net.
   const CATCHUP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // [TBD ~7 days], PRD R6
-  const NEVER_FIRED_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000; // how far back to reconstruct never-fired
+  const NEVER_FIRED_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
   const computeCatchUps = useCallback(async () => {
     const fires = await listFires();
     const misses = await listMisses();
     const outs = await listOutcomes();
-    const allTasks = await listTasks();
+    const allBlocks = await listBlocks();
     const now = Date.now();
-    const resolved = (taskId: string, date: string) =>
-      outs.some((o) => o.taskId === taskId && o.date === date);
+    const resolved = (id: string, date: string) => outs.some((o) => o.taskId === id && o.date === date);
 
     const items: CatchUpItem[] = [];
     const seen = new Set<string>();
-    // Occurrences already accounted for (have an outcome OR a fire marker) — so the never-fired
-    // reconstruction never double-counts one the marker path already owns.
-    const covered = new Set<string>();
+    const covered = new Set<string>(); // occurrences a marker or outcome already owns
     for (const o of outs) covered.add(`${o.taskId}|${o.date}`);
 
-    // (a) fired-but-not-done, from the fire markers.
+    // (a) fired-but-not-done.
     const remaining: FireRecord[] = [];
     for (const f of fires) {
       covered.add(`${f.taskId}|${f.date}`);
-      if (resolved(f.taskId, f.date)) continue; // done/miss/skip already recorded → out of the net
+      if (resolved(f.taskId, f.date)) continue;
       if (now - f.firedAt > CATCHUP_WINDOW_MS) {
-        await recordOutcome({ taskId: f.taskId, title: f.title, date: f.date, status: "miss", source: "catch-up", at: now });
-        continue; // auto-archive
+        await settle(f.taskId, f.date, f.title, "miss", "catch-up", now); // auto-archive
+        continue;
       }
       remaining.push(f);
       const key = `${f.taskId}|${f.date}`;
@@ -153,18 +155,14 @@ export default function Home() {
     }
     await setFires(remaining);
 
-    // Native backup/boot scans record "never fired" misses here. They remain until resolved or
-    // auto-archived, so dismissing a prompt re-shows it on a later app open (R6).
+    // (b) native "never fired" markers from boot/backup scans.
     const remainingMisses: MissedRecord[] = [];
     for (const m of misses) {
-      if (resolved(m.taskId, m.date)) {
-        covered.add(`${m.taskId}|${m.date}`);
-        continue;
-      }
       const key = `${m.taskId}|${m.date}`;
       covered.add(key);
+      if (resolved(m.taskId, m.date)) continue;
       if (now - m.intended > CATCHUP_WINDOW_MS) {
-        await recordOutcome({ taskId: m.taskId, title: m.title, date: m.date, status: "miss", source: "catch-up", at: now });
+        await settle(m.taskId, m.date, m.title, "miss", "catch-up", now);
         continue;
       }
       remainingMisses.push(m);
@@ -175,40 +173,33 @@ export default function Home() {
     }
     await setMisses(remainingMisses);
 
-    // (b) never-fired: reconstruct past occurrences that left no marker (device off / not armed),
-    // anchored on the native mirror's armed fireAt (the true occurrence series/weekday). A task whose
-    // mirror fireAt is already PAST is left to the WorkManager backup (it will re-fire, leaving a
-    // marker); JS only owns tasks the native path advanced past (e.g. a reboot after a device-off miss).
-    let armed: { id: string; fireAt: number }[] = [];
+    // (c) never-fired blocks the markers can't see. Blocks the native mirror still holds with a past
+    // fireAt are left to the WorkManager backup (it re-fires them, leaving a marker) — not claimed here.
+    let armedPast = new Set<string>();
     try {
-      armed = alarm.getScheduled();
+      armedPast = new Set(alarm.getScheduled().filter((a) => a.fireAt <= now).map((a) => a.id));
     } catch {
-      // native unavailable (dev skew) — skip never-fired reconstruction this pass
+      // native unavailable (dev skew) — skip the never-fired reconstruction this pass
     }
-    const armedFireAt = new Map(armed.map((a) => [a.id, a.fireAt]));
-    for (const t of allTasks) {
-      const anchor = armedFireAt.get(t.id);
-      if (anchor == null || anchor <= now) continue; // not armed, or native will re-fire it
-      for (const occ of pastOccurrenceFires(t, anchor, now - NEVER_FIRED_LOOKBACK_MS, now)) {
-        const key = `${t.id}|${occ.date}`;
-        if (covered.has(key)) continue; // fired or already resolved
-        if (now - occ.effectiveTime > CATCHUP_WINDOW_MS) {
-          await recordOutcome({ taskId: t.id, title: t.title, date: occ.date, status: "miss", source: "catch-up", at: now });
-          covered.add(key);
-          continue; // older than the surface window → auto-archive as miss (honesty net)
-        }
-        if (seen.has(key)) continue;
-        seen.add(key);
-        items.push({ taskId: t.id, title: t.title, date: occ.date, intended: occ.effectiveTime, kind: "missed" });
+    for (const b of pastUnfiredBlocks(allBlocks, armedPast, now - NEVER_FIRED_LOOKBACK_MS, now)) {
+      const key = `${b.id}|${b.date}`;
+      if (covered.has(key)) continue;
+      const fireAt = blockFireAt(b)!;
+      if (now - fireAt > CATCHUP_WINDOW_MS) {
+        await settle(b.id, b.date, b.title, "miss", "catch-up", now); // older than the window → archive
+        covered.add(key);
+        continue;
       }
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ taskId: b.id, title: b.title, date: b.date, intended: fireAt, kind: "missed" });
     }
 
-    items.sort((a, b) => (a.date < b.date ? 1 : -1)); // most recent occurrence first
+    items.sort((a, b) => (a.date < b.date ? 1 : -1)); // most recent first
     setCatchUps(items);
-  }, []);
+  }, [settle]);
 
   // §8 graceful-denial: the lever dies silently if the OS denies exact-alarm / full-screen-intent.
-  // Surface a persistent, gentle home banner (never fail silently) with one tap to the right setting.
   const checkReadiness = useCallback(() => {
     try {
       const exact = alarm.canScheduleExactAlarms();
@@ -219,41 +210,28 @@ export default function Home() {
     }
   }, []);
 
-  // On open/resume: drain what the native moment recorded (outcomes + fire markers), recompute the
-  // catch-up net, and re-fire anything the OS dropped while away (WorkManager one-shot).
+  // On open/resume: drain what the native moment recorded, recompute the catch-up net, re-arm alerts.
   const sync = useCallback(async () => {
     alarm.catchUp();
     await appendMisses(alarm.consumePendingMisses());
     for (const o of alarm.consumePendingOutcomes()) {
-      await recordOutcome({
-        taskId: o.taskId,
-        title: o.title,
-        date: o.date,
-        status: o.status === "done" ? "done" : "miss",
-        source: "execution-screen",
-        at: o.at,
-      });
+      await settle(o.taskId, o.date, o.title, o.status === "done" ? "done" : "miss", "execution-screen", o.at);
     }
     const fires = alarm.consumePendingFires();
     if (fires.length > 0) {
-      // Stamp each fire with the task's creation time so the PRD §10 commit→fire gap is measurable
-      // (flag last-minute-created occurrences in S2). Read from the JS store at drain time — the task
-      // usually still exists moments after firing; absent (deleted) → gap simply unknown for that row.
-      const createdById = new Map((await listTasks()).map((t) => [t.id, t.createdAt] as const));
+      // Stamp each fire with the block's creation time so the commit→fire gap is measurable (S2).
+      const createdById = new Map((await listBlocks()).map((b) => [b.id, b.createdAt] as const));
       const enriched = fires.map((f) => ({ ...f, createdAt: createdById.get(f.taskId) }));
       await appendFires(enriched);
-      await appendLatencies(enriched); // S1 latency + §10 commit→fire gap (never pruned)
+      await appendLatencies(enriched);
     }
     await computeCatchUps();
     checkReadiness(); // §8 permission banner
-    for (const t of await listTasks()) await scheduleReminders(t); // keep recurring plain reminders rolling
     await rearmEventNotifications(await listEvents()); // R3 advance alerts survive reboot/reinstall
     load();
-  }, [load, computeCatchUps, checkReadiness]);
+  }, [load, computeCatchUps, checkReadiness, settle]);
 
   // First-run gate (PRD §8): route to onboarding once (explain → request permissions) before home.
-  // `as never`: expo-router's generated route types (.expo/types) don't list /onboarding until the next
-  // `expo start`/`prebuild` regenerates them; the route file exists, so the navigation is valid.
   useEffect(() => {
     (async () => {
       const seen = await AsyncStorage.getItem("lp.onboarded.v1");
@@ -269,51 +247,57 @@ export default function Home() {
     return () => s.remove();
   }, [sync]);
 
-  // Reload whenever the screen regains focus (e.g. returning from 할 일 추가).
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
 
-  const confirmDelete = (task: Task) => {
-    Alert.alert("삭제할까요?", `${task.title} · ${task.setTime}`, [
+  const confirmDelete = (block: TimeBlock) => {
+    Alert.alert("삭제할까요?", `${block.title} · ${block.start}`, [
       { text: "취소", style: "cancel" },
       {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
-          unscheduleTask(task.id); // cancel the alarm first → no ghost fire
-          await cancelReminders(task.id);
-          await deleteTask(task.id);
+          unscheduleBlock(block.id); // cancel the alarm first → no ghost fire
+          await deleteBlock(block.id);
           load();
         },
       },
     ]);
   };
 
-  // "오늘은 쉼" (R1 v0.5): pre-skip today's occurrence (re-togglable) → re-arm to the next non-skipped
-  // date. Recording a `skipped` outcome (source `pre-skip`) makes the skip visible in history (R1) and
-  // keeps it out of the catch-up net; un-toggling removes it so a re-armed occurrence carries no stale mark.
-  const toggleSkip = async (task: Task, date: string = todayYmd()) => {
-    const set = new Set(task.skippedDates ?? []);
-    if (set.has(date)) {
-      set.delete(date);
-      await removeOutcome(task.id, date, "pre-skip");
+  // "오늘은 쉼" (R7): the pre-fire, re-togglable skip — the ONLY intentional skip. A `skipped` outcome
+  // (source `pre-skip`) makes it visible in history and keeps it out of the catch-up net; un-toggling
+  // removes that record and re-arms the block, so nothing stale is left behind.
+  const toggleSkip = async (block: TimeBlock) => {
+    const skipped = !block.skipped;
+    if (skipped) {
+      await recordOutcome({ taskId: block.id, title: block.title, date: block.date, status: "skipped", source: "pre-skip", at: Date.now() });
     } else {
-      set.add(date);
-      await recordOutcome({ taskId: task.id, title: task.title, date, status: "skipped", source: "pre-skip", at: Date.now() });
+      await removeOutcome(block.id, block.date, "pre-skip");
     }
-    const updated: Task = { ...task, skippedDates: [...set] };
-    await updateTask(updated);
-    scheduleTask(updated);
+    const updated: TimeBlock = { ...block, skipped, status: skipped ? "skipped" : "planned", updatedAt: Date.now() };
+    await updateBlock(updated);
+    scheduleBlock(updated); // skipped → cancels; un-skipped → re-arms
     load();
   };
 
-  // R6: resolve a catch-up occurrence (source = catch-up), or dismiss for this session (re-shows next open).
+  // Mark a today block done straight from its card (R6). Source is `catch-up`, not `execution-screen`,
+  // so S1 (the lever's proof) keeps counting only what the execution moment itself produced.
+  const markDone = async (block: TimeBlock) => {
+    await settle(block.id, block.date, block.title, "done", "catch-up");
+    const fires = await listFires();
+    await setFires(fires.filter((x) => !(x.taskId === block.id && x.date === block.date)));
+    setCatchUps((prev) => prev.filter((x) => !(x.taskId === block.id && x.date === block.date)));
+    load();
+  };
+
+  // R6: resolve a catch-up occurrence, or dismiss for this session (re-shows on the next open).
   const resolveCatchUp = async (f: CatchUpItem, status: "done" | "miss") => {
-    await recordOutcome({ taskId: f.taskId, title: f.title, date: f.date, status, source: "catch-up", at: Date.now() });
-    const fires = await listFires(); // clear any fire marker (no-op for the never-fired kind)
+    await settle(f.taskId, f.date, f.title, status, "catch-up");
+    const fires = await listFires();
     await setFires(fires.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
     const misses = await listMisses();
     await setMisses(misses.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
@@ -324,51 +308,34 @@ export default function Home() {
     setCatchUps((prev) => prev.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
   };
 
-  const upcomingRows: Extract<HomeRow, { kind: "upcoming" }>[] = tasks
-    .map((task) => {
-      const fireAt = task.executionAlarm ? nextEffectiveFireAt(task) : null;
-      const occurrenceDate = fireAt ? occurrenceDateForFire(fireAt, task.leadMinutes) : null;
-      const skipped = occurrenceDate ? (task.skippedDates ?? []).includes(occurrenceDate) : false;
-      const displayAt = fireAt ?? (() => {
-        const [h, m] = task.setTime.split(":").map(Number);
-        const d = new Date();
-        d.setHours(h, m, 0, 0);
-        if (task.recurrence !== "none" && d.getTime() <= Date.now()) d.setDate(d.getDate() + (task.recurrence === "weekly" ? 7 : 1));
-        return d.getTime();
-      })();
-      return {
-        kind: "upcoming" as const,
-        task,
-        fireAt,
-        date: occurrenceDate ?? dateFromMs(displayAt),
-        time: task.executionAlarm ? hmFromMs(displayAt) : task.setTime,
-        skipped,
-      };
-    })
-    .sort((a, b) => (a.fireAt ?? Number.MAX_SAFE_INTEGER) - (b.fireAt ?? Number.MAX_SAFE_INTEGER));
+  const now = Date.now();
+  const todayBlocks = blocksOn(blocks, today);
+  const blockRows: Extract<HomeRow, { kind: "block" }>[] = todayBlocks.map((block) => ({
+    kind: "block" as const,
+    block,
+    fireAt: blockFireAt(block),
+    started: blockStartAt(block) <= now,
+  }));
 
-  // The nearest execution is echoed as the hero card; the full 오늘 list still shows every task.
-  const hero = upcomingRows[0] ?? null;
+  // The hero = the next block still ahead today (a flagged one wins ties by being earlier anyway).
+  const hero = blockRows.find((r) => !r.started && !r.block.skipped) ?? null;
 
   const historyRows: HomeRow[] = outcomes.slice(0, 12).map((outcome) => ({ kind: "history", outcome }));
-  const rows: HomeRow[] =
-    tasks.length === 0 && outcomes.length === 0
-      ? []
-      : [
-          ...(upcomingRows.length > 0 ? [{ kind: "section" as const, title: "오늘" }, ...upcomingRows] : []),
-          ...(historyRows.length > 0 ? [{ kind: "section" as const, title: "지난 기록" }, ...historyRows] : []),
-        ];
+  const rows: HomeRow[] = [
+    ...(blockRows.length > 0 ? [{ kind: "section" as const, title: "오늘" }, ...blockRows] : []),
+    ...(historyRows.length > 0 ? [{ kind: "section" as const, title: "지난 기록" }, ...historyRows] : []),
+  ];
 
-  const now = new Date();
+  const d = new Date();
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       {/* top bar — date + settings */}
       <View className="flex-row items-baseline justify-between px-5 pt-4 pb-1">
         <Text className="text-ink" style={{ fontSize: 22, fontWeight: "800", letterSpacing: -0.4 }}>
-          {now.getMonth() + 1}월 {now.getDate()}일{" "}
+          {d.getMonth() + 1}월 {d.getDate()}일{" "}
           <Text className="text-grey" style={{ fontSize: 15, fontWeight: "600" }}>
-            {WD[now.getDay()]}
+            {WD[d.getDay()]}
           </Text>
         </Text>
         <Link href="/settings" asChild>
@@ -383,16 +350,12 @@ export default function Home() {
       {/* §8 graceful-denial banner — never fail silently when the OS blocks the lever. */}
       {needsPerm && (
         <Pressable
-          onPress={() =>
-            needsPerm.exact ? alarm.openFullScreenIntentSettings() : alarm.openExactAlarmSettings()
-          }
+          onPress={() => (needsPerm.exact ? alarm.openFullScreenIntentSettings() : alarm.openExactAlarmSettings())}
           className="mx-5 rounded-card px-4 py-3 mt-2 flex-row items-center justify-between"
           style={{ backgroundColor: "#FBEEEA" }}
         >
           <View className="flex-1 pr-3">
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#B5533C" }}>
-              실행 알림이 잠금화면을 못 뚫어요
-            </Text>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#B5533C" }}>실행 알림이 잠금화면을 못 뚫어요</Text>
             <Text className="mt-0.5" style={{ fontSize: 12, color: "#B5533C" }}>
               정한 시각에 화면을 띄우려면 권한을 켜야 해요.
             </Text>
@@ -411,8 +374,8 @@ export default function Home() {
         <FlatList
           data={rows}
           keyExtractor={(row, i) =>
-            row.kind === "upcoming"
-              ? `u-${row.task.id}`
+            row.kind === "block"
+              ? `b-${row.block.id}`
               : row.kind === "history"
                 ? `h-${row.outcome.taskId}-${row.outcome.date}-${i}`
                 : `s-${row.title}`
@@ -433,7 +396,7 @@ export default function Home() {
                     {f.date} · {f.kind === "missed" ? "지금이라도?" : "지금 할까요?"}
                   </Text>
                   {/* 했어/미룸 are opposite, non-undoable outcomes → wider gap + hitSlop so a mis-tap
-                      can't silently log a false miss (no-guilt, R7); ≥48dp effective target (A3). */}
+                      can't silently log a false miss (no-guilt); ≥48dp effective target (A3). */}
                   <View className="flex-row items-center mt-2.5" style={{ gap: 14 }}>
                     <Pressable
                       onPress={() => resolveCatchUp(f, "done")}
@@ -469,31 +432,34 @@ export default function Home() {
               {/* next-execution hero */}
               {hero && (
                 <Pressable
-                  onPress={() => router.push({ pathname: "/add", params: { id: hero.task.id } })}
-                  onLongPress={() => confirmDelete(hero.task)}
+                  onPress={() => router.push({ pathname: "/add-block", params: { id: hero.block.id } })}
+                  onLongPress={() => confirmDelete(hero.block)}
                   className="bg-brand-soft rounded-card mt-3"
-                  style={{ padding: 18, opacity: hero.skipped ? 0.6 : 1 }}
+                  style={{ padding: 18 }}
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-brand" style={{ fontSize: 12, fontWeight: "700" }}>
-                      다음 실행
+                      {hero.block.executionAlarm ? "다음 실행" : "다음 블록"}
                     </Text>
-                    <View className="bg-surface rounded-full px-2.5 py-1">
-                      <Text className="text-brand" style={{ fontSize: 11, fontWeight: "700" }}>
-                        {recurrenceLabel(hero.task.recurrence)}
-                      </Text>
-                    </View>
+                    {hero.block.kind !== "normal" && (
+                      <View className="bg-surface rounded-full px-2.5 py-1">
+                        <Text className="text-brand" style={{ fontSize: 11, fontWeight: "700" }}>
+                          {hero.block.kind === "workout" ? "운동" : "러닝"}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text className="text-ink" style={{ fontSize: 30, fontWeight: "800", letterSpacing: -0.8, marginTop: 6 }}>
-                    {hero.time}
-                    <Text style={{ fontSize: 19, fontWeight: "700" }}>  {hero.task.title}</Text>
+                    {hero.block.start}
+                    <Text style={{ fontSize: 19, fontWeight: "700" }}>  {hero.block.title}</Text>
                   </Text>
                   <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 6 }}>
-                    {hero.task.executionAlarm ? (
+                    {hero.block.executionAlarm ? (
                       <>
                         <Text style={{ fontWeight: "700" }}>{relLabel(hero.fireAt)}</Text>
-                        {hero.task.leadMinutes > 0 ? ` · ${hero.task.leadMinutes}분 전 잠금화면 큐` : " · 잠금화면 큐"}
-                        {hero.skipped ? " · 오늘은 쉼" : ""}
+                        {hero.block.alarmLeadMinutes > 0
+                          ? ` · ${hero.block.alarmLeadMinutes}분 전 잠금화면 큐`
+                          : " · 잠금화면 큐"}
                       </>
                     ) : (
                       "실행 알림 꺼짐"
@@ -501,6 +467,20 @@ export default function Home() {
                   </Text>
                 </Pressable>
               )}
+
+              {/* D-1 planning nudge (S3 — the biggest adoption risk is never designing tomorrow) */}
+              <Pressable
+                onPress={() => router.push({ pathname: "/day", params: { date: shiftYmd(today, 1) } })}
+                className="bg-group rounded-card mt-2 flex-row items-center justify-between"
+                style={{ paddingHorizontal: 16, paddingVertical: 13 }}
+              >
+                <Text className="text-ink" style={{ fontSize: 14, fontWeight: "700" }}>
+                  내일 하루 설계하기
+                </Text>
+                <Text className="text-grey" style={{ fontSize: 18, fontWeight: "700" }}>
+                  ›
+                </Text>
+              </Pressable>
             </View>
           }
           renderItem={({ item }) => {
@@ -515,7 +495,7 @@ export default function Home() {
               const o = item.outcome;
               return (
                 <View className="flex-row items-center px-1" style={{ paddingVertical: 9 }}>
-                  <TaskIcon kind={iconKind(o.title || "")} />
+                  <BlockIcon kind={iconOf(o.title || "")} />
                   <View className="flex-1" style={{ marginLeft: 11 }}>
                     <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }}>
                       {o.title || "실행"}
@@ -528,57 +508,74 @@ export default function Home() {
                 </View>
               );
             }
-            // upcoming (오늘) — grey card with the R1 "오늘은 쉼" switch
-            const task = item.task;
-            const armedToday = task.executionAlarm && !item.skipped;
+
+            // today's block card
+            const b = item.block;
+            const settled = b.status === "success" || b.status === "fail";
             return (
               <Pressable
-                onPress={() => router.push({ pathname: "/add", params: { id: task.id } })}
-                onLongPress={() => confirmDelete(task)}
+                onPress={() => router.push({ pathname: "/add-block", params: { id: b.id } })}
+                onLongPress={() => confirmDelete(b)}
                 className="bg-group rounded-card flex-row items-center"
-                style={{ padding: 14, opacity: item.skipped ? 0.6 : 1 }}
+                style={{ padding: 14, opacity: b.skipped || settled ? 0.6 : 1 }}
               >
                 <View className="flex-1 pr-3">
                   <Text className="text-ink" style={{ fontSize: 15.5, fontWeight: "700", letterSpacing: -0.2 }}>
-                    {task.title}
+                    {b.title}
                   </Text>
                   <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
-                    {item.time} · {recurrenceLabel(task.recurrence)}
-                    {task.executionAlarm ? (item.skipped ? " · 오늘은 쉼" : "") : " · 알람 꺼짐"}
+                    {b.start}
+                    {b.end ? `–${b.end}` : ""}
+                    {b.executionAlarm ? (b.skipped ? " · 오늘은 쉼" : " · 실행 알림") : ""}
+                    {b.location ? ` · ${b.location}` : ""}
                   </Text>
                 </View>
-                <Switch
-                  value={armedToday}
-                  disabled={!task.executionAlarm}
-                  onValueChange={() => toggleSkip(task, item.date)}
-                  trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
-                  thumbColor="#FFFFFF"
-                  ios_backgroundColor="#E5E8EB"
-                />
+                {settled ? (
+                  <OutcomeBadge status={b.status === "success" ? "done" : "miss"} />
+                ) : item.started ? (
+                  // the moment has passed → offer the calm "해냄", never a nag
+                  <Pressable
+                    onPress={() => markDone(b)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    className="bg-surface rounded-full px-3.5 py-1.5"
+                  >
+                    <Text className="text-brand" style={{ fontSize: 12, fontWeight: "700" }}>
+                      해냄
+                    </Text>
+                  </Pressable>
+                ) : (
+                  // before the moment → the "오늘은 쉼" toggle (the only intentional skip, R7)
+                  <Switch
+                    value={!b.skipped}
+                    disabled={!b.executionAlarm}
+                    onValueChange={() => toggleSkip(b)}
+                    trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor="#E5E8EB"
+                  />
+                )}
               </Pressable>
             );
           }}
           ListEmptyComponent={
-            hero ? null : (
-              <Text className="text-grey text-center mt-16" style={{ fontSize: 14 }}>
-                첫 할 일을 정해보자
-              </Text>
-            )
+            <Text className="text-grey text-center mt-16" style={{ fontSize: 14 }}>
+              오늘의 첫 블록을 놓아보자
+            </Text>
           }
         />
       )}
 
       {/* pinned primary action */}
       <View style={{ position: "absolute", left: 0, right: 0, bottom: 18, paddingHorizontal: 20 }}>
-        <Link href="/add" asChild>
+        <Link href={{ pathname: "/add-block", params: { date: today } }} asChild>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="할 일 추가"
+            accessibilityLabel="블록 추가"
             className="bg-brand items-center"
             style={{ borderRadius: 15, paddingVertical: 16, elevation: 4 }}
           >
             <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>
-              ＋ 할 일 추가
+              ＋ 블록 추가
             </Text>
           </Pressable>
         </Link>
@@ -586,6 +583,13 @@ export default function Home() {
     </SafeAreaView>
   );
 }
+
+// History rows only carry a denormalized title (they outlive the block), so the icon is inferred.
+const iconOf = (title: string): IconKind => {
+  if (/헬스|운동|웨이트|근력|짐|gym|workout|리프트/i.test(title)) return "workout";
+  if (/러닝|런닝|달리기|조깅|마라톤|산책|run|jog|walk/i.test(title)) return "run";
+  return "normal";
+};
 
 function OutcomeBadge({ status }: { status: OutcomeRecord["status"] }) {
   if (status === "done") {
@@ -615,7 +619,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] }) {
   );
 }
 
-function TaskIcon({ kind }: { kind: IconKind }) {
+function BlockIcon({ kind }: { kind: IconKind }) {
   return (
     <View className="bg-brand-soft items-center justify-center" style={{ width: 38, height: 38, borderRadius: 11 }}>
       <Svg width={19} height={19} viewBox="0 0 24 24">

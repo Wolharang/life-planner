@@ -11,10 +11,10 @@ import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
-import { listTasks } from "@/core/data/taskRepository";
+import { listBlocks } from "@/core/data/blockRepository";
 import { listEvents } from "@/core/data/eventRepository";
-import { scheduleTask, unscheduleTask } from "@/core/schedule/taskScheduler";
-import { scheduleReminders, rearmEventNotifications } from "@/core/notifications/plainReminders";
+import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
+import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 
 export type ImportMode = "merge" | "overwrite";
 
@@ -28,7 +28,8 @@ interface Backup {
 
 // Merge identity per array-valued key (D24: "append items whose id isn't already present").
 const ARRAY_KEY_ID: Record<string, (item: any) => string> = {
-  "lp.tasks.v1": (t) => String(t?.id),
+  "lp.blocks.v1": (b) => String(b?.id),
+  "lp.tasks.v1": (t) => String(t?.id), // legacy (prototype backups) — migrated to blocks on the next read
   "lp.events.v1": (e) => String(e?.id),
   "lp.outcomes.v1": (o) => `${o?.taskId}|${o?.date}|${o?.source}`,
   "lp.fires.v1": (f) => `${f?.taskId}|${f?.date}`,
@@ -106,8 +107,8 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
     throw new Error("이 앱의 백업 파일이 아니에요.");
   }
 
-  // Task ids before import — so an overwrite that drops tasks can cancel their orphaned alarms too.
-  const beforeIds = (await listTasks()).map((t) => t.id);
+  // Block ids before import — so an overwrite that drops blocks can cancel their orphaned alarms too.
+  const beforeIds = (await listBlocks()).map((b) => b.id);
 
   for (const [key, incomingRaw] of Object.entries(backup.data)) {
     if (typeof incomingRaw !== "string") continue;
@@ -144,19 +145,17 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
     safeBool(() => (alarm.setSound(backup.sound), backup.sound));
   }
 
-  // Re-arm: cancel every alarm/reminder that could exist for the before ∪ after id sets, then schedule
-  // the final task set so restored occurrences fire (and dropped ones leave no ghost — R1).
-  const afterTasks = await listTasks();
-  const allIds = new Set<string>([...beforeIds, ...afterTasks.map((t) => t.id)]);
-  for (const id of allIds) unscheduleTask(id);
-  for (const t of afterTasks) {
-    scheduleTask(t);
-    await scheduleReminders(t);
-  }
+  // Re-arm: cancel every alarm that could exist for the before ∪ after id sets, then schedule the final
+  // block set so restored blocks fire (and dropped ones leave no ghost). `listBlocks` also runs the
+  // one-time Task→TimeBlock migration, so importing an OLD (prototype) backup still lands as blocks.
+  const afterBlocks = await listBlocks();
+  const allIds = new Set<string>([...beforeIds, ...afterBlocks.map((b) => b.id)]);
+  for (const id of allIds) unscheduleBlock(id);
+  for (const b of afterBlocks) scheduleBlock(b);
   // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
   await rearmEventNotifications(await listEvents());
 
-  return { imported: true, mode, tasks: afterTasks.length };
+  return { imported: true, mode, tasks: afterBlocks.length };
 }
 
 function safeBool(fn: () => boolean): boolean {

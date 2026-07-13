@@ -238,10 +238,13 @@ in enables sync** from that point (D20). Auth = **id + password** (D12; Google l
 
 **R5 — D-1 time-block planning.** **[P0]** Tapping a date opens that day's **time-block schedule**; blocks are
 **free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and a
-**실행 알림 (execution cue) flag** (+ per-block lead + micro-start note, D28). Plans are **editable on the day**, but
-a **D-1 snapshot** is frozen for evaluation; the alarm always follows the **live** `start − lead` (D23).
-- *Acceptance:* create blocks for tomorrow; a `workout` block is marked as such; editing on the day moves the live
-  alarm but **not** the snapshot; a workout block marked success = the workout is done (D22, no separate activity log).
+**실행 알림 (execution cue) flag** (+ per-block lead + micro-start note, D28) — a block's **only** notification
+(D38). Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
+follows the **live** `start − lead` (D23). A block belongs to **one date and does not repeat**; to cover a
+routine, the add screen places the same block on **several dates at once**, each an independent block (D37).
+- *Acceptance:* create blocks for tomorrow; a `workout` block is marked as such; ticking N dates creates N
+  independent blocks (**not** a repeat rule); editing on the day moves the live alarm but **not** the snapshot; a
+  workout block marked success = the workout is done (D22, no separate activity log).
 
 **R6 — My Day = execution cards.** **[P0]** Home shows today's blocks as **action cards** (next-up highlighted;
 flagged blocks prominent); tap a card → detail; **mark done**. A **free-slot hint** appears when adding a block
