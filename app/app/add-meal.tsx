@@ -11,6 +11,7 @@ import { KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
 import { stampFor } from "@/core/logs/aggregate";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { newId } from "@/core/data/id";
+import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import type { MealType } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -40,6 +41,33 @@ export default function AddMeal() {
   const [detail, setDetail] = useState("");
   const [kcal, setKcal] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<MealEntry[]>([]);
+
+  /** The same S4 friction-killer as the expense screen: your last few meals are one tap each. Manual kcal
+   *  (D27) is exactly the field people give up on — so don't ask for it twice for the same food. */
+  useEffect(() => {
+    if (editId) return;
+    (async () => {
+      const all = await listMeals(); // newest first
+      const seen = new Set<string>();
+      const picks: MealEntry[] = [];
+      for (const m of all) {
+        const key = `${m.foodName}|${m.kcal}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        picks.push(m);
+        if (picks.length === 6) break;
+      }
+      setRecent(picks);
+    })();
+  }, [editId]);
+
+  const applyRecent = (m: MealEntry) => {
+    setFoodName(m.foodName);
+    setKcal(String(m.kcal));
+    setDetail(m.detail ?? "");
+    setError(null);
+  };
 
   useEffect(() => {
     if (!editId) return;
@@ -77,6 +105,7 @@ export default function AddMeal() {
     };
     if (editId) await updateMeal(meal);
     else await addMeal(meal);
+    hapticSaved();
     router.back();
   };
 
@@ -91,6 +120,7 @@ export default function AddMeal() {
         style: "destructive",
         onPress: async () => {
           await deleteMeal(editId);
+          hapticDeleted();
           router.back();
         },
       },
@@ -106,6 +136,28 @@ export default function AddMeal() {
             ←
           </Text>
         </Pressable>
+        {recent.length > 0 && !editId && (
+          <View style={{ marginBottom: 16 }}>
+            <Text className="text-grey" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              최근
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {recent.map((m) => (
+                <Pressable
+                  key={m.id}
+                  onPress={() => applyRecent(m)}
+                  className="bg-group"
+                  style={{ borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, marginRight: 8 }}
+                >
+                  <Text className="text-ink" style={{ fontSize: 13, fontWeight: "600" }}>
+                    {m.foodName} · {m.kcal}kcal
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "800", letterSpacing: -0.3 }}>
           {editId ? "식사 수정" : "식사"}
         </Text>

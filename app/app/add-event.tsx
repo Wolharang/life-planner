@@ -12,6 +12,7 @@ import { scheduleEventNotification, cancelEventNotification } from "@/core/notif
 import { getSettings } from "@/core/data/settingsRepository";
 import { todayYmd } from "@/core/schedule/blockScheduler";
 import { newId } from "@/core/data/id";
+import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const COLORS = ["#3182F6", "#B0862A", "#46466B", "#3C7A89", "#B5533C", "#7C5295", "#8B7E74"];
@@ -121,6 +122,7 @@ export default function AddEvent() {
     if (editId) await updateEvent(event);
     else await addEvent(event);
     await scheduleEventNotification(event); // same id → replaces; untimed/past → none (R3)
+    hapticSaved();
     router.back();
   };
 

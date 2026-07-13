@@ -34,7 +34,12 @@ export async function addEvent(event: ImportantEvent): Promise<void> {
 
 export async function updateEvent(event: ImportantEvent): Promise<void> {
   const events = await listEvents();
-  await saveEvents(events.map((e) => (e.id === event.id ? event : e)));
+  // An edit for a row that is no longer here (deleted on the other phone while this screen
+  //  was open) used to be silently discarded — the screen closed and the change vanished.
+  const exists = events.some((e) => e.id === event.id);
+  await saveEvents(
+    exists ? events.map((e) => (e.id === event.id ? event : e)) : [...events, event]
+  );
   syncPut("events", event);
 }
 

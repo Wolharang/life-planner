@@ -165,6 +165,15 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   // Block ids before import — so an overwrite that drops blocks can cancel their orphaned alarms too.
   const beforeIds = (await listBlocks()).map((b) => b.id);
 
+  // **"덮어쓰기 (전체 교체)" has to actually replace everything.** It only wrote the keys the file happened to
+  // contain, so importing an older backup (one with no meals, say) left the device's current meals sitting
+  // there — a half-restore wearing the word "전체". Clear every lp.* data key first, then write what the file
+  // has. The measurement stores go too: they are part of the snapshot you took.
+  if (mode === "overwrite") {
+    const present = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith("lp."));
+    await AsyncStorage.multiRemove(present.filter((k) => k !== "lp.onboarded.v1")); // never re-run onboarding
+  }
+
   for (const [key, incomingRaw] of Object.entries(backup.data)) {
     if (typeof incomingRaw !== "string") continue;
     const idOf = ARRAY_KEY_ID[key];

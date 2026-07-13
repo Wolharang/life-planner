@@ -16,6 +16,7 @@ import { addBlocks, updateBlock, deleteBlock, listBlocks, preCommitted, type Tim
 import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
+import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { alarm } from "@/core/notifications/alarm";
 import type { BlockAlert, BlockKind } from "@/core/data/types";
 
@@ -27,7 +28,7 @@ const KINDS: { label: string; v: BlockKind }[] = [
 ];
 const LEADS = [
   { label: "정각", v: 0 },
-  { label: "10분 전", v: 10 },
+  { label: "15분 전", v: 15 }, // was 10 — 설정 offers 15, so a default set there landed here as "직접"
   { label: "30분 전", v: 30 },
   { label: "1시간 전", v: 60 },
 ];
@@ -233,6 +234,7 @@ export default function AddBlock() {
       updatedAt: now,
     }));
     await addBlocks(created); // arms each one
+    hapticSaved();
     router.back();
   };
 
@@ -257,6 +259,7 @@ export default function AddBlock() {
         style: "destructive",
         onPress: async () => {
           await deleteBlock(editId);
+          hapticDeleted();
           router.back();
         },
       },

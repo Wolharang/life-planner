@@ -35,7 +35,12 @@ export async function addMeal(meal: MealEntry): Promise<void> {
 
 export async function updateMeal(meal: MealEntry): Promise<void> {
   const all = await listMeals();
-  await saveMeals(all.map((m) => (m.id === meal.id ? meal : m)));
+  // An edit for a row that is no longer here (deleted on the other phone while this screen
+  //  was open) used to be silently discarded — the screen closed and the change vanished.
+  const exists = all.some((m) => m.id === meal.id);
+  await saveMeals(
+    exists ? all.map((m) => (m.id === meal.id ? meal : m)) : [...all, meal]
+  );
   syncPut("meals", meal);
 }
 

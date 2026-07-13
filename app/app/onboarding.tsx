@@ -47,7 +47,10 @@ export default function Onboarding() {
 
   const finish = async () => {
     await AsyncStorage.setItem(SEEN_KEY, "1");
-    router.replace("/");
+    // Opened from 설정 → 실행 준비 상태, this used to `replace("/")` and dump the user on home, losing the
+    // screen they were actually working in. Go back if we can; only a true first run has nowhere to go.
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
   };
 
   return (

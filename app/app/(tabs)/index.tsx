@@ -679,6 +679,32 @@ export default function Home() {
                   ›
                 </Text>
               </Pressable>
+
+              {/* 하루 요약 · 돌아보기 — the IA (§4/§8) makes 돌아보기 a **top-level destination** and, if the tab
+                  bar is full, says to reach it from 오늘's day-summary entry point. Neither existed: both were
+                  buried in 설정, two taps deep behind a screen you visit to change the volume. A surface you
+                  cannot find is a surface you do not have — and 돌아보기 is where the whole plan-vs-actual loop
+                  (R17) closes. */}
+              <View className="flex-row" style={{ gap: 8, marginTop: 8 }}>
+                <Pressable
+                  onPress={() => router.push({ pathname: "/summary", params: { date: today } })}
+                  className="bg-group flex-1 items-center"
+                  style={{ borderRadius: 14, paddingVertical: 12 }}
+                >
+                  <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+                    오늘 요약
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push("/review")}
+                  className="bg-group flex-1 items-center"
+                  style={{ borderRadius: 14, paddingVertical: 12 }}
+                >
+                  <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+                    돌아보기
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           }
           renderItem={({ item }) => {

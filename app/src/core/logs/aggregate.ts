@@ -96,6 +96,9 @@ export function mealSummary(meals: MealEntry[], date: string): MealSummary {
   let total = 0;
   for (const e of meals) {
     if (e.date !== date) continue;
+    // An unrecognised mealType — from a hand-edited backup, or a row synced from a newer build — used to
+    // throw here and take 기록 and 하루 요약 down with it. Unknown data is skipped, never fatal.
+    if (!byMeal[e.mealType]) continue;
     byMeal[e.mealType].kcal += e.kcal;
     byMeal[e.mealType].names.push(e.foodName);
     total += e.kcal;
