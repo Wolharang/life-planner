@@ -13,8 +13,10 @@ import { Stack, useRouter } from "expo-router";
 import {
   authErrorMessage,
   firebaseAvailable,
+  googleAvailable,
   onAccountChanged,
   signIn,
+  signInWithGoogle,
   signOut,
   signUp,
   type Account,
@@ -34,6 +36,20 @@ export default function AccountScreen() {
   useEffect(() => onAccountChanged(setAccount), []);
 
   const available = firebaseAvailable();
+  const withGoogle = googleAvailable();
+
+  const google = async () => {
+    if (busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      setError(authErrorMessage(e)); // "" when the user simply backed out of the sheet
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async () => {
     if (busy) return;
@@ -167,6 +183,34 @@ export default function AccountScreen() {
                 </Text>
               )}
             </Pressable>
+
+            {withGoogle && (
+              <>
+                <View className="flex-row items-center" style={{ marginVertical: 16 }}>
+                  <View className="bg-group" style={{ flex: 1, height: 1 }} />
+                  <Text className="text-faint" style={{ fontSize: 12, marginHorizontal: 10 }}>
+                    또는
+                  </Text>
+                  <View className="bg-group" style={{ flex: 1, height: 1 }} />
+                </View>
+                <Pressable
+                  onPress={google}
+                  disabled={busy}
+                  className="items-center"
+                  style={{
+                    borderRadius: 12,
+                    paddingVertical: 15,
+                    borderWidth: 1,
+                    borderColor: "#E5E8EB",
+                    opacity: busy ? 0.6 : 1,
+                  }}
+                >
+                  <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600" }}>
+                    Google로 계속하기
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </View>
         )}
       </ScrollView>

@@ -7,6 +7,8 @@
 // made before the config plugin landed) we degrade to "logged out, local only" instead of crashing the app.
 // A missing cloud costs you sync. It must never cost you the lever.
 
+import Constants from "expo-constants";
+
 type Unsubscribe = () => void;
 
 export interface Account {
@@ -17,6 +19,12 @@ export interface Account {
 let authMod: any;
 let firestoreMod: any;
 let unavailable = false;
+
+/** The **web** OAuth client id (`client_type: 3`), injected at build time from `google-services.json` by
+ *  `app.config.js` — the Android client id is NOT the one Google Sign-In wants. Empty when the project has no
+ *  `google-services.json`, which is how the UI knows to hide the Google button. */
+const GOOGLE_WEB_CLIENT_ID: string =
+  (Constants.expoConfig?.extra as { googleWebClientId?: string } | undefined)?.googleWebClientId ?? "";
 
 function load(): boolean {
   if (unavailable) return false;
@@ -69,9 +77,55 @@ export async function signIn(email: string, password: string): Promise<void> {
   await authMod().signInWithEmailAndPassword(email.trim(), password);
 }
 
-/** Logout stops sync but **keeps every local row** (D20) — the app carries on exactly as it did before login. */
+// ── Google sign-in (D12, revised 2026-07-13: Google is now a first-class option, not "later") ────────────
+
+let googleMod: any;
+
+function loadGoogle(): boolean {
+  if (!GOOGLE_WEB_CLIENT_ID || !load()) return false;
+  if (googleMod) return true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    googleMod = require("@react-native-google-signin/google-signin").GoogleSignin;
+    googleMod.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+    return true;
+  } catch {
+    googleMod = undefined;
+    return false;
+  }
+}
+
+/** Can this build offer "Google로 계속하기"? `false` → the account screen shows only email/password. */
+export function googleAvailable(): boolean {
+  return loadGoogle();
+}
+
+/**
+ * Google → a Firebase credential → the same `uid` machinery as email/password. Nothing downstream cares which
+ * door the user came through: sync keys off `uid` alone.
+ */
+export async function signInWithGoogle(): Promise<void> {
+  if (!loadGoogle()) throw new Error("cloud-unavailable");
+  await googleMod.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  const result = await googleMod.signIn();
+  // v13+ returns {type, data}; older builds returned the user object flat. Accept both.
+  const idToken: string | undefined = result?.data?.idToken ?? result?.idToken;
+  if (!idToken) throw new Error("auth/cancelled"); // the user backed out — not an error to shout about
+  const authNs = require("@react-native-firebase/auth");
+  await authMod().signInWithCredential(authNs.default.GoogleAuthProvider.credential(idToken));
+}
+
+/** Logout stops sync but **keeps every local row** (D20) — the app carries on exactly as it did before login.
+ *  Google's own session is cleared too, or the next "Google로 계속하기" would silently reuse the old account. */
 export async function signOut(): Promise<void> {
   if (!load()) return;
+  if (loadGoogle()) {
+    try {
+      await googleMod.signOut();
+    } catch {
+      /* no Google session to clear */
+    }
+  }
   await authMod().signOut();
 }
 
@@ -80,6 +134,8 @@ export async function signOut(): Promise<void> {
  * never scolds (B2/R14) — an auth failure is a fact, not a fault.
  */
 export function authErrorMessage(err: any): string {
+  // Backing out of the Google sheet is a choice, not a failure — say nothing.
+  if (err?.message === "auth/cancelled" || err?.code === "SIGN_IN_CANCELLED" || err?.code === "-5") return "";
   switch (err?.code) {
     case "auth/invalid-email":
       return "이메일 형식이 아니에요.";

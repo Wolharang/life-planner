@@ -233,9 +233,13 @@ listeners (**last-write-wins** by serverTimestamp); Firestore's offline cache ke
   device schedules its own local alert.
 
 **R4 — Account & auth (sync enabler).** **[P0]** The app is **fully usable without an account** (local); **logging
-in enables sync** from that point (D20). Auth = **id + password** (D12; Google later, §7.2).
-- *Acceptance:* every feature works offline with **no** account; login turns sync on; logout stops sync but keeps
-  local data; password is held by Firebase Auth, never in our DB.
+in enables sync** from that point (D20). Auth = **email + password** *and* **Google** (D12, revised by **D52**
+2026-07-13 — Google is no longer "later"). Both doors end at the same `uid`; sync keys off `uid` alone.
+**Kakao is deferred** (D52): Firebase Auth has no Kakao provider, and minting a Firebase custom token from a
+Kakao identity needs a **server** holding a service-account key — on Firebase that is Cloud Functions → the
+**Blaze plan → a billing card**, which **D10 (free only) forbids**.
+- *Acceptance:* every feature works offline with **no** account; login (either door) turns sync on; logout stops
+  sync but keeps local data; password is held by Firebase Auth, never in our DB.
 
 **R5 — D-1 time-block planning.** **[P0]** Tapping a date opens that day's **time-block schedule**; blocks are
 **free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and **one
@@ -365,7 +369,8 @@ the moment itself produced** — a catch-up "했어" is a real win but not the l
   never-fired reconstruction lookback **30 days**.
 
 ### 7.2 — Excluded (deliberately not built now)
-- **Google / social login** (id+password first; Google later, D12). **Quantitative evaluation dashboards / auto
+- **Kakao login** (D52 — needs a server to mint a Firebase custom token; the Blaze plan a server implies breaks
+  D10's free-only rule). *Google login is now **included**, not excluded — D52 revises D12.* **Quantitative evaluation dashboards / auto
   adjustment** (D29 — evaluation is binary + reason only). **Meal photos** (D19 — would need paid Cloud Storage).
   **Multi-user sharing / collaboration** (single-user, D3). **iOS** (Android-first, D1; iOS lock-screen takeover is
   OS-limited). **Barcode / calorie-DB lookup** (manual only, D27). **Streak counters / penalties / stakes /

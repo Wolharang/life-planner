@@ -14,6 +14,28 @@
 
 ## 2026-07-13 — F0 (backend)
 
+### D52. Google sign-in is IN (revises D12's "later"). Kakao is BLOCKED by free-only (D10) — deferred
+- **Google — decided, built.** D12 said "id+password first, Google later" and PRD §7.2 excluded it. The founder
+  enabled Google in the Firebase console (2026-07-13) and re-issued `google-services.json`, so **Google is now a
+  first-class login**, alongside email/password. Both doors end at the same `uid`; nothing downstream cares which
+  one was used, because sync keys off `uid` alone.
+  - The **web** OAuth client id (`client_type: 3`) is the one Google Sign-In needs — *not* the Android one. It is
+    **read from `google-services.json` at build time** (`app.config.js` → `extra.googleWebClientId`) rather than
+    hardcoded, because hardcoding it into a tracked file would leak back into git exactly what gitignoring that
+    file kept out. No file → empty id → the Google button simply doesn't render, and email/password still works.
+  - The registered **SHA-1 must match the keystore that signs the build**, or Google sign-in fails with an opaque
+    `DEVELOPER_ERROR`. Verified for the debug keystore. **A Play release build is signed with a different key —
+    its SHA-1 must be added to the console before release, or login breaks in production only.**
+- **Kakao — deferred, and here is the honest reason.** Firebase Auth **has no Kakao provider**. The only way a
+  Kakao identity can become a Firebase `uid` is a **custom token**, which must be minted **server-side** with the
+  Admin SDK and a **service-account private key that can never ship inside the app**. On Firebase that means
+  **Cloud Functions → the Blaze plan → a billing card**, which **D10 (free tiers only, no card) forbids**.
+  - A free-tier third-party worker (Cloudflare Workers / Vercel free) *could* mint the token, so this is not
+    impossible — but it adds a deployable service, a private key to guard, and a **new single point of failure in
+    front of login**, for a **single-user personal app that already has two working doors**.
+  - **Decision: not now.** Revisit only if a real second user appears who wants Kakao. **Login is not the
+    product; the lever is** (D30). No account is even required to use the app (D20).
+
 ### D51. AsyncStorage stays the store of record; Firestore is a MIRROR that switches on at login
 - **The collision.** **D34** says "Firestore offline persistence = the sole local store." **D20/R4** say the
   app is **fully usable with no account**. These cannot both be literally true: with no account there is no
