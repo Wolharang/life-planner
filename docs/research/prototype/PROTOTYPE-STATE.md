@@ -24,7 +24,8 @@ measurability. Requirements **R1–R8 delivered**; **S1–S4** have a working me
 ## The runnable app — `app/` (DO NOT discard)
 - **Stack:** React Native `0.76.9` + **Expo SDK 52** *Dev Build* (New Architecture / Fabric / bridgeless),
   TypeScript, **Android-first**. Router: `expo-router` (file-based).
-- **Screens** (`app/app/`): `index.tsx` (home / 오늘 — hero + 오늘 switch-cards + 지난 기록 log), `add.tsx`
+- **Screens** (`app/app/`) — *paths as they were at prototype completion; several are now retired (see the
+  banner above)*: `index.tsx` (home / 오늘 — hero + 오늘 switch-cards + 지난 기록 log), `add.tsx`
   (할 일 추가/수정 — big time, 반복 segmented, lead chips, 단순 알림), `execution.tsx` (**legacy RN fallback**
   route; the live moment renders **natively** in `ExecutionActivity`), `metrics.tsx` (S1–S4, dev-build link),
   `onboarding.tsx` (first-run permission grants), `settings.tsx` (fully functional — see below), `_layout.tsx`
@@ -52,7 +53,7 @@ JS is dead). Config plugin: `app/plugins/withExecutionLockScreen.js`. JS façade
 ## Data (local-first, AsyncStorage — no account, fully offline)
 Repos in `app/src/core/data/`: `lp.tasks.v1`, `lp.outcomes.v1`, `lp.fires.v1`, `lp.missed.v1`,
 `lp.latencies.v1`; plus `lp.baseline.v1` (metrics), `lp.onboarded.v1` (onboarding), **`lp.settings.v1`**
-(default lead), and the **native** sound flag. Scheduling: `app/src/core/schedule/taskScheduler.ts`. Plain
+(default lead), and the **native** sound flag. Scheduling: `app/src/core/schedule/taskScheduler.ts` *(retired → `blockScheduler.ts`)*. Plain
 reminders: `app/src/core/notifications/plainReminders.ts`.
 
 ## Settings — fully functional (no stubs)

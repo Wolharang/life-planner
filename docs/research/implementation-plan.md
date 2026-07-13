@@ -140,7 +140,7 @@ time under Doze** → micro-start prompt → mark done → the entry **syncs to 
 
 ## Sequencing summary
 **F0 (backend/auth/sync — the gate) → F1 (calendar) → F2 (time-blocks + reuse execution) → F3 (logs, port ref apps)
-→ F4 (day summary) → F5 (evaluation, Later).** Prep P-a/P-b/P-c inside F0; P-d inside F3; P-e before F1; P-f as each
+→ F4 (day summary) → F5 (evaluation, Later).** Prep P-a/P-b/P-c inside F0; P-d was done inside F3; **P-e is DONE (D39)**; P-f as each
 feature lands. Nothing here changes the validated execution lever — it is reused, not rebuilt.
 
 ## Build progress (live) — CURRENT STATE (self-contained; updated 2026-07-11, after the device pass)

@@ -5,8 +5,10 @@
 > `reference/calculator.js`, `reference/kcal.js`), the service overview, the customer profiles, and the design
 > principles. Scope = service-level; expressed as **portable tokens** that sit under the recommended base library
 > (gluestack-ui v2 / NativeWind — see the design-system comparison). **Promoted to `docs/core/` — this is the
-> design foundation.** It is encoded live in `app/tailwind.config.js` (§1 flags a *provisional* "Toss-form"
-> skin the prototype currently runs; D36 forest/gold remains the confirmed baseline until a new D-entry locks it).
+> design foundation.** It is encoded live in `app/tailwind.config.js`. **The skin is LOCKED to v5 "Toss-form"
+> (D39, 2026-07-11)** — §1 is confirmed, not provisional: D36's forest/gold *colors* are superseded (its
+> base-library choice stands), and the native execution moment was repainted to match, so no screen is left on
+> the old palette.
 
 ## 0. Foundations & method — where this came from
 - **The palette is not invented — it is formalized from the user's own working app.** `calculator.js` already uses
