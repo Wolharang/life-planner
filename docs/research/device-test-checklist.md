@@ -63,7 +63,10 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 - [ ] During **5·4·3·2·1**, press **back / home / recents / the power button**. → The countdown must **not
       silently end the moment**. It freezes while away and **resumes at the same phase** when you come back
       (via its notification, which is still there because you haven't answered).
-- [ ] The screen must **not sleep** while the moment is up.
+- [ ] The screen must **not sleep** while the moment is up (auto-timeout is prevented).
+- [ ] Press **home** during the moment → it **pulls itself back** within a second (up to 3 times), rather
+      than waiting for you to tap the notification. **(D47)** After that it stops insisting — it must never
+      trap you; the notification stays as the way back and the outcome stays **pending**.
 - [ ] You must **not** be able to leave the moment with **back** (button *or* gesture).
 
 ### The unstoppable-alarm guard (D44) — check this one carefully

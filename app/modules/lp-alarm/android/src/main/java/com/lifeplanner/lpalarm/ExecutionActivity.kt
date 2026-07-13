@@ -51,6 +51,7 @@ class ExecutionActivity : Activity() {
   private var phase = ""        // the phase currently on screen — so we can resume exactly where we froze
   private var visible = false   // the moment only advances (timers, tone) while it is actually on screen
   private var doneRecorded = false // recordDone() must be idempotent: re-rendering "done" must not re-record
+  private var resummons = 0 // how many times we pulled ourselves back after being sent away (bounded)
   private var count = 5
   private var player: MediaPlayer? = null
   private var savedAlarmVolume = -1
@@ -91,6 +92,9 @@ class ExecutionActivity : Activity() {
     private const val SOUND_MAX_MS = 60_000L
     // ~5 min after COMMIT, re-open at "진짜 했어?" (founder 2026-07-11). [TBD] — could become a setting.
     private const val RECHECK_DELAY_MS = 5 * 60_000L
+    // Pulling an unanswered moment back after home/power. Bounded: insist, never trap (R14).
+    private const val RESUMMON_MAX = 3
+    private const val RESUMMON_DELAY_MS = 700L
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,7 +111,11 @@ class ExecutionActivity : Activity() {
   // fires while one is showing is queued (singleInstance → onNewIntent) and shown after this one ends.
   override fun onNewIntent(newIntent: Intent) {
     super.onNewIntent(newIntent)
-    queue.addLast(itemFrom(newIntent))
+    val item = itemFrom(newIntent)
+    // Our own re-summon (or a re-tap of this occurrence's notification) is not a NEW occurrence — it is
+    // this one coming back. Only a genuinely different occurrence gets queued (R2 sequential).
+    if (item.taskId == alarmId && !resolved.contains(alarmId)) return
+    queue.addLast(item)
   }
 
   private fun itemFrom(i: Intent) = Item(
@@ -210,8 +218,53 @@ class ExecutionActivity : Activity() {
   override fun onResume() {
     super.onResume()
     visible = true
+    resummons = 0 // we're back — the budget below is per *departure*, not per lifetime
     if (phase.isNotEmpty()) render(phase) // resume exactly where we were (re-arms this phase's timers)
     maybeStartSound()
+  }
+
+  /**
+   * **Coming back is the app's job, not the user's.**
+   *
+   * Two layers, because they solve different halves:
+   *  1. **Prevent** the screen going away by itself — `FLAG_KEEP_SCREEN_ON` (+ turnScreenOn/showWhenLocked).
+   *     While the moment is up the screen does not time out. This is the layer we *want* to do the work.
+   *  2. But a user pressing **power / home / recents** cannot be blocked by any app — Android reserves
+   *     that, and an app that could trap you on a screen would be a worse product than this one is trying
+   *     to be. For those, the moment **re-summons itself**: it was pre-committed, and leaving it is not one
+   *     of its two answers (R7/A2 — the only intentional skip is the pre-fire "오늘은 쉼").
+   *
+   * The re-summon is what the **"다른 앱 위에 표시"** grant (D41) buys us: a background activity start.
+   * It is **bounded** (`RESUMMON_MAX`) so it can never become a fight with the user — after that the
+   * notification remains as the way back, and the outcome simply stays pending (no guilt, R14).
+   */
+  override fun onStop() {
+    super.onStop()
+    val unanswered = alarmId.isNotEmpty() && !resolved.contains(alarmId)
+    if (!unanswered || isFinishing) return
+    if (resummons >= RESUMMON_MAX) return // don't trap the user — the notification is still the way back
+    resummons++
+    handler.postDelayed({
+      if (!visible && !isFinishing) {
+        try {
+          startActivity(
+            Intent(this, ExecutionActivity::class.java).apply {
+              flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+              putExtra(LpAlarmConstants.EXTRA_ID, alarmId)
+              putExtra(LpAlarmConstants.EXTRA_TITLE, title)
+              putExtra(LpAlarmConstants.EXTRA_NOTE, note)
+              putExtra(LpAlarmConstants.EXTRA_INTENDED, intended)
+              putExtra(LpAlarmConstants.EXTRA_CREATED, createdAt)
+              putExtra(LpAlarmConstants.EXTRA_LEAD, leadMinutes)
+              putExtra(LpAlarmConstants.EXTRA_MODE, mode)
+              putExtra(LpAlarmConstants.EXTRA_SOUND, wantSound)
+            }
+          )
+        } catch (e: Exception) {
+          // background start refused (no overlay grant) — the notification is still there to tap
+        }
+      }
+    }, RESUMMON_DELAY_MS)
   }
 
   /** Ring only when: the user asked for sound on this block, we're visible, and the phase should ring. */

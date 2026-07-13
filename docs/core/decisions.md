@@ -29,6 +29,22 @@
 - **Rule going forward:** any new state in the moment (timer, sound, animation) must be **tied to
   visibility**. If it can run unseen, it is a bug.
 
+### D47. Prevent first, re-summon second — coming back is the app's job, not the user's
+- **Founder's challenge:** "is this solution *keeping the screen on*, or *pausing and resuming*? If it's the
+  latter, we need a way back — so preventing the screen from going away is the better solution."
+- **Honest split of what is even possible:**
+  · **Auto screen-off (timeout) — PREVENTED.** `FLAG_KEEP_SCREEN_ON` (+ `turnScreenOn`/`showWhenLocked`):
+    while the moment is up, the screen does not time out. This is the layer that should do the work.
+  · **The user pressing power / home / recents — CANNOT be blocked by any app.** Android reserves that, and
+    an app that *could* trap you on a screen would be a worse product than this one is trying to be (B1: we
+    never coerce; the only intentional skip is the pre-fire "오늘은 쉼").
+- **Decision:** for the second case the moment **re-summons itself** rather than waiting to be tapped —
+  the background activity start that the **"다른 앱 위에 표시"** grant (D41) already buys us. **Bounded**
+  (3 attempts): it **insists, it never traps**. After that the notification remains as the way back and the
+  outcome simply stays **pending** (no guilt, R14).
+- **Net:** the moment's visibility is now defended by *prevention* where prevention is possible, and by
+  *self-return* where it isn't — instead of relying on the user to tap a notification.
+
 ## 2026-07-11 — Alert model, round 3
 
 ### D45. A soft alert's moments are CHOSEN, not repeated on an interval (revises D43-3)

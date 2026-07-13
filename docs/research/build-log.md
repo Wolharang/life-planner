@@ -28,6 +28,19 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 - **Standing rule (in decisions):** any new state in the moment (timer, sound, animation) must be **tied to
   visibility**. If it can run unseen, it is a bug.
 
+### Follow-up (founder's challenge): "prevent, or pause-and-resume?" → **prevent first, re-summon second** (D47)
+The founder pushed on the fix: *if it merely pauses and resumes, then something must bring it back — so
+preventing the screen from leaving is the better answer.* Correct, and the honest split is:
+- **Automatic screen-off is PREVENTED** (`FLAG_KEEP_SCREEN_ON` + turnScreenOn/showWhenLocked) — while the
+  moment is up the screen does not time out. That layer does the real work.
+- **A user pressing power/home/recents cannot be blocked by any app** — Android reserves that, and an app that
+  *could* trap you would contradict B1 (we never coerce; the only intentional skip is the pre-fire 오늘은 쉼).
+- So for that case the moment now **re-summons itself** instead of waiting to be tapped — the background
+  activity start the **"다른 앱 위에 표시"** grant (D41) already gives us — **bounded to 3 attempts**: it
+  insists, it never traps. After that the notification remains the way back and the outcome stays pending.
+Also: a re-summon (or a re-tap of the same notification) is no longer mistaken for a NEW occurrence — it
+resumes this one instead of being queued behind it.
+
 ### Verified
 `typecheck` ✓ · `32 tests` ✓ · `prebuild --clean --platform android` ✓. (Kotlin compiles only on the device
 build — needs `run:android`.)
