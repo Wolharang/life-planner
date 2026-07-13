@@ -179,8 +179,11 @@ local store" clause could not survive D20 ("usable with no account"): no account
 to write to. So logged out, the app is exactly the local-first app it was; logged in, each repository mutation
 pushes its row up and a listener projects the cloud back into the same AsyncStorage keys the screens read.
 **No screen and no native file changed** (architecture §7).
-- **The rule that keeps data alive:** the cutover **pushes before it subscribes**. A listener writes snapshots
-  into local storage, so subscribing first would let a fresh account's *empty* cloud erase a phone full of plans.
+- **The rule that keeps data alive (D53):** rejoining the cloud is a **merge against real server state**, never a
+  blind push or a blind pull. The cutover runs on the **first server snapshot** — the only thing that knows what
+  is really there *and what is a tombstone*. A blind push **resurrects rows another device deleted** (and re-arms
+  their alarms); a blind pull from a cold cache **erases** a phone full of plans. Tested as a pure function
+  (`planReconcile`).
 - **Deletes are soft** (`deletedAt`); the rules **deny hard delete** — a hard delete propagates as nothing, and
   the other phone would push the row back up.
 - **Not synced, deliberately:** `lp.outcomes/fires/missed/latencies` (§2.7) — this device's evidence of what the

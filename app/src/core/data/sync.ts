@@ -13,15 +13,25 @@
 // for free. Logged in, every local write is also pushed, and a realtime listener projects the cloud back into
 // AsyncStorage so the screens (which only ever read AsyncStorage) see other devices' work. See D51.
 //
-// ── The one ordering rule that must never be broken ─────────────────────────────────────────────────────
-// **Push the local rows up BEFORE subscribing.** A listener projects the snapshot into local storage; if it
-// ran first, a fresh account's empty snapshot would land on top of a phone full of real plans and **erase
-// them**. Cutover pushes first (`await`), so by the time the first snapshot arrives the cloud already
-// contains everything this device had. This is P-c in `implementation-plan.md`.
+// ── The two rules that keep data alive ──────────────────────────────────────────────────────────────────
+// **1. Never act before the SERVER has spoken.** Both directions are destructive if taken on a guess:
+//    projecting a cold, empty cache would erase a phone full of plans, and blindly pushing local rows up
+//    would **resurrect rows another device deleted** — a deleted workout would come back *and re-arm its
+//    alarm*. So the cutover (P-c) does not run at login; it runs on the **first server snapshot**, which is
+//    the only thing that knows what is really there and what is a tombstone. Until then this device simply
+//    runs on local storage — exactly as it does logged out, which is the point of being local-first.
+//
+// **2. Never wait on the server.** `set()` resolves only on server ack; offline it is pending *forever*.
+//    Writes are handed to Firestore's queue and we return (`fire`) — it delivers them eventually, in order,
+//    across restarts. Awaiting would hang the save button in airplane mode.
 //
 // Deletes are **soft** (`deletedAt` tombstone, §6): a hard delete cannot propagate — the other device would
-// simply never hear about it and would push the row back up. Tombstones live in Firestore only; locally a
-// deleted row is just gone.
+// never hear about it and would push the row back up. Tombstones live in Firestore only; locally a deleted
+// row is just gone.
+//
+// Concurrent edits: **last write to reach the server wins** (§6). Not "last edited" — a device that was
+// offline for a day lands its write later and wins. §6 accepted this knowingly; for one user editing one
+// block on two phones at once, it is a non-event, and field-level merging is complexity with no buyer.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { currentAccount, db, onAccountChanged } from "./firebase";
@@ -116,53 +126,124 @@ export function syncRemove(name: CollectionName, id: string): void {
   fire(() => col(account.uid, name)?.doc(id).set({ id, deletedAt: Date.now() }, { merge: true }));
 }
 
-// ── Pull (the listener projects the cloud into AsyncStorage) ────────────────────────────────────────────
+// ── Pull ────────────────────────────────────────────────────────────────────────────────────────────────
 
-async function applySnapshot(name: CollectionName, snap: any): Promise<void> {
-  // **An empty cloud collection can never erase local data.** Zero documents means the cloud has never heard
-  // of this collection — not that everything was deleted. A real deletion leaves a *tombstone document*
-  // behind (§6), so a genuinely emptied collection still arrives as N docs, all of them dead. Without this
-  // guard, a fresh account's first snapshot (or one that raced ahead of the cutover push) would land on a
-  // phone full of real plans and wipe them. Instead we treat it as "nothing to say" and push local up.
-  if (snap.size === 0) {
-    const local = await readLocal(name);
-    if (local.length > 0) syncPutMany(name, local);
-    return;
-  }
+/** Collections (`uid:name`) whose local rows have been reconciled against real server state this session. */
+const reconciled = new Set<string>();
 
-  const rows: Syncable[] = [];
-  snap.forEach((doc: any) => {
-    const data = doc.data();
-    if (data?.deletedAt) return; // tombstone — the row is dead everywhere (§6: reads filter deletedAt)
-    const { deletedAt, ...row } = data;
-    rows.push(row as Syncable);
-  });
+async function writeLocal(name: CollectionName, rows: Syncable[]): Promise<void> {
   await AsyncStorage.setItem(KEYS[name], JSON.stringify(rows));
   await hooks[name]?.(); // e.g. a block that arrived from the other phone must now arm its alarm
 }
 
 /**
- * Turn sync on for `uid`: cutover (push what this device has) → then listen. Idempotent per uid, so the
- * auth listener can call it freely.
+ * **The cutover (P-c), done once per collection against real server state — never blind.**
+ *
+ * The earlier version simply pushed every local row up at login. That **resurrects the dead**: phone B deletes
+ * block X (leaving a tombstone), phone A is offline and still holds X, A comes back and pushes X with
+ * `deletedAt: null` — overwriting the tombstone. The deleted workout returns, **and re-arms its alarm**. A
+ * block you deleted must never come back and take your lock screen.
+ *
+ * So the cutover reads what the cloud actually says and merges, row by row:
+ *  · cloud says **deleted** → drop it locally too. The deletion wins; we never push over a tombstone.
+ *  · cloud has **never seen it** → push it up (this is the real cutover: rows made while logged out).
+ *  · cloud has it, and **ours is newer** (`updatedAt`) → push ours. This also repairs a push that failed
+ *    permanently (a rules rejection, bad data) — every login reconciles, so a dropped write is not forever.
+ *  · otherwise → the cloud's row wins, unchanged.
+ *
+ * `updatedAt` is the *client's* clock, which §6 forbids for **conflict resolution** — and this is not conflict
+ * resolution. Concurrent writes are still settled server-side, last-writer-wins. This is only "which side has
+ * something the other lacks", where the client clock is the only signal that exists.
  */
-async function enable(uid: string): Promise<void> {
+/** A cloud row as it arrives: a live row, or a tombstone (`deletedAt` set). */
+export type CloudRow = Syncable & { deletedAt?: number | null };
+
+/**
+ * The merge decision, as a pure function — this is where the resurrection bug lived, so it is testable
+ * without Firestore, AsyncStorage, or a device. Returns the rows local storage should hold, and the rows the
+ * cloud is missing or behind on.
+ */
+export function planReconcile<T extends Syncable>(
+  local: T[],
+  cloudRows: CloudRow[],
+): { merged: T[]; toPush: T[] } {
+  const dead = new Set<string>();
+  const cloud = new Map<string, T>();
+  for (const row of cloudRows) {
+    if (row.deletedAt) dead.add(row.id); // a tombstone is a fact, not an absence
+    else {
+      const { deletedAt, ...rest } = row;
+      cloud.set(row.id, rest as unknown as T);
+    }
+  }
+
+  const merged = new Map(cloud);
+  const toPush: T[] = [];
+  for (const row of local) {
+    if (dead.has(row.id)) continue; // deleted elsewhere — respect it; never push over a tombstone
+    const remote = cloud.get(row.id);
+    if (!remote || row.updatedAt > (remote.updatedAt ?? 0)) {
+      toPush.push(row); // the cloud is missing this, or is behind it
+      merged.set(row.id, row);
+    }
+  }
+  return { merged: [...merged.values()], toPush };
+}
+
+async function reconcile(name: CollectionName, snap: any): Promise<void> {
+  const cloudRows: CloudRow[] = [];
+  snap.forEach((doc: any) => {
+    const data = doc.data();
+    if (data) cloudRows.push({ ...data, id: data.id ?? doc.id } as CloudRow);
+  });
+
+  const { merged, toPush } = planReconcile(await readLocal(name), cloudRows);
+  for (const row of toPush) syncPut(name, row);
+  await writeLocal(name, merged);
+}
+
+/** Steady state: the cloud drives. Snapshots include this device's own pending writes, so an offline edit is
+ *  never lost by being projected over. */
+async function project(name: CollectionName, snap: any): Promise<void> {
+  const rows: Syncable[] = [];
+  snap.forEach((doc: any) => {
+    const data = doc.data();
+    if (!data || data.deletedAt) return; // tombstone — dead everywhere (§6: reads filter deletedAt)
+    const { deletedAt, ...row } = data;
+    rows.push(row as Syncable);
+  });
+  await writeLocal(name, rows);
+}
+
+async function applySnapshot(uid: string, name: CollectionName, snap: any): Promise<void> {
+  const key = `${uid}:${name}`;
+
+  if (!reconciled.has(key)) {
+    // Until we have heard from the SERVER we do not know what was deleted, so we must not act: pushing could
+    // resurrect a tombstoned row, and projecting a cold cache could erase rows made while logged out. Local
+    // storage keeps serving the app in the meantime — which is the whole point of being local-first.
+    if (snap.metadata?.fromCache !== false) return;
+    reconciled.add(key);
+    await reconcile(name, snap);
+    return;
+  }
+  await project(name, snap);
+}
+
+/** Turn sync on for `uid`. Idempotent per uid, so the auth listener can call it freely. */
+function enable(uid: string): void {
   if (syncingFor === uid) return;
   disable();
   syncingFor = uid;
 
-  // 1) Cutover (P-c) — everything this device made while logged out goes up. Enqueued, not awaited (see
-  //    `fire`): waiting on the server here would stall login on a slow network and hang it offline. The
-  //    "empty snapshot cannot erase local" guard in `applySnapshot` is what actually makes the data safe —
-  //    ordering alone would leave the outcome depending on a race.
-  for (const name of NAMES) {
-    syncPutMany(name, await readLocal(name));
-  }
-
-  // 2) Now let the cloud drive.
+  // No blind push here. The first *server* snapshot carries the truth (including tombstones), and the
+  // reconcile that runs on it is the cutover. Until then this device runs on local storage, exactly as it
+  // does logged out.
   for (const name of NAMES) {
     const unsub = col(uid, name)?.onSnapshot(
+      { includeMetadataChanges: true }, // we must be able to tell a cold cache from real server state
       (snap: any) => {
-        void applySnapshot(name, snap);
+        void applySnapshot(uid, name, snap);
       },
       () => {
         /* a listener error (rules, network) must not crash the app — local storage still serves it */
@@ -182,6 +263,10 @@ function disable(): void {
   }
   listeners = [];
   syncingFor = null;
+  // The next session must reconcile again from real server state — the cloud may have moved on (or been
+  // deleted from) while we were away. Reusing a stale "already reconciled" mark would skip the one step that
+  // keeps a deleted row from coming back.
+  reconciled.clear();
 }
 
 /**
@@ -192,7 +277,7 @@ function disable(): void {
 export function startSync(applyHooks: ApplyHooks): () => void {
   hooks = applyHooks;
   return onAccountChanged((account) => {
-    if (account) void enable(account.uid);
+    if (account) enable(account.uid);
     else disable();
   });
 }

@@ -14,6 +14,33 @@
 
 ## 2026-07-13 — F0 (backend)
 
+### D53. Rejoining the cloud is a MERGE against real server state — never a blind push, never a blind pull
+- **The bug this exists to kill (found by the founder's question, before any device ever ran it).** The first
+  cutover simply **pushed every local row up at login**. That **resurrects the dead**: phone B deletes block X
+  (leaving a `deletedAt` tombstone); phone A is offline and still holds X; A comes back and pushes X with
+  `deletedAt: null`, **overwriting the tombstone**. The deleted workout returns — **and re-arms its alarm**. A
+  block you deleted must never come back and take your lock screen. That is the lever turned against the user.
+- **Decision — act only on what the SERVER says, and merge row by row.** The cutover no longer runs at login. It
+  runs on the **first server snapshot** (`metadata.fromCache === false`), the only thing that knows what is
+  really there *and what is a tombstone*. Per row:
+  - cloud says **deleted** → drop it locally too. The deletion wins; **we never push over a tombstone**.
+  - cloud has **never seen it** → push (this is the real cutover: rows made while logged out).
+  - cloud has it and **ours is newer** (`updatedAt`) → push ours. This also **repairs a permanently failed
+    push** (a rules rejection, bad data): every session reconciles, so a dropped write is not lost forever.
+  - otherwise → **the cloud's row wins**, untouched (a stale local row can never overwrite a fresh remote one).
+- **Both directions are destructive if taken on a guess**, which is why nothing happens before the server
+  speaks: projecting a cold, empty cache would **erase** a phone full of plans; pushing blindly would
+  **resurrect**. Until the server answers, the device runs on local storage — exactly as it does logged out.
+- **`updatedAt` (a client clock) is used here, and §6 forbids client clocks for *conflict resolution*.** No
+  contradiction: this is not conflict resolution. Concurrent writes are still settled **server-side,
+  last-write-wins**. This is only "which side holds something the other lacks", where the client clock is the
+  only signal that exists at all.
+- **Transient failures are Firestore's problem, and it solves them:** `set()` is queued in a disk-backed cache
+  and retried across restarts, in order. We never await it (an offline save would hang the screen forever).
+  **Permanent** failures fall through to the next session's reconcile.
+- **Tested as a pure function** (`planReconcile`, `sync.test.ts`) — the resurrection case has a test with the
+  scenario written into its name, because this is a failure that would only surface on a second device, weeks in.
+
 ### D52. Google sign-in is IN (revises D12's "later"). Kakao is BLOCKED by free-only (D10) — deferred
 - **Google — decided, built.** D12 said "id+password first, Google later" and PRD §7.2 excluded it. The founder
   enabled Google in the Firebase console (2026-07-13) and re-issued `google-services.json`, so **Google is now a
