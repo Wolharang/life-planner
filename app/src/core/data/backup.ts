@@ -12,13 +12,11 @@ import * as DocumentPicker from "expo-document-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
 import { listBlocks } from "@/core/data/blockRepository";
-import { listEvents } from "@/core/data/eventRepository";
 import { listExpenses, saveExpenses } from "@/core/data/expenseRepository";
 import { listMeals, saveMeals } from "@/core/data/mealRepository";
 import { detectReference, parseReference } from "@/core/data/referenceImport";
 import { syncPutMany } from "@/core/data/sync";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
-import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 
 export type ImportMode = "merge" | "overwrite";
 
@@ -216,8 +214,6 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   const allIds = new Set<string>([...beforeIds, ...afterBlocks.map((b) => b.id)]);
   for (const id of allIds) unscheduleBlock(id);
   for (const b of afterBlocks) await scheduleBlock(b);
-  // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
-  await rearmEventNotifications(await listEvents());
 
   // **Push the restored rows to the cloud.** An import writes AsyncStorage directly, behind the repositories'
   // backs, so nothing else would ever tell Firestore they exist. They would sit locally until the next
@@ -225,7 +221,6 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   // then reinstalls before the next snapshot would lose the restore. Pushing here closes that window.
   // (No-op when logged out, which is the ordinary case for an import.)
   syncPutMany("blocks", afterBlocks);
-  syncPutMany("events", await listEvents());
   syncPutMany("expenses", await listExpenses());
   syncPutMany("meals", await listMeals());
 

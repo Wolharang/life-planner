@@ -144,3 +144,20 @@ describe("freeSlots (free-slot hint)", () => {
     expect(freeSlots(day, "07:00", "23:00", 30)).toEqual([]);
   });
 });
+
+describe("the tier says what a block IS (D62/D67)", () => {
+  it("a `none` block never announces itself — it only holds the hour", () => {
+    // This is what an "important event" used to be, before D67 folded the two entities into one. It shows on
+    // the calendar so the day is honest, and it says nothing, ever.
+    expect(blockFireAt(block({ alert: "none" }))).toBe(null);
+  });
+
+  it("a `none` block arms nothing at all", () => {
+    // A distinct id, because the shared mock accumulates calls across tests — and this assertion is precisely
+    // "nothing was scheduled for THIS block".
+    const b = block({ id: "none-block", alert: "none" });
+    scheduleBlock(b, at(2026, 8, 1, 9, 0));
+    const scheduled = (alarm.schedule as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(scheduled.some((c) => (c[0] as { id?: string })?.id === "none-block")).toBe(false);
+  });
+});

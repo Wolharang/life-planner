@@ -27,8 +27,6 @@ import { notificationPermissionGranted } from "@/core/notifications/plainReminde
 import { listFires, setFires, appendFires, type FireRecord } from "@/core/data/firedRepository";
 import { listMisses, setMisses, appendMisses, type MissedRecord } from "@/core/data/missedRepository";
 import { appendLatencies } from "@/core/data/latencyRepository";
-import { rearmEventNotifications } from "@/core/notifications/plainReminders";
-import { listEvents } from "@/core/data/eventRepository";
 import { alarm } from "@/core/notifications/alarm";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -296,7 +294,6 @@ export default function Home() {
     // divergence from the native mirror (cleared data, restored backup, failed schedule, migration)
     // is corrected on app open instead of silently dropping — or ghosting — a cue.
     await rearmBlockAlarms();
-    await rearmEventNotifications(await listEvents());
     load();
   }, [load, computeCatchUps, checkReadiness, settle]);
 

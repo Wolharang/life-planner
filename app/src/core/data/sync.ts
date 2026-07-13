@@ -47,7 +47,7 @@ interface Syncable {
  *  (`lp.outcomes/fires/missed/latencies`, data-model §2.7) are **deliberately absent**: they are this
  *  device's record of what the lever actually did, not shared state. They stay local and untouched. */
 const KEYS = {
-  events: "lp.events.v1",
+  // `events` is gone (D67): an "important event" was always just a block that holds an hour. One unit.
   blocks: "lp.blocks.v1",
   expenses: "lp.expenses.v1",
   meals: "lp.meals.v1",

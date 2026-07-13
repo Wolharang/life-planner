@@ -207,6 +207,9 @@ export interface TimeBlock {
   alertLeads?: number[];
   /** the 5-second first move (A2) — shown on the execution moment's commit card */
   microStartNote?: string;
+  /** calendar bar color (hex). Falls back to the tier's own color. (Absorbed from ImportantEvent, D67.) */
+  color?: string;
+  memo?: string;
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes
   //   on its own once `date` arrives (no midnight job). Evaluation compares against THIS, never the
   //   live values; the alarm always follows the LIVE start − lead.
@@ -223,9 +226,16 @@ export interface TimeBlock {
 }
 
 /**
- * Important event on the month calendar (PRD R1 · data-model §2.2). Placed days–weeks ahead, marked on
- * the calendar by `date`, notified in advance, NOT evaluated (canceled = deleted). Local-only for now
- * (Repository pattern); the storage impl swaps to Firestore later (architecture §7) — this shape stays.
+ * **LEGACY (D67, 2026-07-13) — retired.** An "important event" was always just a block that holds an hour and
+ * does not push you: it is now a `TimeBlock` with `alert: "none"` (or `"soft"` if it had a notify lead).
+ *
+ * Two entities meant the user had to answer a question that has nothing to do with their life — *"is this a
+ * 캘린더 일정 or a 블록?"* — and then live with the consequence: a block added for the calendar **did not appear
+ * on the calendar**, so the month showed a free afternoon that was not free. The tier now *is* the answer:
+ * **없음** = it just holds the hour · **알림** = it matters · **실행** = the lever. Kind (일반/운동/러닝) is
+ * orthogonal to all three.
+ *
+ * Kept only so `blockRepository` can migrate old rows once, then drop the key.
  */
 export interface ImportantEvent {
   id: string;

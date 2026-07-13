@@ -1,14 +1,20 @@
-// 캘린더 (PRD R1) — month calendar of important events. Square day cells (date number top-left); a day
-// with events shows a horizontal colored bar. Tapping a day selects it; the panel below shows that day's
-// events **and** its time-block plan, and opens the day view (D21: tap a date → that day's schedule).
+// 캘린더 (PRD R1) — the month view of **the day itself**. One unit: the TimeBlock (D67).
+//
+// There used to be two things you could put on a day — an "important event" and a "block" — and the user had
+// to answer a question that has nothing to do with their life: *which one is this?* Worse, the answer had
+// consequences they never asked for: a block added to hold an hour **did not appear on the calendar**, so the
+// month showed a free afternoon that was not free.
+//
+// Now the **alert tier IS the answer**: 없음 = it just holds the hour · 알림 = it matters · 실행 = the lever.
+// Kind (일반/운동/러닝) is orthogonal. There is one place to add, and one thing to add.
 // Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
 import { View, Text, Pressable, ScrollView, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
-import { listEvents, groupByDate, type ImportantEvent } from "@/core/data/eventRepository";
-import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
+import { listBlocks, blocksOn, groupByDate as groupBlocksByDate, type TimeBlock } from "@/core/data/blockRepository";
+import { isSkipped } from "@/core/schedule/blockScheduler";
 import { onSyncApplied } from "@/core/data/sync";
 import { isExecution, todayYmd } from "@/core/schedule/blockScheduler";
 
@@ -38,19 +44,38 @@ export default function Calendar() {
 
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() }); // m = 0-based
   const [selected, setSelected] = useState<string>(today);
-  const [events, setEvents] = useState<ImportantEvent[]>([]);
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
   const reload = useCallback(() => {
-    listEvents().then(setEvents);
     listBlocks().then(setBlocks);
   }, []);
   useFocusEffect(reload);
   // R2: a change that arrived from the other phone must show up **without** navigating away and back.
   useEffect(() => onSyncApplied(reload), [reload]);
 
-
-  const byDate = groupByDate(events);
+  /**
+   * **The month grid must show the whole day, not half of it.**
+   *
+   * It drew bars for `ImportantEvent` only, so a block — the thing that actually *takes* an hour of your day —
+   * left the calendar blank. You could add 강의 as a block, look at the month, see a free afternoon, and plan a
+   * workout straight into it. **A calendar that hides half your commitments is worse than no calendar**: it
+   * doesn't merely omit, it actively tells you the day is free.
+   *
+   * That is also the whole reason D62 brought `없음` back — a block is *an hour that is taken*. An hour that is
+   * taken has to be visible where you look for free hours.
+   *
+   * Events and blocks stay separate entities (data-model §2.2); only the *drawing* is unified.
+   */
+  const blocksByDate = groupBlocksByDate(blocks);
+  const marksFor = (key: string) => {
+    const bs = (blocksByDate[key] ?? []).map((b) => ({
+      id: b.id,
+      // The lever's blocks read as the brand; a block that only holds the hour reads as neutral weight. Gold
+      // is never spent here — it marks ONE thing, and that is a DONE (design-system §1.1).
+      color: b.color || (isSkipped(b) ? "#D1D6DB" : b.alert === "execution" ? BRAND : "#B0B8C1"),
+    }));
+    return bs;
+  };
   const cells = monthCells(view.y, view.m);
 
   const shiftMonth = (delta: number) => {
@@ -76,8 +101,6 @@ export default function Calendar() {
       }),
     [view.y, view.m]
   );
-
-  const selEvents = byDate[selected] ?? [];
   const selBlocks = blocksOn(blocks, selected);
   const [sy, sm, sd] = selected.split("-").map(Number);
   const selWeekday = WD[new Date(sy, sm - 1, sd).getDay()];
@@ -124,7 +147,7 @@ export default function Calendar() {
         {cells.map((c) => {
           const isToday = c.key === today;
           const isSelected = c.key === selected;
-          const dayEvents = byDate[c.key] ?? [];
+          const marks = marksFor(c.key);
           return (
             <Pressable
               key={c.key}
@@ -162,15 +185,15 @@ export default function Calendar() {
 
                 <View style={{ flex: 1 }} />
 
-                {dayEvents.slice(0, 2).map((e) => (
+                {marks.slice(0, 3).map((m) => (
                   <View
-                    key={e.id}
-                    style={{ height: 6, borderRadius: 3, marginTop: 2, backgroundColor: e.color || BRAND }}
+                    key={m.id}
+                    style={{ height: 5, borderRadius: 3, marginTop: 2, backgroundColor: m.color }}
                   />
                 ))}
-                {dayEvents.length > 2 && (
+                {marks.length > 3 && (
                   <Text className="text-grey" style={{ fontSize: 9, fontWeight: "600", marginTop: 1 }}>
-                    +{dayEvents.length - 2}
+                    +{marks.length - 3}
                   </Text>
                 )}
               </View>
@@ -185,45 +208,54 @@ export default function Calendar() {
           <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
             {sm}월 {sd}일 <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600" }}>{selWeekday}</Text>
           </Text>
-          <Link href={{ pathname: "/add-event", params: { date: selected } }} asChild>
+          <Link href={{ pathname: "/add-block", params: { date: selected } }} asChild>
             <Pressable className="bg-brand rounded-full px-3.5 py-1.5">
               <Text className="text-white" style={{ fontSize: 12, fontWeight: "700" }}>
-                ＋ 일정 추가
+                ＋ 추가
               </Text>
             </Pressable>
           </Link>
         </View>
 
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 24 }}>
-          {selEvents.length === 0 ? (
+          {selBlocks.length === 0 ? (
             <Text className="text-grey" style={{ fontSize: 14, paddingVertical: 18 }}>
-              이 날은 일정이 없어요.
+              이 날은 아무것도 없어요.
             </Text>
           ) : (
-            selEvents.map((e) => (
+            selBlocks.map((b) => (
               <Pressable
-                key={e.id}
-                onPress={() => router.push({ pathname: "/add-event", params: { id: e.id } })}
+                key={b.id}
+                onPress={() => router.push({ pathname: "/add-block", params: { id: b.id } })}
                 className="flex-row items-start bg-group rounded-card mb-2"
-                style={{ padding: 13 }}
+                style={{ padding: 13, opacity: isSkipped(b) ? 0.55 : 1 }}
               >
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: e.color || BRAND, marginTop: 4 }} />
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    marginTop: 4,
+                    backgroundColor: b.color || (b.alert === "execution" ? BRAND : "#B0B8C1"),
+                  }}
+                />
                 <View className="flex-1" style={{ marginLeft: 11 }}>
                   <Text className="text-ink" style={{ fontSize: 15.5, fontWeight: "700", letterSpacing: -0.2 }}>
-                    {e.title}
+                    {b.title}
                   </Text>
-                  {(e.time || e.memo) && (
-                    <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
-                      {e.time ? e.time : ""}
-                      {e.time && e.memo ? " · " : ""}
-                      {e.memo ?? ""}
-                    </Text>
-                  )}
-                  {e.time && e.notifyLeadMinutes != null && (
-                    <Text className="text-grey mt-1" style={{ fontSize: 12 }}>
-                      🔔 {leadLabel(e.notifyLeadMinutes)}
-                    </Text>
-                  )}
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
+                    {b.start}
+                    {b.end ? `–${b.end}` : ""}
+                    {/* The tier is the label — it says what this thing IS, not merely how it rings. */}
+                    {isSkipped(b)
+                      ? " · 오늘은 쉼"
+                      : b.alert === "execution"
+                        ? " · 실행"
+                        : b.alert === "soft"
+                          ? " · 알림"
+                          : ""}
+                    {b.memo ? ` · ${b.memo}` : ""}
+                  </Text>
                 </View>
               </Pressable>
             ))

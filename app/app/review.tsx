@@ -53,7 +53,10 @@ export default function Review() {
     setView({ y: d.getFullYear(), m: d.getMonth() });
   };
 
-  const monthBlocks = inMonth(blocks, month);
+  // **`없음` blocks are not evaluated** (D67). They hold an hour so the day is honest; they are context, not a
+  // commitment — which is precisely what R1 always said about an "important event". Judging them would put
+  // 강의 and 이동 in the miss column for happening exactly as planned.
+  const monthBlocks = inMonth(blocks, month).filter((b) => b.alert !== "none");
   const success = monthBlocks.filter((b) => b.status === "success");
   const fail = monthBlocks.filter((b) => b.status === "fail");
   const skipped = monthBlocks.filter((b) => b.status === "skipped");

@@ -11,7 +11,7 @@
 // expo-notifications is loaded LAZILY + defensively: if its native module isn't linked yet (e.g. before
 // a full `prebuild` + rebuild), notifications silently no-op instead of crashing the whole app.
 
-import { loudnessOf, type BlockLoudness, type ImportantEvent, type Task } from "@/core/data/types";
+import { loudnessOf, type BlockLoudness, type Task } from "@/core/data/types";
 
 function getNotifications(): any | null {
   try {
@@ -231,63 +231,6 @@ async function defaultLead(): Promise<number> {
   }
 }
 
-/** An event alerts at `date+time − lead`. An **untimed** event has no moment to count back from, so it
- *  gets no advance alert (R3 is defined on `time − notifyLeadMinutes`). Past moments are skipped. */
-export function eventNotifyAt(event: ImportantEvent, lead: number, now: number): number | null {
-  if (!event.time) return null;
-  const [y, mo, d] = event.date.split("-").map(Number);
-  const [h, mi] = event.time.split(":").map(Number);
-  if ([y, mo, d, h, mi].some(isNaN)) return null;
-  const at = new Date(y, mo - 1, d, h, mi, 0, 0).getTime() - lead * 60_000;
-  return at > now ? at : null;
-}
-
-export async function cancelEventNotification(eventId: string): Promise<void> {
-  const N = getNotifications();
-  if (!N) return;
-  try {
-    await N.cancelScheduledNotificationAsync(`${eventId}${EVENT_SUFFIX}`);
-  } catch {
-    // best-effort — nothing scheduled under that id
-  }
-}
 
 /** Schedule (replacing any existing) the soft advance alert for one event. Lead = the event's own
  *  `notifyLeadMinutes`, else the personal default (R3 "default if unset", D28). */
-export async function scheduleEventNotification(event: ImportantEvent): Promise<void> {
-  const N = getNotifications();
-  if (!N) return;
-  try {
-    await cancelEventNotification(event.id);
-    const lead = event.notifyLeadMinutes ?? (await defaultLead());
-    const at = eventNotifyAt(event, lead, Date.now());
-    if (at == null) return;
-    const channelId = await ensureSoftChannel(N, "vibrate"); // R15: soft, quiet, does not pierce the lock screen
-    await N.scheduleNotificationAsync({
-      identifier: `${event.id}${EVENT_SUFFIX}`,
-      content: {
-        title: event.title,
-        body: lead > 0 ? `${lead}분 후 · ${event.time}` : `지금 · ${event.time}`,
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
-    });
-  } catch {
-    // best-effort
-  }
-}
-
-/** Re-arm every event alert from scratch (app open / after a backup import): drop all event alerts —
- *  including ghosts of deleted events — then schedule the current set. */
-export async function rearmEventNotifications(events: ImportantEvent[]): Promise<void> {
-  const N = getNotifications();
-  if (!N) return;
-  try {
-    const all = await N.getAllScheduledNotificationsAsync();
-    for (const n of all) {
-      if (n.identifier?.endsWith(EVENT_SUFFIX)) await N.cancelScheduledNotificationAsync(n.identifier);
-    }
-  } catch {
-    // best-effort
-  }
-  for (const e of events) await scheduleEventNotification(e);
-}

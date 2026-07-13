@@ -215,9 +215,15 @@ last-write-wins; soft-delete tombstones (`deletedAt`). *How = data-model.md / ar
 > Each requirement = **what must happen + acceptance criteria (meeting them = done) + priority**. *How* is not
 > specified here. The execution moment (R7) is the **already-built, validated** prototype module — reused.
 
-**R1 — Important-events calendar.** **[P0]** A monthly calendar marks dates carrying important events; the user can
-add/edit/delete an event (title, date, time, notify-lead, memo, optional color). Canceling an event **deletes** it
-(soft-delete tombstone for sync); events are **not** evaluated (D5).
+**R1 — The month calendar of the day itself.** **[P0]** *(Rewritten 2026-07-13 by **D67** — `ImportantEvent` is
+retired; the unit is the **TimeBlock**.)* A monthly calendar marks every date that carries **anything**, and the
+**alert tier says what that thing is**: **없음** (it only holds the hour — context, **not evaluated**, which is
+precisely what this requirement used to say about an "event") · **알림** (it matters) · **실행** (the lever).
+`kind` (일반/운동/러닝) is orthogonal; `색`·`메모` live on the block.
+**Why:** two entities made the user answer a question that has nothing to do with their life — *"is this a 일정 or
+a 블록?"* — and then punished the answer: a block added to hold an hour **did not appear on the calendar**, so the
+month showed a free afternoon that was not free. **A calendar that hides half your commitments is worse than
+none.**
 - *Acceptance:* month grid marks event dates (today highlighted, "+N more", swipe months, prominent quick-add);
   add/edit/delete works; a deleted event disappears on all devices; matches `spec.md §3.1`.
 

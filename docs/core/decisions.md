@@ -14,6 +14,32 @@
 
 ## 2026-07-13 (late) — the two-device test, and what it exposed
 
+### D67. ONE unit. The alert tier *is* what the thing is. (`ImportantEvent` is retired)
+- **The founder's report.** He added a block with 알림 없음 — and **it did not appear on the calendar**. The
+  month showed a free afternoon that was not free. Meanwhile a calendar "일정" had no effect on the day plan.
+  **Two ways to put a thing on a day, and they did not know about each other.**
+- **The two entities were always the same thing.** An `ImportantEvent` (date · time · title · notify-lead ·
+  color · memo, never evaluated) is a `TimeBlock` with **`alert: "none"`** and no end time. Keeping both forced
+  the user to answer a question that has nothing to do with their life — *"is this a 일정 or a 블록?"* — and then
+  punished the answer: pick 블록 and your commitment vanishes from the calendar. **A calendar that hides half
+  your commitments is worse than none: it does not merely omit, it actively tells you the day is free.** That
+  is also the whole point of D62 — a block is *an hour that is taken*, and an hour that is taken must be visible
+  where you go looking for free hours.
+- **Decision (founder's own design).** **The unit is the block. The alert tier says what it is:**
+  · **없음** — it just holds the hour. Context, **not evaluated** (exactly what R1 always said of an event).
+  · **알림** — it matters; it tells you.
+  · **실행** — the lever; it makes you.
+  **Kind** (일반 / 운동 / 러닝) is orthogonal to all three. `색` and `메모` move onto the block.
+- **Consequence.** `/add-event` and `eventRepository` are **gone**; the calendar's ＋ adds a block; the month grid
+  draws **every** block; the `events` collection leaves sync. A one-time migration folds `lp.events.v1` into
+  blocks (a notify-lead becomes `soft`, none becomes `none`; ids, color and memo preserved).
+- **Why now.** It contradicts **PRD R1/R3 and D4's layer split** — whose stated basis was *temporality* (events
+  weeks ahead, blocks the night before). **Real use falsified that**: the founder reached for a block to design
+  his calendar, and the calendar lied to him. And it is the cheapest possible moment — **zero events exist**,
+  locally or in the cloud. Two weeks from now it would be a data migration with data in it.
+
+### D65. Loudness has THREE settings
+
 ### D65. Loudness has THREE settings — 무음 · 진동 · 소리 (revises D43's boolean)
 - **The gap.** D43 made loudness a per-block boolean: **소리 + 진동**, or **진동만**. There was no way to simply
   **be seen**. So a block added only so the day is honest (강의, 이동 — the very blocks D62 brought `none` back

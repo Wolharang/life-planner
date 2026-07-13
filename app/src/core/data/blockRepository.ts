@@ -22,6 +22,7 @@ import { forgetOccurrence } from "./firedRepository";
 
 const KEY = "lp.blocks.v1";
 const LEGACY_KEY = "lp.tasks.v1";
+const LEGACY_EVENTS_KEY = "lp.events.v1";
 
 export type { TimeBlock } from "./types";
 
@@ -105,6 +106,71 @@ async function ensureMigrated(): Promise<void> {
 }
 
 /**
+ * **D67 — an important event is just a block that holds an hour.** One-time move of `lp.events.v1` into blocks:
+ * a lead time means it told you (`soft`), no lead means it only held the hour (`none`). Its `color` and `memo`
+ * come along; its id is preserved so nothing that referenced it breaks.
+ *
+ * An event had no end time and was never evaluated — both fall out for free: `end` stays undefined, and a
+ * `none` block is excluded from evaluation (돌아보기), exactly as R1 required of events.
+ */
+async function ensureEventsMigrated(): Promise<void> {
+  const raw = await AsyncStorage.getItem(LEGACY_EVENTS_KEY);
+  if (!raw) return;
+
+  let events: any[];
+  try {
+    events = JSON.parse(raw);
+    if (!Array.isArray(events)) throw new Error("not an array");
+  } catch {
+    await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
+    return;
+  }
+
+  const existingRaw = await AsyncStorage.getItem(KEY);
+  let blocks: TimeBlock[] = [];
+  if (existingRaw) {
+    try {
+      blocks = JSON.parse(existingRaw) as TimeBlock[];
+    } catch {
+      return; // destination unreadable — keep the events rather than lose both
+    }
+  }
+
+  const have = new Set(blocks.map((b) => b.id));
+  const now = Date.now();
+  const migrated: TimeBlock[] = events
+    .filter((e) => e?.id && e?.date && !have.has(e.id))
+    .map((e) => {
+      const lead = Number(e.notifyLeadMinutes);
+      const hasLead = Number.isFinite(lead) && lead > 0;
+      const start = typeof e.time === "string" && e.time ? e.time : "09:00";
+      return {
+        id: e.id,
+        date: e.date,
+        start,
+        title: String(e.title ?? "일정"),
+        kind: "normal" as const,
+        alert: hasLead ? ("soft" as const) : ("none" as const),
+        alarmLeadMinutes: hasLead ? lead : 0,
+        alertLeads: hasLead ? [lead] : undefined,
+        alertLoudness: "vibrate" as const,
+        color: e.color,
+        memo: e.memo,
+        snapStart: start,
+        snapTitle: String(e.title ?? "일정"),
+        plannedAt: Number(e.createdAt) || now,
+        status: "planned" as const,
+        createdAt: Number(e.createdAt) || now,
+        updatedAt: now,
+      };
+    });
+
+  await AsyncStorage.setItem(KEY, JSON.stringify([...blocks, ...migrated])); // throws → events survive
+  await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
+  for (const b of migrated) await scheduleBlock(b);
+}
+
+/**
  * Read old rows forward. Two shapes predate the current one:
  *  · pre-D40 blocks carry `executionAlarm: boolean` instead of `alert`.
  *  · `alert: "none"` is a **live tier again** (D62) — D43 had deleted it and this function used to rewrite
@@ -124,6 +190,7 @@ function normalize(raw: any): TimeBlock {
 
 export async function listBlocks(): Promise<TimeBlock[]> {
   await ensureMigrated();
+  await ensureEventsMigrated();
   const raw = await AsyncStorage.getItem(KEY);
   if (!raw) return [];
   try {

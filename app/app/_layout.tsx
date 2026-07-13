@@ -8,8 +8,6 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { startSync } from "@/core/data/sync";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
-import { listEvents } from "@/core/data/eventRepository";
-import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
 // don't have to thread fontFamily through each node. Instance styles are placed AFTER the base in the
@@ -65,8 +63,7 @@ export default function RootLayout() {
   useEffect(
     () =>
       startSync({
-        blocks: rearmBlockAlarms,
-        events: async () => rearmEventNotifications(await listEvents()),
+        blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
       }),
     [],
   );

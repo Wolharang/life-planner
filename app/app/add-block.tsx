@@ -63,6 +63,9 @@ const LOUDNESS: { label: string; v: BlockLoudness }[] = [
 ];
 const leadText = (v: number) => (v === 0 ? "정각" : v % 60 === 0 ? `${v / 60}시간 전` : `${v}분 전`);
 const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
+// Calendar bar colours — carried over from the retired ImportantEvent (D67). Gold is absent on purpose: it
+// marks ONE thing, and that is a DONE (design-system §1.1).
+const CAL_COLORS = ["#3182F6", "#46466B", "#3C7A89", "#7C5295", "#8B7E74"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayNum = (d: string) => Number(d.split("-")[2]);
@@ -92,6 +95,8 @@ export default function AddBlock() {
   const [endM, setEndM] = useState((params.end ?? "22:00").split(":")[1]);
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
+  const [memo, setMemo] = useState("");
+  const [color, setColor] = useState("");
   const [alert, setAlert] = useState<BlockAlert>("execution"); // the lever is the default (D43)
   const [loudness, setLoudness] = useState<BlockLoudness>("vibrate"); // D65 — 무음/진동/소리
   const [leads, setLeads] = useState<number[]>([0]); // soft only: the moments the user picked (D45)
@@ -146,6 +151,8 @@ export default function AddBlock() {
       }
       setKind(b.kind);
       setLocation(b.location ?? "");
+      setMemo(b.memo ?? "");
+      setColor(b.color ?? "");
       setAlert(b.alert);
       setLoudness(loudnessOf(b));
       setLeads(b.alertLeads?.length ? b.alertLeads : [b.alarmLeadMinutes]);
@@ -210,6 +217,8 @@ export default function AddBlock() {
       title: title.trim(),
       kind,
       location: location.trim() || undefined,
+      memo: memo.trim() || undefined,
+      color: color || undefined,
       alert,
       alertLoudness: loudness,
       alertLeads: alert === "soft" ? sortedLeads : undefined,
@@ -407,6 +416,38 @@ export default function AddBlock() {
           className="text-ink"
           style={{ fontSize: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 24 }}
         />
+
+        {/* memo + colour — absorbed from the retired "important event" (D67). A block IS the calendar item. */}
+        <TextInput
+          value={memo}
+          onChangeText={setMemo}
+          placeholder="메모 (선택)"
+          placeholderTextColor="#B0B8C1"
+          className="text-ink"
+          style={{ fontSize: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6" }}
+        />
+
+        <View style={{ marginTop: 20 }}>
+          <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", marginBottom: 8 }}>
+            캘린더 색
+          </Text>
+          <View className="flex-row" style={{ gap: 10 }}>
+            {CAL_COLORS.map((c) => (
+              <Pressable
+                key={c}
+                onPress={() => setColor(color === c ? "" : c)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: c,
+                  borderWidth: color === c ? 3 : 0,
+                  borderColor: "#191F28",
+                }}
+              />
+            ))}
+          </View>
+        </View>
 
         {/* 알림 (D40) — a block carries exactly ONE of these three. Keeping a *soft* tier is what lets
             the execution cue stay rare and therefore loud ("one loud thing", C1/D30). */}
