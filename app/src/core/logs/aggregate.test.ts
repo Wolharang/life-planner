@@ -86,7 +86,7 @@ describe("dayAggregate (R10 · data-model §2.6)", () => {
     start: "21:00",
     title: "헬스",
     kind: "normal",
-    executionAlarm: false,
+    alert: "none",
     alarmLeadMinutes: 0,
     snapStart: "21:00",
     snapTitle: "헬스",

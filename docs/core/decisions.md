@@ -12,6 +12,51 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Skin lock · alert tiers · the moment must actually appear
+
+### D39. Design skin LOCKED: v5 "Toss-form" (supersedes D36's forest/gold baseline)
+- **Decision (founder, 2026-07-11)**: the **v5 skin is confirmed** — `brand #3182F6` blue · white ground +
+  grey groups (`#F2F4F6`) · **gold `#B0862A`** as the single DONE signal · execution ground `#FBFAF6` ·
+  Pretendard (UI) + GowunBatang (execution voice). This **supersedes D36's forest/gold color baseline**
+  (D36's *base library* choice — shadcn-style own-your-components on NativeWind — still stands).
+- **Invariants unchanged by the reskin**: `miss #8B7E74` taupe — **never red**; gold = the **one** DONE mark
+  (never buttons); the execution moment is **LIGHT**; no confetti; no in-flow escape.
+- **Consequence**: `design-system.md` §1 stops being "provisional", and the **native execution moment**
+  (`ExecutionActivity.kt`) — the last screen still on the old palette — is repainted to the v5 tokens.
+  *(The native screen was old not because a doc said so, but because the reskin had only touched the JS
+  screens; the doc was merely recording that state.)*
+
+### D40. A block's alert has THREE tiers: 없음 / 단순 알림 / 실행 알림 (supersedes D38)
+- **Decision (founder, 2026-07-11)**: a TimeBlock still carries **exactly one** alert, but now chooses from
+  **three**: **`none`** (silent — the plan is just a plan) · **`soft`** (a plain **notification + vibration**
+  at `start − lead`; it *tells* you and **forces nothing** — no full-screen, no lock-screen takeover) ·
+  **`execution`** (the core lever: exact alarm + the full-screen moment, R7).
+- **Supersedes D38** ("a block's only notification is the execution cue"), which had been read straight from
+  spec §3.9. **spec §3.9 is amended**: "exactly one notification type" now means *one of three tiers*, not
+  *only the cue*.
+- **Rationale**: most blocks (강의, 점심, 알바) don't need forcing — they need **telling**. Without a soft
+  tier the user must either over-use the lock-screen cue (destroying "one loud thing", C1/D30 — the cue is
+  loud precisely *because* it is rare) or get nothing at all. The soft tier is what **protects** the lever's
+  scarcity. It rides the quiet channel (DEFAULT importance · no sound · lock-screen PRIVATE), so **R15's
+  "only the cue pierces" still holds structurally**.
+
+### D41. The execution moment must appear **even while the phone is in use** → "다른 앱 위에 표시"
+- **Problem (founder, on-device 2026-07-11)**: at the fire time only a **heads-up notification** appeared;
+  the moment opened **only after tapping it** — i.e. execution became opt-in at exactly the point the user is
+  trying to avoid it. **This is not a code regression**: Android launches a full-screen intent immediately
+  **only while the screen is off/locked**; on an unlocked, in-use phone it degrades to a banner, and a
+  BroadcastReceiver's direct `startActivity` is blocked by the background-activity-start restriction (A10+).
+- **Decision**: request **`SYSTEM_ALERT_WINDOW` ("다른 앱 위에 표시")**, which lifts that restriction so the
+  moment appears at its time **in every state**. It joins exact-alarm / FSI / notifications as a **first-class
+  grant** in onboarding, the 실행 준비 상태 card, and the home denial banner (R16 — never fail silently).
+- **Trade-off accepted**: it is a heavier permission, but the lever is the product (D30); a cue you must tap
+  to obey is not a cue. Denial degrades gracefully (the banner explains exactly what is lost).
+
+### D42. The execution sound is choosable, and silence means vibration-only
+- **Decision**: 설정 → **소리** (off by default = **vibration only**) and, when on, **알림음** — pick from the
+  device's alarm/notification tones (with preview), or follow the device default. Read **natively at fire
+  time** (`SoundSetting`), since JS may be dead. Consistent with C1 (quiet by default) and R13.
+
 ## 2026-07-11 — Full-app build decisions (F2: time-blocks)
 
 ### D37. No recurrence on a TimeBlock; instead, add the same block to SEVERAL DATES at once
@@ -29,12 +74,14 @@
   repeat's future dates were never materialized, a migrated recurring task lands as **one block on today** — the
   founder re-places it with the multi-date picker.
 
-### D38. A TimeBlock carries exactly ONE notification: the execution cue (no soft per-block reminder)
-- **Decision**: Follow **spec §3.9 as written** — a block's only notification is the **execution cue**
-  (`executionAlarm`, default off). The prototype's **soft multi-offset "단순 알림" per task (D35) is dropped for
-  blocks.** The soft path survives where the spec puts it: the **important-event advance notification** (R3).
-- **Rationale**: Two notification tiers on the *same* object blurred the one thing that must stay unmistakable —
-  the cue that pierces the lock screen (D30/C1: "one loud thing"). Events get gentle alerts; blocks get the lever.
+### ~~D38. A TimeBlock carries exactly ONE notification: the execution cue~~ — **SUPERSEDED by D40 (2026-07-11)**
+- ~~**Decision**: a block's only notification is the **execution cue**; the prototype's per-task soft
+  multi-offset "단순 알림" (D35) is dropped for blocks.~~
+- **Superseded**: D40 keeps "exactly one alert per block" but makes it a choice of **three** (없음 / 단순 알림 /
+  실행 알림). D38's *rationale* survives inside D40 — the cue stays unmistakable — but the conclusion was wrong:
+  banning the soft tier didn't protect the cue, it **pushed users to over-apply the cue** (or get nothing).
+- What D38 got right and D40 keeps: the prototype's **multi-offset** per-task reminder stack is still gone (one
+  alert, one lead), and only the execution cue may pierce the lock screen (R15).
 
 ## 2026-07-09 — Trigger-prototype scope & v0.3 product decisions
 

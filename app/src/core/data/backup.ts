@@ -153,7 +153,7 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   const afterBlocks = await listBlocks();
   const allIds = new Set<string>([...beforeIds, ...afterBlocks.map((b) => b.id)]);
   for (const id of allIds) unscheduleBlock(id);
-  for (const b of afterBlocks) scheduleBlock(b);
+  for (const b of afterBlocks) await scheduleBlock(b);
   // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
   await rearmEventNotifications(await listEvents());
 

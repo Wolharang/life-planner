@@ -90,6 +90,38 @@ export const alarm = {
     Native.openFullScreenIntentSettings?.();
   },
 
+  /**
+   * "다른 앱 위에 표시". Without it the moment only takes over when the screen is **off/locked**: on an
+   * unlocked, in-use phone Android degrades the full-screen intent to a heads-up banner and blocks our
+   * direct activity start, so the moment appears only if the user taps the notification — which is not
+   * the lever (it makes execution opt-in at exactly the point the user is trying to avoid it).
+   */
+  canDrawOverlays(): boolean {
+    return typeof Native.canDrawOverlays === "function" ? Native.canDrawOverlays() : false;
+  },
+  openOverlaySettings(): void {
+    Native.openOverlaySettings?.();
+  },
+
+  // --- sound (read natively at fire time; OFF = vibration only) ---
+  /** The device's alarm/notification tones for the settings picker. */
+  listAlarmTones(): { title: string; uri: string }[] {
+    return typeof Native.listAlarmTones === "function" ? Native.listAlarmTones() : [];
+  },
+  /** "" = follow the device's default alarm tone. */
+  getAlarmTone(): string {
+    return typeof Native.getAlarmTone === "function" ? Native.getAlarmTone() : "";
+  },
+  setAlarmTone(uri: string): void {
+    Native.setAlarmTone?.(uri);
+  },
+  previewTone(uri: string): void {
+    Native.previewTone?.(uri);
+  },
+  stopPreview(): void {
+    Native.stopPreview?.();
+  },
+
   schedule(opts: {
     id: string;
     fireAt: number;

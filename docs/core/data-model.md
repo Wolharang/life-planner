@@ -69,7 +69,7 @@
 | `location` | string | ○ | D-1 | |
 | `kind` | enum `normal\|workout\|run` | ✓ | D-1 | **운동 통합**(D22): 별도 기록 없음 |
 | — 실행 — | | | | |
-| `executionAlarm` | boolean (기본 `false`) | ✓ | D-1 | "실행 알림" 플래그(핵심 레버 대상). **알람은 live `start − alarmLeadMinutes`에 예약 — 스냅샷 아님** |
+| `alert` | enum `none\|soft\|execution` (기본 `none`) | ✓ | D-1 | 이 블록이 갖는 **단 하나의** 알림(D40). `execution`=핵심 레버. **발화는 live `start − alarmLeadMinutes` — 스냅샷 아님** |
 | `alarmLeadMinutes` | number | ○ | D-1 | 리드타임(D28) |
 | `microStartNote` | string | ○ | D-1 | "지금 신발 신기" |
 | — D-1 스냅샷(평가 기준, D23) — | | | | |
@@ -82,13 +82,14 @@
 | `createdAt/updatedAt` | timestamp | ✓ | 자동 | |
 - **반복 없음(D37)**: TimeBlock은 **날짜별 단일 인스턴스**다(recurrence 필드 없음). "매일 헬스"는 **추가 화면에서 여러
   날짜를 한 번에 선택** → 날짜마다 **독립 블록**이 하나씩 생긴다(반복이 아니라 일괄 생성). 프로토타입의 `Recurrence`는 폐기.
-- **알림은 하나뿐(D38)**: 블록이 갖는 알림은 **실행 큐(`executionAlarm`, 기본 off)** 뿐 — 소프트 "단순 알림"은 블록에 없다
-  (그건 ImportantEvent의 사전 알림 R3). spec §3.9 그대로.
+- **알림은 하나뿐 — 단, 세 단계 중 하나(D40, D38 대체)**: `alert` = **`none`**(무음) / **`soft`**(진동+알림만, 화면을
+  뚫지 않음) / **`execution`**(잠금화면 실행 순간). 기본 `none`. 한 블록은 여전히 **정확히 하나**의 알림만 갖는다.
+  소프트 단계가 있어야 실행 큐를 **드물게** 쓸 수 있고, 드물어야 큐가 세다(C1/D30).
 - **`status`**: `planned|success|fail` + **`skipped`**(발화 전 "오늘은 쉼" 토글 — 무죄책, 미스 아님, 실행률 분모에서 제외).
 - **생성 위치/시점**: Day 뷰에서 **D-1 설계**(D6). 당일 수정 가능하되 **평가는 스냅샷 기준**(D23). 홈=실행 카드에서 실행/done.
 - **저장**: `/users/{uid}/timeblocks/{id}` + 로컬 미러. **현재 로컬 구현(2026-07-11)**: AsyncStorage `lp.blocks.v1`
   (`app/src/core/data/blockRepository.ts`) — Firestore/uid는 F0에서 인터페이스 뒤로 추가(architecture §7).
-- **연결**: `uid` 소유 · `date`로 하루에 묶임 · `kind=workout/run`+`status=success` → 하루 **운동 완료** 집계(D22) · `executionAlarm=true` → 네이티브 알람 예약 대상.
+- **연결**: `uid` 소유 · `date`로 하루에 묶임 · `kind=workout/run`+`status=success` → 하루 **운동 완료** 집계(D22) · `alert="execution"` → 네이티브 알람 예약 대상 · `alert="soft"` → 조용한 로컬 알림.
 
 ### 2.4 Expense — 지출(가계부) (계층2)
 | 필드 | 타입 | 필수 | 생성/출처 | 비고 |
@@ -184,7 +185,7 @@
 1. **생성**(오프라인 가능): 화면에서 입력 → 클라 UUID 부여 → **로컬에 즉시 기록**(즉각 UX).
 2. **동기화**: Firestore SDK가 백그라운드로 클라우드 반영 + 다른 기기 실시간 수신(오프라인이면 큐잉 후 재연결 시).
 3. **집계**: DayAggregate는 로컬 데이터에서 **실시간 계산**(쓰기 없음).
-4. **알림 재등록**: 동기화로 새/수정 TimeBlock(`executionAlarm=true`)이 들어오면 각 기기가 **로컬 알람 재예약**(푸시 아님, D18). 재예약 데이터는 **네이티브 미러(SharedPreferences)**에서 읽고, **블록 생성·수정·소프트삭제마다 write-through, 삭제 시 eviction**(고스트 알람 방지).
+4. **알림 재등록**: 동기화로 새/수정 TimeBlock(`alert≠none`)이 들어오면 각 기기가 **로컬 알람 재예약**(푸시 아님, D18). 재예약 데이터는 **네이티브 미러(SharedPreferences)**에서 읽고, **블록 생성·수정·소프트삭제마다 write-through, 삭제 시 eviction**(고스트 알람 방지).
 5. **백업**: 사용자가 JSON 내보내기 → 가져올 때 서버 사본과 비교해 merge/overwrite(D24).
 
 ## 6. 동기화·정합성 규칙
@@ -223,7 +224,7 @@
 | `title` | string | 커밋 문구·목록 표시 |
 | `setTime` | time(**벽시계 로컬** HH:mm) | 발화 기준 시각(전체앱 TimeBlock의 `start`에 대응; `end`/`kind`는 프로토타입 미사용) |
 | `microStartNote` | string○ | "지금 신발 신기" |
-| `executionAlarm` | boolean(기본 false) | 잠금화면 실행 개입 대상 |
+| `executionAlarm` | boolean(기본 false) | 잠금화면 실행 개입 대상 *(프로토타입 전용; 전체앱은 `alert` 3단계 — D40)* |
 | `leadMinutes` | number(기본 **0**) | 유효 발화=`setTime − lead`. **미설정=0(정각)**(D28 재검토/D35), 프리셋 {0/15/30/60/custom} |
 | `plainReminderOffsets` | number[] | **소프트** 알림 오프셋 다중선택 {0/15/30/60/custom}. 실행 알람과 별개(D35) |
 | `recurrence` | enum `none\|daily\|weekly`(기본 none) | 반복 → 날짜별 **Occurrence**(8.2) 파생(D35) |

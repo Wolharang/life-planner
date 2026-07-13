@@ -3,8 +3,10 @@
 // lets you tick **several dates at once**: each becomes its own independent block (founder decision
 // 2026-07-11) — convenience, not repetition.
 //
-// A block carries exactly ONE notification type: the execution cue (spec §3.9) — off by default, and
-// the only thing allowed to pierce the lock screen (R15). Soft reminders live on important events (R3).
+// A block carries exactly ONE alert, chosen from three (**D40**, founder 2026-07-11): **없음** (silent) ·
+// **알림** (a plain notification + vibration — it tells you, it forces nothing) · **실행** (the lock-screen
+// execution moment, R7). Only 실행 pierces the lock screen (R15), and it stays rare *because* the soft tier
+// now absorbs everything that doesn't need forcing.
 
 import { View, Text, Pressable, TextInput, Switch, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,7 +16,7 @@ import { addBlocks, updateBlock, deleteBlock, listBlocks, type TimeBlock } from 
 import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
-import type { BlockKind } from "@/core/data/types";
+import type { BlockAlert, BlockKind } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const KINDS: { label: string; v: BlockKind }[] = [
@@ -29,6 +31,12 @@ const LEADS = [
   { label: "1시간 전", v: 60 },
 ];
 const LEAD_PRESET_VALUES = LEADS.map((l) => l.v);
+// A block carries exactly one of these (D40). Default = 없음: the plan is just a plan until you say so.
+const ALERTS: { label: string; v: BlockAlert }[] = [
+  { label: "없음", v: "none" },
+  { label: "알림", v: "soft" },
+  { label: "실행", v: "execution" },
+];
 const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -59,7 +67,7 @@ export default function AddBlock() {
   const [endM, setEndM] = useState((params.end ?? "22:00").split(":")[1]);
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
-  const [execOn, setExecOn] = useState(false); // off by default (spec §3.9 "select few")
+  const [alert, setAlert] = useState<BlockAlert>("none"); // silent by default (D40; "select few" get the cue)
   const [lead, setLead] = useState(0);
   const [leadCustomOn, setLeadCustomOn] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
@@ -100,7 +108,7 @@ export default function AddBlock() {
       }
       setKind(b.kind);
       setLocation(b.location ?? "");
-      setExecOn(b.executionAlarm);
+      setAlert(b.alert);
       setLead(b.alarmLeadMinutes);
       if (!LEAD_PRESET_VALUES.includes(b.alarmLeadMinutes)) {
         setLeadCustomOn(true);
@@ -141,7 +149,7 @@ export default function AddBlock() {
       title: title.trim(),
       kind,
       location: location.trim() || undefined,
-      executionAlarm: execOn,
+      alert,
       alarmLeadMinutes: effectiveLead,
       microStartNote: note.trim() || undefined,
     };
@@ -314,26 +322,42 @@ export default function AddBlock() {
           style={{ fontSize: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 24 }}
         />
 
-        {/* 실행 알림 — the core lever; the ONLY thing that pierces the lock screen */}
-        <View className="flex-row items-center justify-between" style={{ marginTop: 28 }}>
-          <View className="flex-1 pr-3">
-            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-              실행 알림
-            </Text>
-            <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-              그 시각에 잠금화면을 뚫고 시작시켜요
-            </Text>
-          </View>
-          <Switch
-            value={execOn}
-            onValueChange={setExecOn}
-            trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor="#E5E8EB"
-          />
+        {/* 알림 (D40) — a block carries exactly ONE of these three. Keeping a *soft* tier is what lets
+            the execution cue stay rare and therefore loud ("one loud thing", C1/D30). */}
+        <SectionLabel>알림</SectionLabel>
+        <View className="bg-group flex-row" style={{ borderRadius: 12, padding: 4 }}>
+          {ALERTS.map((o) => {
+            const on = alert === o.v;
+            return (
+              <Pressable
+                key={o.v}
+                onPress={() => setAlert(o.v)}
+                className="flex-1 items-center"
+                style={{
+                  borderRadius: 9,
+                  paddingVertical: 12,
+                  backgroundColor: on ? "#FFFFFF" : "transparent",
+                  ...(on
+                    ? { shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 }
+                    : {}),
+                }}
+              >
+                <Text className={on ? "text-ink" : "text-grey"} style={{ fontSize: 14.5, fontWeight: on ? "700" : "500" }}>
+                  {o.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+        <Text className="text-grey mt-2" style={{ fontSize: 12.5, lineHeight: 18 }}>
+          {alert === "execution"
+            ? "그 시각에 잠금화면을 뚫고 실행 화면이 떠요. 미루기 쉬운 일(운동)에만 쓰세요."
+            : alert === "soft"
+              ? "진동과 함께 알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."
+              : "아무 알림도 오지 않아요. 계획으로만 남아요."}
+        </Text>
 
-        {execOn && (
+        {alert !== "none" && (
           <>
             <SectionLabel>언제</SectionLabel>
             <ChipRow>
@@ -365,6 +389,7 @@ export default function AddBlock() {
                 <Text className="text-grey" style={{ fontSize: 14 }}>분 전</Text>
               </View>
             )}
+            {alert === "execution" && (
             <TextInput
               value={note}
               onChangeText={setNote}
@@ -373,6 +398,7 @@ export default function AddBlock() {
               className="text-ink"
               style={{ fontSize: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 18 }}
             />
+            )}
           </>
         )}
 

@@ -7,6 +7,54 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — On-device findings: the moment must APPEAR · skin locked to v5 · alert tiers · sound
+
+Founder ran the device pass. One real defect, one lock, two missing features. All four land here.
+
+### 1. THE DEFECT — the moment only appeared as a notification you had to tap (D41)
+- **Symptom:** at the fire time a **heads-up notification** appeared; the full-screen moment opened **only
+  after tapping it**. Execution became opt-in at exactly the point the user is trying to avoid it — the lever
+  was, in effect, off.
+- **Diagnosis (not a regression):** Android launches a full-screen intent **immediately only while the screen
+  is off/locked**. On an **unlocked, in-use** phone it degrades to a banner, and a BroadcastReceiver's direct
+  `startActivity` is blocked by the **background-activity-start restriction** (Android 10+). Earlier tests
+  happened to be run with the phone locked, which is why it "used to work".
+- **Fix:** request **`SYSTEM_ALERT_WINDOW` ("다른 앱 위에 표시")**, which lifts that restriction → the moment
+  appears at its time **in every state**. It is now a first-class grant: onboarding row, 실행 준비 상태 (n/4),
+  and the home denial banner, which now says exactly what is lost ("화면을 켜고 쓰는 중엔 실행 화면이 안 떠요").
+  **D41** logged; PRD **R7/R16** amended.
+
+### 2. Skin LOCKED to v5 (D39)
+The founder confirmed the blue "Toss-form" skin. **It was never the docs that made the code old** — the v5
+reskin had simply only touched the JS screens; the docs were *recording* that state ("provisional"). Now:
+`design-system.md` §1 is confirmed (D39 supersedes D36's forest/gold **colors**; D36's base-library choice
+stands), and the **native `ExecutionActivity` is repainted to v5** — brand `#3182F6`, gold `#B0862A`, exec
+ground `#FBFAF6`. **No screen is left on the old palette.** The invariants a reskin may never touch are
+restated: miss = taupe (never red) · gold = the one DONE mark · the moment is LIGHT · no confetti.
+
+### 3. Alert tiers: 없음 / 단순 알림 / 실행 알림 (D40 — supersedes D38)
+The founder asked for a tier that **just tells you** (notification + vibration) without forcing the
+full-screen flow. This **contradicted D38**, which I had written from spec §3.9 ("a block's only notification
+is the cue") — so **D38 is superseded, and spec §3.9 is amended**: a block still carries **exactly one**
+alert, now chosen from **three**. `TimeBlock.executionAlarm: boolean` → **`alert: none|soft|execution`**
+(old data reads through a normalizer). `soft` rides the **quiet channel**, so R15's "only the cue pierces"
+still holds *structurally*.
+**Why this makes the lever stronger, not weaker:** without a soft tier the user must either over-apply the
+lock-screen cue — destroying "one loud thing" (C1/D30), which is loud *because* it is rare — or get nothing.
+The soft tier is what protects the cue's scarcity.
+
+### 4. Sound: choosable tone, and silence = vibration-only (D42)
+설정 → **소리** (off by default = **진동만**) → when on, **알림음**: pick from the device's alarm/notification
+tones **with preview**, or follow the device default. Stored natively (`SoundSetting` + `TonePreview`) because
+the moment reads it **at fire time**, when JS may be dead.
+
+### Verified
+`typecheck` ✓ · `28 tests` ✓ · `expo prebuild --clean --platform android` ✓ (SYSTEM_ALERT_WINDOW merged into
+the manifest). **Needs a device pass:** grant "다른 앱 위에 표시" → the moment must now take over **while the
+phone is unlocked and in use**, not just from the lock screen.
+
+---
+
 ## 2026-07-11 — F5: 돌아보기 (R17) — plan vs actual, with the reason OPTIONAL
 
 The last phase before the backend. The whole design tension here is **D5 (a fail needs a reason) vs B1 (never

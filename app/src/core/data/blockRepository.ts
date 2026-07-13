@@ -41,7 +41,7 @@ function fromTask(t: Task, date: string): TimeBlock {
     start: t.setTime,
     title: t.title,
     kind: guessKind(t.title),
-    executionAlarm: t.executionAlarm,
+    alert: t.executionAlarm ? "execution" : "none", // D40 tiers; the prototype only had on/off
     alarmLeadMinutes: t.leadMinutes,
     microStartNote: t.microStartNote,
     snapStart: t.setTime,
@@ -96,15 +96,22 @@ async function ensureMigrated(): Promise<void> {
   // then arm the migrated blocks at their new per-date times.
   for (const t of tasks) {
     unscheduleBlock(t.id);
-    await cancelReminders(t.id); // blocks carry no soft reminder (D38)
+    await cancelReminders(t.id); // the prototype's per-task multi-offset reminders are retired (D40)
   }
-  for (const b of migrated) scheduleBlock(b);
+  for (const b of migrated) await scheduleBlock(b);
+}
+
+/** Blocks written before D40 carry `executionAlarm: boolean`; read them as the new three-way `alert`. */
+function normalize(b: any): TimeBlock {
+  if (b.alert) return b as TimeBlock;
+  const { executionAlarm, ...rest } = b;
+  return { ...rest, alert: executionAlarm ? "execution" : "none" } as TimeBlock;
 }
 
 export async function listBlocks(): Promise<TimeBlock[]> {
   await ensureMigrated();
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as TimeBlock[]) : [];
+  return raw ? (JSON.parse(raw) as any[]).map(normalize) : [];
 }
 
 /** Raw write — callers must reconcile alarms themselves. Internal; the exported mutations below do it. */
@@ -118,13 +125,13 @@ export async function addBlock(block: TimeBlock): Promise<void> {
 
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
   await writeBlocks([...(await listBlocks()), ...blocks]);
-  for (const b of blocks) scheduleBlock(b); // write-through (architecture §9-2)
+  for (const b of blocks) await scheduleBlock(b); // write-through (architecture §9-2)
 }
 
 export async function updateBlock(block: TimeBlock): Promise<void> {
   const blocks = await listBlocks();
   await writeBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
-  scheduleBlock(block); // moves / cancels the alarm to match the new state (off · skipped · past → none)
+  await scheduleBlock(block); // re-arms the block's ONE alert, or cancels both paths (D40)
 }
 
 export async function deleteBlock(id: string): Promise<void> {
@@ -148,7 +155,7 @@ export async function rearmBlockAlarms(): Promise<void> {
   const blocks = await listBlocks();
   const live = new Set(blocks.map((b) => b.id));
   for (const id of armed) if (!live.has(id)) unscheduleBlock(id); // orphan alarm → evict
-  for (const b of blocks) scheduleBlock(b);
+  for (const b of blocks) await scheduleBlock(b);
 }
 
 /** A day's blocks in clock order — the day view and My Day both read the day this way. */

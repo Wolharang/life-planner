@@ -14,7 +14,7 @@ const block = (over: Partial<TimeBlock> = {}): TimeBlock => ({
   start: "21:00",
   title: "헬스",
   kind: "workout",
-  executionAlarm: true,
+  alert: "execution",
   alarmLeadMinutes: 0,
   snapStart: "21:00",
   snapTitle: "헬스",
@@ -36,8 +36,8 @@ describe("blockFireAt (R7)", () => {
     expect(blockFireAt(block({ start: "21:00", snapStart: "20:00", alarmLeadMinutes: 30 }))).toBe(at(2026, 8, 1, 20, 30));
   });
 
-  it("does not fire when the execution cue is off", () => {
-    expect(blockFireAt(block({ executionAlarm: false }))).toBe(null);
+  it("does not fire when the block carries no alert", () => {
+    expect(blockFireAt(block({ alert: "none" }))).toBe(null);
   });
 
   it("does not fire on a pre-skipped block (오늘은 쉼)", () => {
@@ -84,7 +84,7 @@ describe("pastUnfiredBlocks (R6 never-fired net)", () => {
 
   it("ignores blocks with no cue and future blocks", () => {
     const future = block({ id: "b2", date: "2026-09-01" });
-    const noCue = block({ id: "b3", executionAlarm: false });
+    const noCue = block({ id: "b3", alert: "none" });
     expect(pastUnfiredBlocks([future, noCue], new Set(), now - 86_400_000, now)).toEqual([]);
   });
 });

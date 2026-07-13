@@ -21,11 +21,13 @@ export default function Onboarding() {
   const [notif, setNotif] = useState(true);
   const [exact, setExact] = useState(true);
   const [fsi, setFsi] = useState(true);
+  const [overlay, setOverlay] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       setExact(alarm.canScheduleExactAlarms());
       setFsi(alarm.canUseFullScreenIntent());
+      setOverlay(alarm.canDrawOverlays());
     } catch {
       // native unavailable (dev skew) — leave granted so onboarding never blocks
     }
@@ -90,6 +92,12 @@ export default function Onboarding() {
           hint="잠금화면을 뚫고 실행 화면을 띄워요"
           done={fsi}
           onPress={() => alarm.openFullScreenIntentSettings()}
+        />
+        <PermRow
+          label="다른 앱 위에 표시 허용"
+          hint="폰을 쓰는 중에도 그 시각에 바로 실행 화면이 떠요 (없으면 알림만 오고, 눌러야 떠요)"
+          done={overlay}
+          onPress={() => alarm.openOverlaySettings()}
         />
 
         <Pressable

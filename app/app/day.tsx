@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
-import { freeSlots, isSkipped, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
+import { freeSlots, isExecution, isSkipped, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const KIND_LABEL: Record<TimeBlock["kind"], string> = { normal: "", workout: "운동", run: "러닝" };
@@ -105,14 +105,14 @@ export default function DayPlan() {
                   {[
                     KIND_LABEL[b.kind],
                     b.location,
-                    b.executionAlarm ? (isSkipped(b) ? "오늘은 쉼" : "실행 알림") : null,
+                    b.alert === "none" ? null : isSkipped(b) ? "오늘은 쉼" : b.alert === "execution" ? "실행 알림" : "알림",
                     b.status === "success" ? "해냄" : b.status === "fail" ? "미스" : null,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "계획"}
                 </Text>
               </View>
-              {b.executionAlarm && !isSkipped(b) && (
+              {isExecution(b) && (
                 <View className="bg-brand-soft rounded-full px-2.5 py-1">
                   <Text className="text-brand" style={{ fontSize: 11, fontWeight: "700" }}>
                     실행

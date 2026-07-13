@@ -111,6 +111,22 @@ class LpAlarmModule : Module() {
       )
     }
 
+    // "다른 앱 위에 표시" (SYSTEM_ALERT_WINDOW). Without it the moment only takes over when the screen is
+    // OFF/LOCKED; on an unlocked phone the OS degrades the full-screen intent to a heads-up banner and
+    // blocks our direct activity start. With it, the moment appears at its time in every state.
+    Function("canDrawOverlays") {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
+    }
+
+    Function("openOverlaySettings") {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        startExternal(
+          Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            .setData(Uri.parse("package:" + context.packageName))
+        )
+      }
+    }
+
     // --- scheduling ---
 
     Function("scheduleExactAlarm") { id: String, fireAt: Double, title: String, recurrence: String, note: String, createdAt: Double, leadMinutes: Int ->
@@ -147,12 +163,31 @@ class LpAlarmModule : Module() {
       PendingMisses.consume(context)
     }
 
-    // R8 sound setting (read natively at fire time; default off = haptic-only).
+    // Sound settings (read natively at fire time; default OFF = vibration only).
     Function("setSound") { enabled: Boolean ->
       SoundSetting.set(context, enabled)
     }
     Function("getSound") {
       SoundSetting.isOn(context)
+    }
+
+    /** The device's alarm/notification tones → the settings picker. */
+    Function("listAlarmTones") {
+      SoundSetting.listTones(context)
+    }
+    /** "" = follow the device's default alarm tone. */
+    Function("getAlarmTone") {
+      SoundSetting.toneUri(context)
+    }
+    Function("setAlarmTone") { uri: String ->
+      SoundSetting.setToneUri(context, uri)
+    }
+    /** Play/stop a tone so the user can hear it before choosing (settings only). */
+    Function("previewTone") { uri: String ->
+      TonePreview.play(context, uri)
+    }
+    Function("stopPreview") {
+      TonePreview.stop()
     }
 
     Function("getScheduledAlarms") {

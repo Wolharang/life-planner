@@ -8,6 +8,14 @@
   <uses-permission android:name="android.permission.VIBRATE" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <!--
+    "다른 앱 위에 표시". THE fix for "the moment only appeared as a heads-up notification":
+    a full-screen intent launches its activity immediately ONLY while the screen is off/locked — on an
+    UNLOCKED, in-use phone Android degrades it to a heads-up banner, and a BroadcastReceiver's direct
+    startActivity is blocked by the background-activity-start restriction (Android 10+). Holding this
+    permission lifts that restriction, so the execution moment appears at its time either way.
+  -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
   <application>
 

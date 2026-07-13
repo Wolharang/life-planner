@@ -201,7 +201,7 @@ Adding a new event, he already **sees** the existing Saturday event → no doubl
 
 ### 7.0 — Data & behavior model (canonical fields: `docs/core/data-model.md`)
 Entities: **ImportantEvent** (date, time, title, notifyLeadMinutes, color, memo) · **TimeBlock** (date, start–end,
-title, location?, `kind`, `executionAlarm` + `alarmLeadMinutes` + `microStartNote`, D-1 snapshot
+title, location?, `kind`, `alert` (`none|soft|execution`, D40) + `alarmLeadMinutes` + `microStartNote`, D-1 snapshot
 `snapStart/snapEnd/snapTitle/plannedAt`, `status` planned|success|fail, `failReason`) · **Expense** (timestamp,
 category[8 fixed D16], amount[KRW D25], payment[free-text D26], store, name) · **MealEntry** (mealType[아침/점심/
 저녁/간식], foodName, detail, kcal[manual D27], **no photo** D19) · **DayAggregate** (derived totals) ·
@@ -237,9 +237,10 @@ in enables sync** from that point (D20). Auth = **id + password** (D12; Google l
   local data; password is held by Firebase Auth, never in our DB.
 
 **R5 — D-1 time-block planning.** **[P0]** Tapping a date opens that day's **time-block schedule**; blocks are
-**free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and a
-**실행 알림 (execution cue) flag** (+ per-block lead + micro-start note, D28) — a block's **only** notification
-(D38). Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
+**free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and **one
+alert chosen from three (D40)**: **없음** (silent) · **단순 알림** (a plain notification + vibration at
+`start − lead` — it tells you and forces nothing) · **실행 알림** (the lock-screen execution cue, + micro-start
+note). Default = 없음. Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
 follows the **live** `start − lead` (D23). A block belongs to **one date and does not repeat**; to cover a
 routine, the add screen places the same block on **several dates at once**, each an independent block (D37).
 - *Acceptance:* create blocks for tomorrow; a `workout` block is marked as such; ticking N dates creates N
@@ -266,7 +267,7 @@ commit's only response is the acknowledgement **"응, 할게"**, and the re-chec
 countdown). The intentional skip is the **pre-fire, re-togglable "오늘은 쉼"** per-occurrence toggle. *(This revises the prototype flow COMMIT→immediate
 5·4·3·2·1→micro-start→GO; the counter-deliberation countdown now runs on the re-check's "아직 안 했어", not before
 commit — see the design-principles A2 note.)*
-- *Acceptance:* the commit fires within **±`[TBD: 1 min]`** (S2) over the lock screen under kill/Doze/reboot; a
+- *Acceptance:* the moment appears **whether the phone is locked or in use** (D41); the commit fires within **±`[TBD: 1 min]`** (S2) over the lock screen under kill/Doze/reboot; a
   re-check re-opens ~5 min after commit; "응, 했어" records DONE; "아직 안 했어" runs the countdown then leaves with
   **no** immediate miss; DONE shows one calm gold mark, a miss is never red; reuses the prototype's native alarm
   module (`app/modules/lp-alarm`).
@@ -300,7 +301,9 @@ live sync store; JSON is a manual backup path.
 - *Acceptance:* export produces a valid JSON file; import merge/overwrite both work and re-derive scheduling; a
   corrupt/foreign file is rejected with a gentle message, changing nothing.
 
-**R13 — Minimal settings.** **[P1]** App-level preferences: execution **sound** (default **off** = haptic-only);
+**R13 — Minimal settings.** **[P1]** App-level preferences: execution **sound** (default **off** = **vibration
+only**) and, when on, a **choosable alarm tone** (pick from the device's tones with preview, or follow the device
+default — D42; read natively at fire time);
 **default lead-time** (per-event/-block default if unset — full-app default e.g. **`[TBD: ~30 min]`**, D28);
 account/sync; backup (R12); battery-optimization guidance. Settings persist and take effect on the next firing.
 - *Acceptance:* toggling sound persists and applies at the next execution moment; the default lead pre-fills new
@@ -313,19 +316,24 @@ signal**; returning after a miss is **frictionless** (a gentle catch-up, never a
   later return carries no barrier or guilt copy.
 
 **R15 — Notification discipline (cross-cutting policy).** **[P0]** **Two distinct mechanisms, never conflated:**
-(a) important-event **advance notification** = standard **non-exact** local notification (soft); (b) flagged-block
-**execution cue** = the native **exact-alarm + full-screen** path (the core lever, **NOT minimized**, D30). A block
-carries **exactly one** type. Everything else is quiet/opt-in (sound default off).
-- *Acceptance:* advance alerts are soft and don't pierce the lock; the execution cue does pierce it; no everyday
-  notification spam; the two are never disguised as each other.
+(a) the **soft path** — important-event advance alerts **and** a block's optional 단순 알림 (D40) — a standard
+**non-exact** local notification on a **quiet channel** (DEFAULT importance · no sound · lock-screen PRIVATE):
+it informs, it never pierces; (b) the **execution cue** — the native **exact-alarm + full-screen** path (the
+core lever, **NOT minimized**, D30). A block carries **exactly one** alert (`none | soft | execution`).
+The soft tier is what **keeps the cue rare** — and therefore loud (C1/D30). Sound default off = vibration only.
+- *Acceptance:* soft alerts don't pierce the lock screen (enforced by the **channel**, not by convention); the
+  execution cue does — **in every state, not only when the phone is locked** (D41); the two are never disguised
+  as each other; no everyday notification spam.
 
 **R16 — First-run onboarding & permissions (enabler).** **[P0]** Explain **why** before requesting; drive the
 notification / exact-alarm / full-screen-intent / battery-optimization grants; any denial falls through to a
-persistent, gentle home banner (never fail silently). **All three of notification / exact-alarm / full-screen-intent
-gate the lever** — the cue is delivered *as* a full-screen-intent **notification**, so a denied POST_NOTIFICATIONS
-kills it just as dead as a denied exact-alarm, and the banner must watch **all three**.
-- *Acceptance:* permissions are requested with rationale, not cold; a denied grant — **including notifications** —
-  surfaces a one-tap banner to the right setting; the lever never fails silently.
+persistent, gentle home banner (never fail silently). **Four grants gate the lever, and the banner watches all
+four**: **notifications** (the cue is delivered *as* a full-screen-intent **notification** — denied kills it),
+**exact-alarm**, **full-screen-intent**, and **"다른 앱 위에 표시"** (D41 — without it the moment only takes over a
+**locked** screen; while the phone is in use it degrades to a banner the user must tap, which is not a cue).
+- *Acceptance:* permissions are requested with rationale, not cold; a denied grant — **including notifications and
+  overlay** — surfaces a one-tap banner to the right setting; the lever never fails silently, and the moment
+  appears at its time **whether the phone is locked or in use**.
 
 **R17 — Plan-vs-actual evaluation (LATER).** **[P2 / Later]** Per time-block **success/fail + free-text
 failReason** (D5), evaluated against the **D-1 snapshot** (D23); a simple month rollup of executed-vs-planned and a

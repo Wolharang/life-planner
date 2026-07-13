@@ -121,11 +121,14 @@ the plan-vs-actual bookkeeping — is the real target.
 - Also allowed on a **select few** time blocks that clearly warrant it.
 - Deliberately minimize notification **spam** (docs/core/decisions.md D13) — **but the precisely-scheduled
   execution cue on flagged time blocks is the product's core lever and is NOT minimized (D30 revisits D13).**
-- **Two distinct mechanisms** (do not conflate): (a) important-event **advance notification** = standard
-  **non-exact** `expo-notifications` (soft; no exact-alarm budget needed); (b) time-block **execution cue** = the
-  native **exact-alarm + full-screen** path (needs Android 12+ exact-alarm permission + Doze/FSI handling via
-  AlarmManager). A block carries **exactly one** notification type — the execution cue (`executionAlarm=true`,
-  default `false`); "select few" = the set of flagged blocks. There is no separate soft per-block reminder.
+- **Two distinct mechanisms** (do not conflate): (a) the **soft path** = standard **non-exact**
+  `expo-notifications` on a quiet channel (DEFAULT importance · no sound · lock-screen PRIVATE) — it informs and
+  **never pierces**; (b) the **execution cue** = the native **exact-alarm + full-screen** path (Android 12+
+  exact-alarm + FSI + **"다른 앱 위에 표시"**, D41 — without the last one it only takes over a *locked* screen).
+- **A block carries exactly ONE alert — chosen from three (D40, revises this section):** `none` (silent) ·
+  `soft` (a plain notification + vibration at `start − lead` — tells you, forces nothing) · `execution` (the
+  cue). Default `none`. "Select few" = the blocks set to `execution`; the soft tier exists precisely so that
+  set stays small (**that** is what keeps the cue loud, C1/D30). Important events use the soft path (R3).
 
 ## 4. Data model sketch (draft)
 
@@ -135,7 +138,7 @@ the plan-vs-actual bookkeeping — is the real target.
 - **ImportantEvent**: id, date, time, title, **notifyLeadMinutes** (per-event offset before start; default if
   unset, D28), color (optional), memo, createdAt/updatedAt.
 - **TimeBlock** (day plan): id, date, **start–end** (free-form interval), title, **location** (optional),
-  **kind** (`normal | workout | run`), **executionAlarm** flag (+ alarmLeadMinutes, microStartNote),
+  **kind** (`normal | workout | run`), **alert** (`none | soft | execution`, D40) (+ alarmLeadMinutes, microStartNote),
   **snapStart / snapEnd / snapTitle + plannedAt** (frozen D-1 values for evaluation, D23),
   **status** (`planned | success | fail`), **failReason**, completedAt, updatedAt.
 - **Expense** (per `docs/research/reference-apps.md` §A2): id, date, timestamp, category (one of 8 fixed, D16),

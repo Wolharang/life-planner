@@ -16,8 +16,8 @@ npx expo prebuild --clean --platform android   # native changed (Back no-op, com
 npx expo run:android                            # real device, USB
 ```
 - [ ] The app installs and opens without the dev-launcher crash.
-- [ ] First run shows **onboarding**, explains *why* before asking, and the permission grants go through
-      (notification · exact alarm · full-screen intent · battery optimization). **(R16)**
+- [ ] First run shows **onboarding**, explains *why* before asking, and **all four** grants go through:
+      notification · exact alarm · full-screen intent · **다른 앱 위에 표시** · (+ battery optimization). **(R16/D41)**
 
 ## 1. The lever — the execution moment (R7, the heart)
 
@@ -25,6 +25,9 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 리드 = 정각 · 첫 동작 = "지금 신발 신기" → 저장. **Lock the phone and put it down.**
 
 - [ ] At the exact minute the screen **wakes and the moment covers the lock screen**. **(R7/S2)**
+- [ ] **NOW THE ONE THAT FAILED:** repeat with the phone **UNLOCKED and in use** → the moment must **take over
+      by itself**, not merely post a notification you have to tap. (Needs "다른 앱 위에 표시" — **D41**.)
+- [ ] Its colors are the **v5 blue/gold** skin (D39), not the old forest/gold.
 - [ ] It is **LIGHT/bright** — not a dark takeover. **(CLAUDE.md caution)**
 - [ ] It shows the commit line ("…하기로 했잖아") **and the micro-start "딱 첫 동작 — 지금 신발 신기"**. **(A2)**
 - [ ] **Back button does nothing** — you cannot escape the moment with it. **(R7 / A2 — newly fixed)**
@@ -42,6 +45,13 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
       and taps through to the right setting. **(R16 — this was the silent-death bug)**
 - [ ] **오늘은 쉼** toggle OFF on a future block → no fire. Toggle it back ON → it fires again. **(R7)**
       The toggle **disappears** once the moment has passed (no in-flow escape).
+
+### Alert tiers (D40) and sound (D42)
+- [ ] A block set to **알림** (soft) → at its time you get **a notification + vibration only** — no full-screen,
+      no lock-screen takeover, nothing forced.
+- [ ] A block set to **없음** → nothing fires at all.
+- [ ] 설정 → **소리 OFF** → the moment vibrates but is **silent**. **소리 ON** → **알림음** lets you pick a tone
+      (tap = preview) and the moment plays **that** tone.
 
 ## 2. Migration from the prototype (must not lose or ghost anything)
 

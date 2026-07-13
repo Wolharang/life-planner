@@ -86,7 +86,7 @@ export default function Home() {
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
   const [catchUps, setCatchUps] = useState<CatchUpItem[]>([]);
-  const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean; notif: boolean } | null>(null);
+  const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean; notif: boolean; overlay: boolean } | null>(null);
   const [askReason, setAskReason] = useState<{ id: string; title: string } | null>(null);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
@@ -212,7 +212,10 @@ export default function Home() {
       const exact = alarm.canScheduleExactAlarms();
       const fsi = alarm.canUseFullScreenIntent();
       const notif = await notificationPermissionGranted();
-      setNeedsPerm(exact && fsi && notif ? null : { exact, fsi, notif });
+      // "다른 앱 위에 표시": without it the moment only takes over a LOCKED screen — while the phone is
+      // in use the OS degrades it to a banner you have to tap, which is not the lever.
+      const overlay = alarm.canDrawOverlays();
+      setNeedsPerm(exact && fsi && notif && overlay ? null : { exact, fsi, notif, overlay });
     } catch {
       setNeedsPerm(null); // native not linked (dev skew) — don't block the app
     }
@@ -382,15 +385,23 @@ export default function Home() {
               ? alarm.openAppNotificationSettings()
               : !needsPerm.exact
                 ? alarm.openExactAlarmSettings()
-                : alarm.openFullScreenIntentSettings()
+                : !needsPerm.fsi
+                  ? alarm.openFullScreenIntentSettings()
+                  : alarm.openOverlaySettings()
           }
           className="mx-5 rounded-card px-4 py-3 mt-2 flex-row items-center justify-between"
           style={{ backgroundColor: "#FBEEEA" }}
         >
           <View className="flex-1 pr-3">
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#B5533C" }}>실행 알림이 잠금화면을 못 뚫어요</Text>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#B5533C" }}>
+              {needsPerm.exact && needsPerm.fsi && needsPerm.notif
+                ? "화면을 켜고 쓰는 중엔 실행 화면이 안 떠요"
+                : "실행 알림이 잠금화면을 못 뚫어요"}
+            </Text>
             <Text className="mt-0.5" style={{ fontSize: 12, color: "#B5533C" }}>
-              정한 시각에 화면을 띄우려면 권한을 켜야 해요.
+              {needsPerm.exact && needsPerm.fsi && needsPerm.notif
+                ? "'다른 앱 위에 표시'를 켜야 그 시각에 바로 떠요."
+                : "정한 시각에 화면을 띄우려면 권한을 켜야 해요."}
             </Text>
           </View>
           <View className="rounded-full px-3.5 py-1.5" style={{ backgroundColor: "#B5533C" }}>
@@ -516,7 +527,7 @@ export default function Home() {
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-brand" style={{ fontSize: 12, fontWeight: "700" }}>
-                      {hero.block.executionAlarm ? "다음 실행" : "다음 블록"}
+                      {hero.block.alert === "execution" ? "다음 실행" : "다음 블록"}
                     </Text>
                     {hero.block.kind !== "normal" && (
                       <View className="bg-surface rounded-full px-2.5 py-1">
@@ -531,7 +542,7 @@ export default function Home() {
                     <Text style={{ fontSize: 19, fontWeight: "700" }}>  {hero.block.title}</Text>
                   </Text>
                   <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 6 }}>
-                    {hero.block.executionAlarm ? (
+                    {hero.block.alert === "execution" ? (
                       <>
                         <Text style={{ fontWeight: "700" }}>{relLabel(hero.fireAt)}</Text>
                         {hero.block.alarmLeadMinutes > 0
@@ -539,7 +550,7 @@ export default function Home() {
                           : " · 잠금화면 큐"}
                       </>
                     ) : (
-                      "실행 알림 꺼짐"
+                      hero.block.alert === "soft" ? "알림만 (전체화면 없음)" : "알림 없음"
                     )}
                   </Text>
                 </Pressable>
@@ -604,7 +615,7 @@ export default function Home() {
                   <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
                     {b.start}
                     {b.end ? `–${b.end}` : ""}
-                    {b.executionAlarm ? (skipped ? " · 오늘은 쉼" : " · 실행 알림") : ""}
+                    {b.alert === "none" ? "" : skipped ? " · 오늘은 쉼" : b.alert === "execution" ? " · 실행 알림" : " · 알림"}
                     {b.location ? ` · ${b.location}` : ""}
                   </Text>
                 </View>
@@ -625,7 +636,7 @@ export default function Home() {
                   // before the moment → the "오늘은 쉼" toggle (the only intentional skip, R7)
                   <Switch
                     value={!skipped}
-                    disabled={!b.executionAlarm}
+                    disabled={b.alert === "none"}
                     onValueChange={() => toggleSkip(b)}
                     trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
                     thumbColor="#FFFFFF"

@@ -127,6 +127,48 @@ export async function scheduleReminders(task: Task): Promise<void> {
   }
 }
 
+// ── Block soft alert (D40) ─────────────────────────────────────────────────────────────────────────
+// The tier the founder asked for (2026-07-11): a block that just **tells** you — notification +
+// vibration at `start − lead` — with **no forced full-screen execution**. It rides the same quiet
+// channel as the event alert, so R15 holds structurally: only the execution cue pierces the lock screen.
+// Identifiers `${blockId}-b` (task reminders `-r*`, events `-e`).
+
+const BLOCK_SUFFIX = "-b";
+
+export async function cancelBlockSoftAlert(blockId: string): Promise<void> {
+  const N = getNotifications();
+  if (!N) return;
+  try {
+    await N.cancelScheduledNotificationAsync(`${blockId}${BLOCK_SUFFIX}`);
+  } catch {
+    // best-effort — nothing scheduled under that id
+  }
+}
+
+export async function scheduleBlockSoftAlert(
+  block: { id: string; title: string; start: string; end?: string; alarmLeadMinutes: number },
+  fireAt: number
+): Promise<void> {
+  const N = getNotifications();
+  if (!N) return;
+  try {
+    await cancelBlockSoftAlert(block.id);
+    if (fireAt <= Date.now()) return;
+    const channelId = await ensureSoftChannel(N);
+    const lead = block.alarmLeadMinutes;
+    await N.scheduleNotificationAsync({
+      identifier: `${block.id}${BLOCK_SUFFIX}`,
+      content: {
+        title: block.title,
+        body: lead > 0 ? `${lead}분 후 · ${block.start}${block.end ? `–${block.end}` : ""}` : `지금 · ${block.start}`,
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(fireAt), channelId },
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 // ── ImportantEvent advance notification (R3) ────────────────────────────────────────────────────────
 
 const EVENT_SUFFIX = "-e";

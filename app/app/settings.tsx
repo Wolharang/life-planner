@@ -26,10 +26,14 @@ export default function Settings() {
   const router = useRouter();
 
   const [sound, setSound] = useState(false);
-  const [ready, setReady] = useState<{ exact: boolean; fsi: boolean; notif: boolean }>({
+  const [tone, setTone] = useState(""); // "" = the device's default alarm tone
+  const [tones, setTones] = useState<{ title: string; uri: string }[]>([]);
+  const [toneOpen, setToneOpen] = useState(false);
+  const [ready, setReady] = useState<{ exact: boolean; fsi: boolean; notif: boolean; overlay: boolean }>({
     exact: true,
     fsi: true,
     notif: true,
+    overlay: true,
   });
   const [battery, setBattery] = useState(true);
   const [lead, setLead] = useState(0);
@@ -40,10 +44,13 @@ export default function Settings() {
   const refresh = useCallback(async () => {
     setSound(safeBool(() => alarm.getSound()));
     setBattery(safeBool(() => alarm.isIgnoringBatteryOptimizations()));
+    setTone(safeStr(() => alarm.getAlarmTone()));
+    setTones(safeList(() => alarm.listAlarmTones()));
     setReady({
       exact: safeBool(() => alarm.canScheduleExactAlarms()),
       fsi: safeBool(() => alarm.canUseFullScreenIntent()),
       notif: await notificationPermissionGranted(),
+      overlay: safeBool(() => alarm.canDrawOverlays()),
     });
     setLead((await getSettings()).defaultLeadMinutes);
   }, []);
@@ -58,6 +65,10 @@ export default function Settings() {
   const toggleSound = (v: boolean) => {
     setSound(v);
     alarm.setSound(v);
+    if (!v) {
+      alarm.stopPreview();
+      setToneOpen(false);
+    }
   };
 
   const pickLead = async (v: number) => {
@@ -114,8 +125,9 @@ export default function Settings() {
     ]);
   };
 
-  const readyN = (ready.exact ? 1 : 0) + (ready.fsi ? 1 : 0) + (ready.notif ? 1 : 0);
-  const allReady = readyN === 3;
+  const readyN =
+    (ready.exact ? 1 : 0) + (ready.fsi ? 1 : 0) + (ready.notif ? 1 : 0) + (ready.overlay ? 1 : 0);
+  const allReady = readyN === 4;
 
   return (
     <SafeAreaView className="flex-1 bg-group">
@@ -140,7 +152,7 @@ export default function Settings() {
               실행 준비 상태
             </Text>
             <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-              {allReady ? "정확한 알람·잠금화면·알림 모두 켜짐" : `${readyN}/3 준비됨 · 탭해서 마저 켜기`}
+              {allReady ? "정확한 알람·잠금화면·알림·화면 위 표시 모두 켜짐" : `${readyN}/4 준비됨 · 탭해서 마저 켜기`}
             </Text>
           </View>
           <Text className="text-faint" style={{ fontSize: 20 }}>
@@ -157,7 +169,7 @@ export default function Settings() {
                 소리
               </Text>
               <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                기본 진동만 · 켜면 실행 순간에 알림음
+                {sound ? "실행 순간에 알림음 + 진동" : "진동만 (소리 없음)"}
               </Text>
             </View>
             <Switch
@@ -168,6 +180,54 @@ export default function Settings() {
               ios_backgroundColor="#E5E8EB"
             />
           </Row>
+
+          {/* 알림음 고르기 — only meaningful when sound is on (otherwise it's vibration-only). */}
+          {sound && (
+            <>
+              <Divider />
+              <Pressable onPress={() => setToneOpen((v) => !v)}>
+                <Row>
+                  <Text className="text-ink flex-1" style={{ fontSize: 16, fontWeight: "700" }}>
+                    알림음
+                  </Text>
+                  <Text className="text-brand" style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                    {tones.find((t) => t.uri === tone)?.title ?? "기기 기본"}
+                  </Text>
+                  <Text className="text-faint" style={{ fontSize: 18, marginLeft: 4 }}>
+                    {toneOpen ? "⌄" : "›"}
+                  </Text>
+                </Row>
+              </Pressable>
+              {toneOpen && (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                  <Text className="text-grey" style={{ fontSize: 12, marginBottom: 8 }}>
+                    누르면 미리 들어볼 수 있어요.
+                  </Text>
+                  <ToneRow
+                    title="기기 기본 알람음"
+                    on={tone === ""}
+                    onPress={() => {
+                      alarm.stopPreview();
+                      alarm.setAlarmTone("");
+                      setTone("");
+                    }}
+                  />
+                  {tones.map((t) => (
+                    <ToneRow
+                      key={t.uri}
+                      title={t.title}
+                      on={tone === t.uri}
+                      onPress={() => {
+                        alarm.setAlarmTone(t.uri);
+                        setTone(t.uri);
+                        alarm.previewTone(t.uri); // hear it before committing
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
+          )}
           <Divider />
           <Pressable onPress={() => setLeadOpen((v) => !v)}>
             <Row>
@@ -320,6 +380,41 @@ export default function Settings() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function ToneRow({ title, on, onPress }: { title: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center justify-between"
+      style={{ paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#F2F4F6" }}
+    >
+      <Text className={on ? "text-brand" : "text-ink"} style={{ fontSize: 14, fontWeight: on ? "700" : "500" }} numberOfLines={1}>
+        {title}
+      </Text>
+      {on && (
+        <Text className="text-brand" style={{ fontSize: 14, fontWeight: "700" }}>
+          ✓
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+function safeStr(fn: () => string): string {
+  try {
+    return fn() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function safeList<T>(fn: () => T[]): T[] {
+  try {
+    return fn() ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function safeBool(fn: () => boolean): boolean {

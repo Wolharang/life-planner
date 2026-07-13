@@ -22,26 +22,28 @@
 
 ## 1. Color
 
-> ### ⚠ 진행 중 (v5 "Toss-form" 실험 · 확정 아님 · 반복 중, 2026-07-10)
-> The **code** (`app/tailwind.config.js`) currently runs a *provisional* skin that departs from the
-> confirmed forest/gold baseline below. **This is being iterated across several rounds and is NOT locked**
-> — the table that follows remains the confirmed baseline (decision **D36**) until a future round confirms
-> a rebrand (then a new D-entry supersedes it). Track rounds in `docs/research/prototype/build-log.md`.
+> ### ✅ 확정: v5 "Toss-form" (D39, 2026-07-11) — 더 이상 잠정이 아님
+> The skin is **LOCKED to v5** (**D39**), which **supersedes D36's forest/gold *color* baseline** (D36's
+> *base-library* choice still stands). The live tokens are `app/tailwind.config.js`, and the **native
+> execution moment (`ExecutionActivity.kt`) has been repainted to match** — no screen is left on the old
+> palette. The forest/gold table further below is kept as **history** (where the palette came from), not truth.
 >
-> | Token | Confirmed baseline (D36) | **Current experiment (in code, provisional)** |
+> | Token | **CONFIRMED (v5, D39)** | *(superseded: D36 forest/gold)* |
 > |---|---|---|
-> | `brand` (interactive) | `#1B4332` forest | **`#3182F6` blue** (Toss interactive) · soft `#E8F3FF` |
-> | `bg` (app background) | `#F1F4EF` off-white | **`#FFFFFF` white** + grey groups `group/line #F2F4F6` |
-> | `gold` (DONE signal) | `#C9A227` | **`#B0862A`** (refined old-gold) · soft `#F7EFD6` |
-> | execution ground | `#F4F7F2` light | **`#FBFAF6` warm-white** |
-> | typography | system stack (no custom font) | **Pretendard** (utility) + **GowunBatang** serif (execution voice) — both free OFL (D10) |
+> | `brand` (interactive) | **`#3182F6` blue** · soft `#E8F3FF` | ~~`#1B4332` forest~~ |
+> | `bg` (app background) | **`#FFFFFF` white** + grey groups `group`/`line` `#F2F4F6` | ~~`#F1F4EF` off-white~~ |
+> | `gold` (the one DONE signal) | **`#B0862A`** · soft `#F7EFD6` | ~~`#C9A227`~~ |
+> | execution ground | **`#FBFAF6` warm-white (LIGHT)** · ink `#191F28` | ~~`#F4F7F2`~~ |
+> | `miss` | **`#8B7E74` taupe — never red** | (unchanged) |
+> | typography | **Pretendard** (UI) + **GowunBatang** serif (execution voice) — free OFL (D10) | ~~system stack~~ |
 >
-> **Invariant across every skin (unchanged, non-negotiable):** `miss #8B7E74` taupe — **never red**; `gold`
-> = the **single** DONE signal (not buttons); execution moment = **light**; **no confetti** (a gold 도장/seal
-> stands in); **no in-flow escape**. These hold regardless of the palette experiment.
+> **Invariants (a reskin never touches these):** `miss` taupe — **never red**; `gold` = the **single** DONE
+> signal (not buttons); the execution moment is **light**; **no confetti** (a gold 도장/seal stands in);
+> **no in-flow escape**.
 
-**Semantic roles (Light) — 기준 붙임.** Dark set mirrors it (§1.4). *(Confirmed baseline — see the ⚠ note
-above for the current provisional code skin.)*
+**Semantic roles (Light) — 기준 붙임.** Dark set mirrors it (§1.4). *(**Historical — the D36 forest/gold set.**
+The confirmed values are the v5 table above (D39); the rows below explain the **reasoning** each token was
+chosen for, which the v5 skin inherits role-for-role.)*
 
 | Token | Value (Light) | Role | 기준 (why) |
 |---|---|---|---|

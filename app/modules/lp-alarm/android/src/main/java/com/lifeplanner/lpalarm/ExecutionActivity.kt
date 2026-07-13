@@ -52,13 +52,16 @@ class ExecutionActivity : Activity() {
 
   private val handler = Handler(Looper.getMainLooper())
 
-  private val bg = Color.parseColor("#F4F7F2")
-  private val ink = Color.parseColor("#1C2321")
-  private val soft = Color.parseColor("#6B756F")
-  private val brand = Color.parseColor("#1B4332")
-  private val gold = Color.parseColor("#C9A227")
-  private val faint = Color.parseColor("#9AA39C")
-  private val line = Color.parseColor("#E7E9E4")
+  // v5 "Toss-form" tokens — the CONFIRMED skin (D39, 2026-07-11), mirroring app/tailwind.config.js.
+  // The moment stays LIGHT (never a dark takeover); gold is reserved for the single DONE mark, and the
+  // one action is a solid brand pill.
+  private val bg = Color.parseColor("#FBFAF6") // exec ground (warm white)
+  private val ink = Color.parseColor("#191F28")
+  private val soft = Color.parseColor("#4E5968")
+  private val brand = Color.parseColor("#3182F6")
+  private val gold = Color.parseColor("#B0862A")
+  private val faint = Color.parseColor("#8B95A1")
+  private val line = Color.parseColor("#F2F4F6")
 
   private data class Item(
     val taskId: String,
@@ -363,9 +366,8 @@ class ExecutionActivity : Activity() {
       // couldn't adjust the alarm volume (policy) — proceed at the current level
     }
     try {
-      val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
-        ?: RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
-        ?: RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_NOTIFICATION)
+      // The tone the user picked in 설정, else the device's default alarm tone (SoundSetting).
+      val uri = SoundSetting.resolvedTone(this)
         ?: android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI
         ?: return
       player = MediaPlayer().apply {

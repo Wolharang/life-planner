@@ -139,14 +139,23 @@ export type BlockKind = "normal" | "workout" | "run";
 export type BlockStatus = "planned" | "success" | "fail" | "skipped";
 
 /**
+ * How loudly a block announces itself (**D40**, founder 2026-07-11 — supersedes D38). A block still
+ * carries **exactly one** kind of alert; there are now three to choose from:
+ *  · `none` — silent. The plan is just a plan. (default)
+ *  · `soft` — a plain notification + vibration at `start − lead`. It **tells** you; it does not take the
+ *    screen. For the many blocks that don't need forcing (강의, 점심) — the thing that was missing.
+ *  · `execution` — the core lever: the exact alarm + the full-screen moment over the lock screen (R7).
+ *    Reserve it for the skip-prone few (운동) — "one loud thing" (C1/D30) survives precisely because a
+ *    softer tier now exists to absorb everything else.
+ */
+export type BlockAlert = "none" | "soft" | "execution";
+
+/**
  * TimeBlock — the day plan's unit, the execution lever's target, and the evaluation subject
  * (data-model §2.3 · spec §3.2 · PRD R5–R7). **Per-date and free-form** (D14): one block belongs to one
  * `date`, from `start` to an optional `end`. **There is no recurrence** (D35 notes it was a
  * prototype-only addition; full-app blocks are per-date) — instead the add screen can place the *same*
- * block on **several dates at once**, each an independent block (founder decision 2026-07-11).
- *
- * Notifications: a block carries **exactly one** type — the execution cue (`executionAlarm`, default
- * off), the core lever (spec §3.9). It has **no soft reminder**; those belong to ImportantEvent (R3).
+ * block on **several dates at once**, each an independent block (founder decision 2026-07-11, D37).
  */
 export interface TimeBlock {
   id: string;
@@ -159,9 +168,11 @@ export interface TimeBlock {
   location?: string;
   /** workout/run blocks marked success ARE the workout record — no separate log (D22) */
   kind: BlockKind;
-  /** only blocks with this ON get the lock-screen execution moment (R7). Fires at start − lead */
-  executionAlarm: boolean;
+  /** which alert this block carries (D40). `execution` = the lock-screen moment (R7); `soft` = a plain
+   *  notification + vibration; `none` = silent. Both alerting kinds fire at `start − alarmLeadMinutes`. */
+  alert: BlockAlert;
   alarmLeadMinutes: number;
+  /** the 5-second first move (A2) — shown on the execution moment's commit card */
   microStartNote?: string;
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes
   //   on its own once `date` arrives (no midnight job). Evaluation compares against THIS, never the

@@ -9,6 +9,7 @@
 
 import type { TimeBlock } from "@/core/data/types";
 import { alarm } from "@/core/notifications/alarm";
+import { cancelBlockSoftAlert, scheduleBlockSoftAlert } from "@/core/notifications/plainReminders";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -32,33 +33,47 @@ export function blockStartAt(block: TimeBlock): number {
 /** A block the user pre-skipped ("오늘은 쉼", R7) — the single source of that fact is `status`. */
 export const isSkipped = (block: TimeBlock) => block.status === "skipped";
 
-/** When the execution moment should fire: `start − lead`. Null when the block isn't a cue target. */
+/** Does this block get the lock-screen execution moment (as opposed to a soft alert / silence)? D40. */
+export const isExecution = (block: TimeBlock) => block.alert === "execution" && !isSkipped(block);
+
+/** When an alerting block should fire: `start − lead`. Null when it carries no alert (or is skipped). */
 export function blockFireAt(block: TimeBlock): number | null {
-  if (!block.executionAlarm || isSkipped(block)) return null;
+  if (block.alert === "none" || isSkipped(block)) return null;
   return blockStartAt(block) - block.alarmLeadMinutes * 60_000;
 }
 
-/** Arm (or, if off / skipped / already past, cancel) a block's execution intervention. */
-export function scheduleBlock(block: TimeBlock, now: number = Date.now()): void {
+/**
+ * Arm the block's ONE alert (D40), or cancel everything if it has none / is skipped / is already past.
+ * The two mechanisms are kept strictly apart (R15): `execution` → the native exact alarm + full-screen
+ * moment; `soft` → an ordinary local notification on the quiet channel, which never pierces the lock
+ * screen. A block is always cancelled on **both** paths first, so switching tiers can't leave a ghost.
+ */
+export async function scheduleBlock(block: TimeBlock, now: number = Date.now()): Promise<void> {
+  alarm.cancel(block.id);
+  await cancelBlockSoftAlert(block.id);
+
   const fireAt = blockFireAt(block);
-  if (fireAt == null || fireAt <= now) {
-    alarm.cancel(block.id); // nothing to arm — and never leave a stale alarm behind
-    return;
+  if (fireAt == null || fireAt <= now) return;
+
+  if (block.alert === "execution") {
+    alarm.schedule({
+      id: block.id,
+      fireAt,
+      title: block.title,
+      recurrence: "none", // per-date blocks: every alarm is one-shot
+      note: block.microStartNote ?? "",
+      createdAt: block.createdAt,
+      leadMinutes: block.alarmLeadMinutes,
+    });
+  } else {
+    await scheduleBlockSoftAlert(block, fireAt);
   }
-  alarm.schedule({
-    id: block.id,
-    fireAt,
-    title: block.title,
-    recurrence: "none", // per-date blocks: every alarm is one-shot
-    note: block.microStartNote ?? "",
-    createdAt: block.createdAt,
-    leadMinutes: block.alarmLeadMinutes,
-  });
 }
 
-/** Delete-safety: cancel the alarm so a removed block leaves no ghost fire. */
+/** Delete-safety: cancel BOTH alert paths so a removed block leaves no ghost fire. */
 export function unscheduleBlock(id: string): void {
   alarm.cancel(id);
+  void cancelBlockSoftAlert(id);
 }
 
 /**
