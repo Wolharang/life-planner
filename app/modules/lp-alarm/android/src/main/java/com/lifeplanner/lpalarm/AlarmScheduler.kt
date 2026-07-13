@@ -27,7 +27,20 @@ data class AlarmItem(
    * unanswered, until the catch-up net auto-archived it as a **miss the user had explicitly denied**. So the
    * re-check carries the original day with it.
    */
-  val occurrenceDate: String = ""
+  val occurrenceDate: String = "",
+  /**
+   * The **wall clock** this alarm means: the local date and the minute-of-day it should fire at.
+   *
+   * `fireAt` is an absolute instant, and that is the wrong thing to preserve. A block's `start` is a
+   * wall-clock time (data-model §2.3: "절대시각 아님") — "21:00 헬스" means nine in the evening *wherever you
+   * are*. The mirror stored only the epoch, so `BootReceiver`'s TIMEZONE_CHANGED handler re-armed the **same
+   * instant** in the new zone: fly to a zone an hour ahead and the moment arrives at 22:00 local. The layer
+   * built to survive a timezone change was doing the one thing a timezone change must undo.
+   *
+   * Filled in at schedule time from `fireAt` in the *then-current* zone, so nothing upstream has to know.
+   */
+  val wallDate: String = "",
+  val wallMinute: Int = -1
 )
 
 object LpAlarmConstants {
@@ -52,10 +65,46 @@ object LpAlarmConstants {
  */
 object AlarmScheduler {
 
+  /** Record what wall-clock time this alarm means, as read in the CURRENT zone. */
+  private fun stampWallClock(item: AlarmItem): AlarmItem {
+    if (item.wallMinute >= 0) return item
+    val c = Calendar.getInstance().apply { timeInMillis = item.fireAt }
+    return item.copy(
+      wallDate = String.format(
+        "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH)
+      ),
+      wallMinute = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+    )
+  }
+
+  /**
+   * Re-derive the instant a wall-clock alarm means, **in whatever zone we are in now**. Used when the zone or
+   * the clock changes: a 21:00 block must still fire at 21:00, not at the instant 21:00 used to be.
+   *
+   * A **re-check** is deliberately excluded: it is a genuine "5 minutes from the commit", an interval and not
+   * an appointment, so its absolute instant is the correct thing to keep.
+   */
+  fun retimeForCurrentZone(item: AlarmItem): AlarmItem {
+    if (item.mode == "recheck" || item.wallMinute < 0 || item.wallDate.isEmpty()) return item
+    val parts = item.wallDate.split("-")
+    if (parts.size != 3) return item
+    val c = Calendar.getInstance().apply {
+      set(Calendar.YEAR, parts[0].toInt())
+      set(Calendar.MONTH, parts[1].toInt() - 1)
+      set(Calendar.DAY_OF_MONTH, parts[2].toInt())
+      set(Calendar.HOUR_OF_DAY, item.wallMinute / 60)
+      set(Calendar.MINUTE, item.wallMinute % 60)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    return item.copy(fireAt = c.timeInMillis)
+  }
+
   private const val IMMUTABLE_UPDATE =
     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
 
-  fun schedule(context: Context, item: AlarmItem, persist: Boolean = true) {
+  fun schedule(context: Context, rawItem: AlarmItem, persist: Boolean = true) {
+    val item = stampWallClock(rawItem)
     val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val info = AlarmManager.AlarmClockInfo(item.fireAt, showPendingIntent(context, item))
     try {

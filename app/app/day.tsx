@@ -3,11 +3,12 @@
 // empty gaps, tappable to place a block where it can actually happen — so an overloaded day doesn't
 // quietly drop the workout. Editing here is plan design; the execution moment itself is unchanged (R7).
 
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
+import { listBlocks, blocksOn, addBlocks, type TimeBlock } from "@/core/data/blockRepository";
+import { newId } from "@/core/data/id";
 import { freeSlots, isExecution, isSkipped, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -27,9 +28,68 @@ export default function DayPlan() {
   const [date, setDate] = useState(params.date || todayYmd());
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
+  const [all, setAll] = useState<TimeBlock[]>([]);
+
   const load = useCallback(async () => {
-    setBlocks(blocksOn(await listBlocks(), date));
+    const rows = await listBlocks();
+    setAll(rows);
+    setBlocks(blocksOn(rows, date));
   }, [date]);
+
+  /**
+   * **Copy a day** — the S3 mitigation the docs designed and the build dropped.
+   *
+   * PRD §4 calls **S3 (does the founder actually make a next-day plan?) the single biggest non-technical
+   * risk**: "if it stays ~0, the whole flow fails regardless of quality". The research answered it —
+   * essence §3, HMW H1 — with **templates**: make planning something you *pick*, not something you *compose*.
+   * None of it was built. The only S3 support in the app was a nudge row that says "go plan tomorrow", which
+   * asks for the very effort that is at risk.
+   *
+   * So: the last day you actually planned becomes tomorrow's starting point, in one tap. Each copied block is
+   * an **independent new block** (D37 — there is still no recurrence), planned *now*, so `plannedAt` honestly
+   * records when the commitment was made and S3 measures the real habit rather than being gamed by the
+   * feature meant to support it.
+   */
+  const source = useMemo(() => {
+    const days = [...new Set(all.map((b) => b.date))].filter((d) => d < date).sort();
+    const last = days[days.length - 1];
+    return last ? blocksOn(all, last) : [];
+  }, [all, date]);
+
+  const copyDay = () => {
+    if (source.length === 0) return;
+    Alert.alert(
+      `${source.length}개를 그대로 가져올까요?`,
+      `${source[0].date}의 계획을 이 날에 복사해요. 시간·알림 설정도 함께 와요. 각각 따로 고칠 수 있어요.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "가져오기",
+          onPress: async () => {
+            const now = Date.now();
+            await addBlocks(
+              source.map((b) => ({
+                ...b,
+                id: newId("block"),
+                date,
+                status: "planned" as const,
+                failReason: undefined,
+                completedAt: undefined,
+                // The snapshot is the plan of record, and this plan is being made NOW.
+                snapStart: b.start,
+                snapEnd: b.end,
+                snapTitle: b.title,
+                plannedAt: now,
+                createdAt: now,
+                updatedAt: now,
+              }))
+            );
+            load();
+          },
+        },
+      ]
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -76,9 +136,25 @@ export default function DayPlan() {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 110 }}>
         {blocks.length === 0 ? (
-          <Text className="text-grey" style={{ fontSize: 14, paddingVertical: 20 }}>
-            아직 이 날의 계획이 없어요. 아래에서 하나 놓아볼까요?
-          </Text>
+          <View style={{ paddingVertical: 16 }}>
+            <Text className="text-grey" style={{ fontSize: 14 }}>
+              아직 이 날의 계획이 없어요. 아래에서 하나 놓아볼까요?
+            </Text>
+            {source.length > 0 && (
+              <Pressable
+                onPress={copyDay}
+                className="bg-brand-soft items-center"
+                style={{ borderRadius: 14, paddingVertical: 14, marginTop: 14 }}
+              >
+                <Text className="text-brand" style={{ fontSize: 14, fontWeight: "700" }}>
+                  {source[0].date}의 계획 {source.length}개 그대로 가져오기
+                </Text>
+                <Text className="text-grey" style={{ fontSize: 12, marginTop: 3 }}>
+                  가져온 뒤 하나씩 고칠 수 있어요
+                </Text>
+              </Pressable>
+            )}
+          </View>
         ) : (
           blocks.map((b) => (
             <Pressable

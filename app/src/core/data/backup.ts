@@ -13,8 +13,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
 import { listBlocks } from "@/core/data/blockRepository";
 import { listEvents } from "@/core/data/eventRepository";
-import { listExpenses } from "@/core/data/expenseRepository";
-import { listMeals } from "@/core/data/mealRepository";
+import { listExpenses, saveExpenses } from "@/core/data/expenseRepository";
+import { listMeals, saveMeals } from "@/core/data/mealRepository";
+import { detectReference, parseReference } from "@/core/data/referenceImport";
 import { syncPutMany } from "@/core/data/sync";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
 import { rearmEventNotifications } from "@/core/notifications/plainReminders";
@@ -90,6 +91,45 @@ export interface ImportResult {
   imported: boolean; // false when the user cancels the picker
   mode: ImportMode;
   blocks: number; // block count after import (for a confirmation message)
+  /** Set when the file came from a REFERENCE app (P-d), so the message can say what actually landed. */
+  reference?: { expenses: number; meals: number; droppedActivities: number };
+}
+
+/**
+ * Import a reference app's export (P-d). Merge = add rows whose id we don't already hold; overwrite =
+ * replace that collection outright. It only ever touches the collection the file belongs to — importing a
+ * budget backup must not wipe your meals.
+ */
+async function importReference(rows: unknown[], mode: ImportMode): Promise<ImportResult> {
+  if (!detectReference(rows)) {
+    throw new Error("이 앱의 백업 파일이 아니에요. 가계부/칼로리 앱의 백업 파일도 가져올 수 있어요.");
+  }
+  const ref = parseReference(rows);
+
+  if (ref.expenses.length > 0) {
+    const existing = mode === "overwrite" ? [] : await listExpenses();
+    const seen = new Set(existing.map((e) => e.id));
+    await saveExpenses([...existing, ...ref.expenses.filter((e) => !seen.has(e.id))]);
+  }
+  if (ref.meals.length > 0) {
+    const existing = mode === "overwrite" ? [] : await listMeals();
+    const seen = new Set(existing.map((m) => m.id));
+    await saveMeals([...existing, ...ref.meals.filter((m) => !seen.has(m.id))]);
+  }
+
+  syncPutMany("expenses", await listExpenses());
+  syncPutMany("meals", await listMeals());
+
+  return {
+    imported: true,
+    mode,
+    blocks: (await listBlocks()).length,
+    reference: {
+      expenses: ref.expenses.length,
+      meals: ref.meals.length,
+      droppedActivities: ref.droppedActivities,
+    },
+  };
 }
 
 /** Pick a backup JSON file and apply it (merge or overwrite), then re-arm alarms + reminders. */
@@ -102,12 +142,22 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   if (res.canceled || !asset) return { imported: false, mode, blocks: 0 };
 
   const raw = await FileSystem.readAsStringAsync(asset.uri);
-  let backup: Backup;
+  let parsed: unknown;
   try {
-    backup = JSON.parse(raw) as Backup;
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error("파일을 읽을 수 없어요. 올바른 백업 JSON인지 확인해 주세요.");
   }
+
+  // **The reference apps' own exports get in** (P-d). They are bare JSON arrays — `expense_backup_*.json`
+  // from the budget app, `diet_backup_*.json` from the calorie app — and this function used to reject them
+  // outright, so the founder's existing spending and meal history had **no path into the app built to
+  // replace those apps**. Half of "one integrated day" was unreachable.
+  if (Array.isArray(parsed)) {
+    return importReference(parsed, mode);
+  }
+
+  const backup = parsed as Backup;
   if (!backup || backup.app !== "lifeplanner" || typeof backup.data !== "object" || backup.data == null) {
     throw new Error("이 앱의 백업 파일이 아니에요.");
   }

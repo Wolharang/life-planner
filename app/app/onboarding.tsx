@@ -62,11 +62,32 @@ export default function Onboarding() {
           권한이 필요해요.
         </Text>
 
+        {/* The four mechanics that are UNFAMILIAR in this app (information-architecture §5/§8) — not the
+            four the prototype happened to have. ① described the OLD flow ("5·4·3·2·1 뒤 딱 첫 동작"), which
+            was revised on 2026-07-11: the countdown no longer runs at the cue, it runs on "아직 안 했어" at
+            the re-check. The very first thing the app said about its own core lever was wrong. And the D-1
+            snapshot — the thing that makes 돌아보기 legible — was never explained anywhere at all. */}
         <View className="mt-6" style={{ gap: 10 }}>
-          <Mechanic n="①" t="실행의 순간" d="정한 시각에 잠금화면 위로 떠서 5·4·3·2·1 뒤 딱 첫 동작만." />
-          <Mechanic n="②" t="오늘은 쉼" d="못 하는 날은 미리 꺼둘 수 있어요 — 죄책감 없이." />
-          <Mechanic n="③" t="놓쳐도 괜찮아" d="놓친 건 다음에 이어서. 스트릭·벌점은 없어요." />
-          <Mechanic n="④" t="소리는 기본 꺼짐" d="평소엔 진동만. 원하면 설정에서 소리를 켜요." />
+          <Mechanic
+            n="①"
+            t="실행의 순간"
+            d="정한 시각에 잠금화면 위로 떠서 '지금 할게'만 받아요. 5분 뒤 다시 떠서 '진짜 했어?' 하고 물어요 — 아직이면 5·4·3·2·1 세고 내보내요."
+          />
+          <Mechanic
+            n="②"
+            t="어제의 내가 정한 계획"
+            d="전날 짜둔 계획이 '기준'으로 얼어붙어요. 당일에 고쳐도 알람만 따라 움직이고, 평가는 어제의 약속으로 해요."
+          />
+          <Mechanic
+            n="③"
+            t="계획 대 실제"
+            d="해냄·안 함만 남겨요. 점수도, 스트릭도, 벌점도 없어요. 못 한 이유는 남겨도 되고 안 남겨도 돼요."
+          />
+          <Mechanic
+            n="④"
+            t="그 순간에 남기는 기록"
+            d="지출·식사는 쓰는 그 순간 몇 번의 탭으로. 계획 화면에는 안 섞여요 — 하루 요약에서만 만나요."
+          />
         </View>
 
         <Text className="text-ink-soft mt-8 mb-2" style={{ fontSize: 13 }}>

@@ -3,7 +3,7 @@
 // D26). The bar for this screen is **S4: ≤2 taps + the amount** — so the date defaults to today, the
 // category is one tap, and the amount field is focused first.
 
-import { View, Text, Pressable, TextInput, ScrollView } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -83,10 +83,21 @@ export default function AddExpense() {
     router.back();
   };
 
-  const remove = async () => {
+  // Deleting a record is destructive and there is no undo, so it never happens on one tap. The reference
+  // apps both asked (reference-apps.md §A4/§B4) and we quietly dropped the ask when porting them.
+  const remove = () => {
     if (!editId) return;
-    await deleteExpense(editId);
-    router.back();
+    Alert.alert("이 지출을 지울까요?", "되돌릴 수 없어요.", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "지우기",
+        style: "destructive",
+        onPress: async () => {
+          await deleteExpense(editId);
+          router.back();
+        },
+      },
+    ]);
   };
 
   return (

@@ -33,6 +33,10 @@
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
         <action android:name="android.intent.action.TIME_SET" />
         <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        <!-- Android 12+: the user just granted exact alarms. Without this, every block scheduled while the
+             permission was denied stayed unarmed until the app happened to be opened — the lever silently
+             dead, and nothing saying so. §11 layer 4 claimed this broadcast; nothing had registered it. -->
+        <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
       </intent-filter>
     </receiver>
 

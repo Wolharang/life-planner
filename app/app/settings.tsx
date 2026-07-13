@@ -113,7 +113,26 @@ export default function Settings() {
         const r = await importBackup(mode);
         if (r.imported) {
           await refresh();
-          Alert.alert("가져오기 완료", `${mode === "merge" ? "병합" : "덮어쓰기"} 완료 · 블록 ${r.blocks}개.`);
+          if (r.reference) {
+            // A reference-app file (P-d). Say exactly what landed — and what we refused to invent: the
+            // calorie app logged 러닝/운동 as diet rows, but a workout is a TimeBlock here (D22), so
+            // importing them as meals would have conjured food that was never eaten.
+            const { expenses, meals, droppedActivities } = r.reference;
+            const parts = [
+              expenses ? `지출 ${expenses}건` : "",
+              meals ? `식사 ${meals}건` : "",
+            ].filter(Boolean).join(" · ");
+            Alert.alert(
+              "가져오기 완료",
+              `${parts || "가져올 항목이 없었어요"}.${
+                droppedActivities
+                  ? `\n\n운동·러닝 기록 ${droppedActivities}건은 식사로 넣지 않았어요 — 여기서 운동은 '해냄'으로 표시한 블록이에요.`
+                  : ""
+              }`
+            );
+          } else {
+            Alert.alert("가져오기 완료", `${mode === "merge" ? "병합" : "덮어쓰기"} 완료 · 블록 ${r.blocks}개.`);
+          }
         }
       } catch (e) {
         Alert.alert("가져오기 실패", String((e as Error)?.message ?? e));

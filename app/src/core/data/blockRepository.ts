@@ -17,6 +17,7 @@ import { alarm } from "@/core/notifications/alarm";
 import { cancelReminders } from "@/core/notifications/plainReminders";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
 import { syncPut, syncPutMany, syncRemove } from "./sync";
+import { recordOutcome } from "./outcomeRepository";
 
 const KEY = "lp.blocks.v1";
 const LEGACY_KEY = "lp.tasks.v1";
@@ -146,9 +147,43 @@ export async function updateBlock(block: TimeBlock): Promise<void> {
   syncPut("blocks", block);
 }
 
+/** Was this block part of the plan of record — i.e. committed on an EARLIER day than the one it sits on? */
+export function preCommitted(b: TimeBlock): boolean {
+  return ymd(new Date(b.plannedAt)) < b.date;
+}
+
+/**
+ * **Deleting a pre-committed block on its own day counts as a miss** (spec §3.6).
+ *
+ * The rule exists to close a hole, not to punish: without it, deletion is a **silent, cost-free "can't
+ * today"** — the one escape the product forbids (R7). You don't answer the moment, you just remove the
+ * evidence, and 돌아보기 never knows the block existed. Yesterday's you made a promise; today's you can
+ * decide not to keep it, but not to pretend it was never made.
+ *
+ * It is scoped tightly, so ordinary editing is never punished:
+ *  · only blocks **planned on an earlier day** (`plannedAt` < `date`) — a block you created and deleted today
+ *    was never a commitment;
+ *  · only on or after the day itself — deleting *tomorrow's* plan is just planning;
+ *  · only while still **open** (`planned`) — a resolved block already has its outcome.
+ * The miss is recorded as `catch-up`, never `execution-screen`: S1 counts only what the moment produced (R18).
+ * It is neutral data — taupe, never red, and nothing scolds.
+ */
 export async function deleteBlock(id: string): Promise<void> {
   const blocks = await listBlocks();
-  await writeBlocks(blocks.filter((b) => b.id !== id));
+  const b = blocks.find((x) => x.id === id);
+
+  if (b && b.status === "planned" && preCommitted(b) && b.date <= ymd(new Date())) {
+    await recordOutcome({
+      taskId: b.id,
+      title: b.title,
+      date: b.date,
+      status: "miss",
+      source: "catch-up",
+      at: Date.now(),
+    });
+  }
+
+  await writeBlocks(blocks.filter((x) => x.id !== id));
   unscheduleBlock(id); // eviction — no ghost fire behind a deleted block
   syncRemove("blocks", id); // soft-delete tombstone, so the OTHER phone evicts its alarm too (§6)
 }
