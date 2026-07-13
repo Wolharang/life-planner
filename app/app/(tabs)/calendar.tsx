@@ -3,9 +3,9 @@
 // events **and** its time-block plan, and opens the day view (D21: tap a date → that day's schedule).
 // Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { listEvents, groupByDate, type ImportantEvent } from "@/core/data/eventRepository";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
@@ -59,6 +59,21 @@ export default function Calendar() {
     setSelected(today);
   };
 
+  // R1 acceptance: **swipe months** — the standard calendar convention (S26/C2: reuse what people
+  // already know, spend the design budget on the moment). Only claims clearly-horizontal drags, so a
+  // day tap and the detail panel's scroll still win.
+  const swipe = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderRelease: (_, g) => {
+          if (g.dx <= -40) shiftMonth(1); // drag left → next month
+          else if (g.dx >= 40) shiftMonth(-1);
+        },
+      }),
+    [view.y, view.m]
+  );
+
   const selEvents = byDate[selected] ?? [];
   const selBlocks = blocksOn(blocks, selected);
   const [sy, sm, sd] = selected.split("-").map(Number);
@@ -101,8 +116,8 @@ export default function Calendar() {
         ))}
       </View>
 
-      {/* square month grid */}
-      <View className="flex-row flex-wrap px-2">
+      {/* square month grid — swipe left/right to change month (R1) */}
+      <View className="flex-row flex-wrap px-2" {...swipe.panHandlers}>
         {cells.map((c) => {
           const isToday = c.key === today;
           const isSelected = c.key === selected;
