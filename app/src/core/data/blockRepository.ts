@@ -16,6 +16,7 @@ import type { BlockAlert, BlockKind, Task, TimeBlock } from "./types";
 import { alarm } from "@/core/notifications/alarm";
 import { cancelReminders } from "@/core/notifications/plainReminders";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
+import { syncPut, syncPutMany, syncRemove } from "./sync";
 
 const KEY = "lp.blocks.v1";
 const LEGACY_KEY = "lp.tasks.v1";
@@ -135,18 +136,21 @@ export async function addBlock(block: TimeBlock): Promise<void> {
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
   await writeBlocks([...(await listBlocks()), ...blocks]);
   for (const b of blocks) await scheduleBlock(b); // write-through (architecture §9-2)
+  await syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
 }
 
 export async function updateBlock(block: TimeBlock): Promise<void> {
   const blocks = await listBlocks();
   await writeBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
   await scheduleBlock(block); // re-arms the block's ONE alert, or cancels both paths (D40)
+  await syncPut("blocks", block);
 }
 
 export async function deleteBlock(id: string): Promise<void> {
   const blocks = await listBlocks();
   await writeBlocks(blocks.filter((b) => b.id !== id));
   unscheduleBlock(id); // eviction — no ghost fire behind a deleted block
+  await syncRemove("blocks", id); // soft-delete tombstone, so the OTHER phone evicts its alarm too (§6)
 }
 
 /**

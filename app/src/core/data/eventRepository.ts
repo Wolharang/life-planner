@@ -4,6 +4,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ImportantEvent } from "./types";
+import { syncPut, syncRemove } from "./sync";
 
 const KEY = "lp.events.v1";
 
@@ -20,16 +21,19 @@ export async function saveEvents(events: ImportantEvent[]): Promise<void> {
 
 export async function addEvent(event: ImportantEvent): Promise<void> {
   await saveEvents([...(await listEvents()), event]);
+  await syncPut("events", event);
 }
 
 export async function updateEvent(event: ImportantEvent): Promise<void> {
   const events = await listEvents();
   await saveEvents(events.map((e) => (e.id === event.id ? event : e)));
+  await syncPut("events", event);
 }
 
 export async function deleteEvent(id: string): Promise<void> {
   const events = await listEvents();
   await saveEvents(events.filter((e) => e.id !== id));
+  await syncRemove("events", id);
 }
 
 /** Group events by their calendar `date` (YYYY-MM-DD) → for month-grid bars + the selected-day list. */

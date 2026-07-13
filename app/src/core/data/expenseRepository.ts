@@ -4,6 +4,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Expense } from "./types";
+import { syncPut, syncRemove } from "./sync";
 
 const KEY = "lp.expenses.v1";
 
@@ -22,14 +23,17 @@ export async function saveExpenses(expenses: Expense[]): Promise<void> {
 
 export async function addExpense(expense: Expense): Promise<void> {
   await saveExpenses([...(await listExpenses()), expense]);
+  await syncPut("expenses", expense); // mirror up (no-op when logged out)
 }
 
 export async function updateExpense(expense: Expense): Promise<void> {
   const all = await listExpenses();
   await saveExpenses(all.map((e) => (e.id === expense.id ? expense : e)));
+  await syncPut("expenses", expense);
 }
 
 export async function deleteExpense(id: string): Promise<void> {
   const all = await listExpenses();
   await saveExpenses(all.filter((e) => e.id !== id));
+  await syncRemove("expenses", id); // soft-delete tombstone — a hard delete cannot propagate (§6)
 }

@@ -4,6 +4,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { MealEntry } from "./types";
+import { syncPut, syncRemove } from "./sync";
 
 const KEY = "lp.meals.v1";
 
@@ -21,14 +22,17 @@ export async function saveMeals(meals: MealEntry[]): Promise<void> {
 
 export async function addMeal(meal: MealEntry): Promise<void> {
   await saveMeals([...(await listMeals()), meal]);
+  await syncPut("meals", meal);
 }
 
 export async function updateMeal(meal: MealEntry): Promise<void> {
   const all = await listMeals();
   await saveMeals(all.map((m) => (m.id === meal.id ? meal : m)));
+  await syncPut("meals", meal);
 }
 
 export async function deleteMeal(id: string): Promise<void> {
   const all = await listMeals();
   await saveMeals(all.filter((m) => m.id !== id));
+  await syncRemove("meals", id);
 }

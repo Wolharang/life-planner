@@ -6,6 +6,10 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
+import { startSync } from "@/core/data/sync";
+import { rearmBlockAlarms } from "@/core/data/blockRepository";
+import { listEvents } from "@/core/data/eventRepository";
+import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
 // don't have to thread fontFamily through each node. Instance styles are placed AFTER the base in the
@@ -53,6 +57,19 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync().catch(() => {});
   }, [loaded, error]);
+
+  // Sync (R2/F0). Logged out — and in any build without Firebase — this does nothing at all and the app
+  // is exactly the local-first app it was (D20/R11). The hooks are what make a REMOTE change real on this
+  // device: a block created on the other phone must arm its alarm here, or sync would move rows without
+  // moving the lever. Alarm reconciliation stays in the repository, as architecture §9-2 requires.
+  useEffect(
+    () =>
+      startSync({
+        blocks: rearmBlockAlarms,
+        events: async () => rearmEventNotifications(await listEvents()),
+      }),
+    [],
+  );
 
   if (!loaded && !error) return null;
 
