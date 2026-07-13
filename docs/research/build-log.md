@@ -7,6 +7,39 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-13 (night) — everything the audit found, fixed; release build; day zero
+
+The founder's call: **"모든 것을 다 해결하고 가는 것이 좋다."** So the rest of the audit — every MEDIUM and LOW,
+not just the HIGHs — was closed before cutting a release.
+
+**The lever's safety net did not exist.** D47 ("insist, never trap") says the moment re-summons itself three
+times and **the notification is then how you return to it**. The notification had a `fullScreenIntent` and **no
+`contentIntent`**: tapping it did nothing. An unanswered occurrence, once sent away three times, was
+**unreachable**, and its notification sat in the shade forever because only `dismiss()` cleared it — and
+`dismiss()`, by definition, never ran. The whole re-summon design leaned on a way back that was a comment.
+
+**Other things that fail in silence:** the alarm volume could stick at **MAX permanently** (a failed
+`MediaPlayer` made the next call "save" MAX as the user's original level) · **one corrupt byte** in storage or
+the native mirror took down every screen, save, edit and delete · **false misses** were manufactured for blocks
+created *after* their own fire time (they never had a chance to fire) · **signing into a second account uploaded
+the first account's data into it** · and **R2's "within seconds" actually meant "after you navigate away and
+back"** — the data arrived, the screen never redrew.
+
+**Designed features that had quietly gone missing:** the **recent-entry presets** that S4 is graded on (the docs
+specify "a fast sheet WITH presets"; we shipped a blank form and then measured its friction) · **haptics**
+(installed, never imported once — in an app used one-handed at a till, without looking) · **하루 요약 and
+돌아보기 as reachable destinations** (the IA makes 돌아보기 top-level; it was two taps deep behind the volume
+slider — *a surface you cannot find is a surface you do not have*) · and the moment's **serif voice**, which was
+loaded at startup, **blocked the splash**, and was **used by nothing** — the design centrepiece shipping in the
+wrong typeface.
+
+**Release + day zero.** `assembleRelease` (signed with the same key, so Google sign-in keeps working) installs
+and **runs with no Metro and no laptop**. The device was reinstalled and the founder's Firestore wiped, because
+the self-experiment cannot start on data that carries test blocks, prototype leftovers, and outcomes the bugs we
+just fixed *invented*. **A false record is worse than none — we would have reasoned from it.**
+
+---
+
 ## 2026-07-13 (evening) — the pre-release audit: five auditors, eight silent killers
 
 The founder refused to cut a release APK until the app had been checked against **every doc**, not just the

@@ -183,7 +183,17 @@ in onboarding, and 돌아보기 as a reachable destination.
 induces "it was decided this way, so it must be right" — and four of today's data-destroying defects were in code
 that matched its spec exactly.
 
-### Headline
+### Headline (2026-07-13, night) — **the app is DONE and running standalone; the self-experiment starts now**
+**Every phase is built, every audit finding is fixed, and the release APK runs on the founder's phone with no
+laptop attached.** F0–F5 complete; the audit's 8 silent killers, the instrument's lies (S1/S5), the dropped
+features (P-d, templates, presets, haptics, 돌아보기's entry point), and the three defects only the device could
+find (D62–D64) are all closed. Day zero was created deliberately: the device was reinstalled and the cloud
+wiped, so **S1 starts from honest zero**.
+
+**The only thing left is to use it.** The product's survival now turns on S1 (execution rate) and S3 (does the
+founder actually plan the next day) — neither is a coding question, and no further build can answer them.
+
+### Headline (earlier)
 **Everything before the backend is BUILT and founder-verified on a real device (2026-07-11).**
 The app is a working "integrated day": calendar + day plan + the execution lever + logs + day summary +
 review. **F0 (Firebase) is now BUILT too (2026-07-13) but not yet device-verified** — the rules still need
