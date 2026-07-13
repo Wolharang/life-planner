@@ -1,4 +1,72 @@
-# On-device verification — full app (pre-Firebase)
+# On-device verification — full app
+
+> **F0 (backend) has its own pass: jump to "F0 — the backend" at the bottom.** The sections below are the
+> pre-Firebase acceptance pass, which already **PASSED (2026-07-11)**. Re-run **§A (the lever)** after F0 —
+> sync must not have touched it.
+
+---
+
+## F0 — the backend (Auth · sync · offline) — 2026-07-13
+
+> **The stake.** F0 added a cloud *behind* the repositories. Nothing it does is worth breaking the lever or
+> losing a row, so this pass is ordered by **what would hurt most if it broke**, not by what is new.
+> Everything runs on the **`lifeplanne`** Firebase project. Console:
+> https://console.firebase.google.com/project/lifeplanne/firestore
+
+### F0-0 · Regression FIRST — the lever, with a cloud underneath it (R7 · the whole product)
+Do this **before touching login**. If any of it fails, stop: F0 is not worth it.
+- [ ] Add a block for ~2 min from now, alert = **실행** (the default). The **execution moment appears at its
+      time** — locked *and* while the phone is in use (**D41**).
+- [ ] Commit → ~5 min later **"진짜 했어?"** re-opens by itself (**R7**).
+- [ ] **했어** → one calm gold DONE. **아직** → 5·4·3·2·1 → "지금 나가." → no immediate miss.
+- [ ] Back button *and* gesture-back **do nothing** during the moment (no side door out).
+- [ ] Kill the app from recents → the alarm **still fires** (native, not JS).
+
+### F0-1 · Airplane mode — the bug that F0 introduced and this pass exists to catch (R11)
+The cloud write used to be **awaited**, and offline it never resolves → the save button would hang forever.
+- [ ] **Airplane mode ON.** Add a block → **the screen closes normally** and the block is in the list.
+- [ ] Edit it, delete another one, log an expense and a meal → **every screen closes; nothing hangs.**
+- [ ] The **execution moment still fires** in airplane mode (it never needed a network).
+- [ ] Airplane mode **OFF** → within seconds the rows appear in the Firestore console.
+
+### F0-2 · Account — login enables sync and **nothing else** (R4/D20)
+- [ ] **Logged out**, every feature works: add/edit/delete blocks, events, expenses, meals. **Nothing is gated.**
+- [ ] 설정 → **로그인 · 동기화** → **Google로 계속하기** → succeeds (**no `DEVELOPER_ERROR`** — that would mean
+      the SHA-1 doesn't match the signing key).
+- [ ] Also try **이메일 가입** (6+ char password) → succeeds.
+- [ ] **Logout** → the app still holds **every local row**. Nothing disappears.
+
+### F0-3 · Sync, with ONE device (the Firestore console plays the second phone)
+- [ ] After login, the console shows `users/{uid}/blocks|events|expenses|meals` with your rows.
+- [ ] **Console → add a field / change a block's `title`** → the phone's list updates **within seconds**,
+      without a restart.
+- [ ] **Console → change a block's `start` time** → the phone **re-arms the alarm at the new time** (a remote
+      row must move the *alarm*, not just the row).
+- [ ] **Reinstall test (the real proof).** Uninstall the app → reinstall → **log in** → **every row comes back**
+      from the cloud.
+
+### F0-4 · The delete that must never come back (D53/D54 — the two bugs found by reasoning, not by running)
+This is the one that would bite weeks from now, silently. Run it exactly.
+1. [ ] Create a block **X** (execution alert). Confirm it in the console.
+2. [ ] **Airplane mode ON** on the phone.
+3. [ ] In the **console**, set X's `deletedAt` to a number (e.g. `1`) — *this is the other phone deleting it.*
+4. [ ] On the phone (still offline), **edit X** (change its title or time). *This queues a write.*
+5. [ ] **Airplane mode OFF.**
+- [ ] **X stays deleted.** It does **not** reappear in the app.
+- [ ] **X's alarm is gone** — no execution moment fires for it, ever.
+- [ ] The console still shows X with `deletedAt` set (the queued edit did **not** clear it).
+
+### F0-5 · Isolation (P-b, security rules)
+- [ ] The rules live on the server (ruleset released 2026-07-13). A second account cannot see the first's data
+      — check by signing up a throwaway email: its collections are **empty**, not yours.
+
+### F0 — Definition of Done
+Every box above. **F0-0 and F0-4 are non-negotiable**: the lever must still fire, and a deleted block must
+never come back and take the lock screen.
+
+---
+
+# The pre-Firebase pass (PASSED 2026-07-11)
 
 > **Role.** The founder-run acceptance pass for everything built **before the backend (F0)**: the prototype's
 > execution lever *as it now stands* plus F1–F5. Run it on a **real Android device** (never an emulator — the
