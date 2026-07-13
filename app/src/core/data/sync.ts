@@ -104,15 +104,32 @@ function fire(work: () => Promise<unknown> | undefined): void {
   }
 }
 
+/**
+ * The payload of a row push. **It must never contain `deletedAt`** — writing `deletedAt: null` (as this once
+ * did) makes a tombstone *reversible*, and a tombstone must be **terminal**.
+ *
+ * Why terminal matters, and why `reconcile` alone cannot save us (D54). Phone C edits row X while offline on
+ * Thursday: that write goes into **Firestore's own disk-backed queue** immediately. Phone B's delete of X
+ * lands on Friday, so X is now a tombstone. C reconnects on Saturday — and Firestore flushes C's Thursday
+ * write **unconditionally**. It never passes through `reconcile`, which only decides what *we* choose to push;
+ * this write is already in the pipe. If it carries `deletedAt: null`, it **overwrites the tombstone and the
+ * deleted block comes back — and re-arms its alarm.**
+ *
+ * With the field simply absent, `merge: true` leaves `deletedAt` untouched: C's late write lands harmlessly on
+ * a dead document, updating fields nobody will ever read. **Deletion is permanent.** That is honest for this
+ * app — there is no "undelete"; a block you re-create gets a **new id**.
+ */
+export function putPayload<T extends Syncable>(row: T): Record<string, unknown> {
+  const { ...fields } = row as Record<string, unknown>;
+  delete fields.deletedAt; // defensive: a row must never carry a resurrection with it
+  return fields;
+}
+
 /** Mirror one row up. No account → a no-op, not an error: logged-out is a normal, supported state (D20). */
 export function syncPut<T extends Syncable>(name: CollectionName, row: T): void {
   const account = currentAccount();
   if (!account) return;
-  fire(() =>
-    col(account.uid, name)
-      ?.doc(row.id)
-      .set({ ...row, deletedAt: null }, { merge: true }),
-  );
+  fire(() => col(account.uid, name)?.doc(row.id).set(putPayload(row), { merge: true }));
 }
 
 export function syncPutMany<T extends Syncable>(name: CollectionName, rows: T[]): void {

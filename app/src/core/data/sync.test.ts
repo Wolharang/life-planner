@@ -13,7 +13,7 @@ jest.mock("./firebase", () => ({
   onAccountChanged: () => () => undefined,
 }));
 
-import { planReconcile, type CloudRow } from "./sync";
+import { planReconcile, putPayload, type CloudRow } from "./sync";
 
 interface Row {
   id: string;
@@ -78,5 +78,33 @@ describe("planReconcile — rejoining the cloud", () => {
   it("the tombstone's deletedAt field never leaks into a local row", () => {
     const { merged } = planReconcile<Row>([], [{ id: "a", updatedAt: 1, deletedAt: null } as CloudRow]);
     expect((merged[0] as unknown as Record<string, unknown>).deletedAt).toBe(undefined);
+  });
+});
+
+describe("putPayload — a push can never undo a delete", () => {
+  // The three-device case that reconcile alone cannot catch (D54):
+  //   Mon: A, B, C all hold X.        Tue: B (offline) deletes X — tombstone goes into B's queue.
+  //   Wed: A (online) edits X.        Thu: C (offline) edits X — the edit goes into C's queue.
+  //   Fri: B reconnects → the tombstone lands. X is dead; A drops it.
+  //   Sat: C reconnects → Firestore flushes C's Thursday write UNCONDITIONALLY. It never passes through
+  //        reconcile, which only governs what *we* choose to push — this one is already in the pipe.
+  // If that write carries deletedAt: null it overwrites the tombstone and the deleted block comes back, alarm
+  // and all. With the field simply absent, merge:true leaves the tombstone standing and the late write lands
+  // harmlessly on a dead document.
+  it("a pushed row NEVER carries deletedAt — a stale queued edit cannot resurrect a tombstoned row", () => {
+    const payload = putPayload({ id: "x", updatedAt: 5, title: "gym" } as Row);
+    expect("deletedAt" in payload).toBe(false);
+  });
+
+  it("even a local row that somehow carries deletedAt is stripped before being pushed", () => {
+    const payload = putPayload({ id: "x", updatedAt: 5, deletedAt: null } as unknown as Row);
+    expect("deletedAt" in payload).toBe(false);
+  });
+
+  it("the row's real fields still go up", () => {
+    const payload = putPayload({ id: "x", updatedAt: 5, title: "gym" } as Row);
+    expect(payload.id).toBe("x");
+    expect(payload.title).toBe("gym");
+    expect(payload.updatedAt).toBe(5);
   });
 });

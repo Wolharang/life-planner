@@ -14,6 +14,28 @@
 
 ## 2026-07-13 — F0 (backend)
 
+### D54. A tombstone is TERMINAL — a queued write from an offline device must not undo a delete
+- **The hole D53 did not close** (found by the founder walking three devices through a week, before any device
+  ran it). D53 made *our* cutover refuse to push over a tombstone. But a device's edits are **already queued
+  inside Firestore's own disk-backed offline queue at the moment they are made**, and that queue flushes
+  **unconditionally on reconnect** — it never passes through our reconcile, which only governs what *we choose*
+  to push. Walk it: Mon all three devices hold X · Tue **B (offline) deletes X** (tombstone → B's queue) ·
+  Wed **A (online) edits X** · Thu **C (offline) edits X** (edit → C's queue) · Fri **B reconnects** → the
+  tombstone lands, X is dead, A drops it · Sat **C reconnects** → C's Thursday write flushes. It carried
+  `deletedAt: null`, so it **overwrote the tombstone: the deleted block came back — and re-armed its alarm.**
+- **Decision: `deletedAt` is never sent on a push, and can never be cleared.** A row's payload simply omits the
+  field (`putPayload`), so `merge: true` leaves any tombstone standing and a late write lands harmlessly on a
+  dead document. **The security rules enforce it server-side too** — an update that moves `deletedAt` from
+  non-null to null is **rejected** — so a future client bug cannot resurrect anything either.
+- **This is honest for this product: there is no "undelete."** A block you re-create gets a **new id**. So
+  "once dead, always dead" costs us nothing and buys the guarantee that matters: **a block you deleted can
+  never come back and take your lock screen.**
+- **The general lesson, worth keeping:** *reconcile-on-reconnect cannot police writes that were queued before
+  the reconnect.* Any invariant that must survive an offline device must be enforced **in the shape of the
+  write itself** (and at the server), not in the client's decision to send it.
+- Tested (`putPayload`, `sync.test.ts`) with the three-device week written into the test's comment, because
+  this failure needs 3 devices, an offline window, and a delete to reproduce — it would never surface by hand.
+
 ### D53. Rejoining the cloud is a MERGE against real server state — never a blind push, never a blind pull
 - **The bug this exists to kill (found by the founder's question, before any device ever ran it).** The first
   cutover simply **pushed every local row up at login**. That **resurrects the dead**: phone B deletes block X

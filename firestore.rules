@@ -27,11 +27,23 @@ service cloud.firestore {
       match /{collection}/{docId} {
         allow read: if isOwner();
 
-        // Create/update only. The document's own id must match its path — a client-generated id is the
-        // join key everywhere else (§0), so a row whose `id` disagrees with its document name would break
-        // the local projection.
-        allow create, update: if isOwner()
-                              && request.resource.data.id == docId;
+        // The document's own id must match its path — the client-generated id is the join key everywhere
+        // else (§0), so a row whose `id` disagrees with its document name would break the local projection.
+        allow create: if isOwner() && request.resource.data.id == docId;
+
+        // **A tombstone is TERMINAL: once dead, a row can never come back to life.** (D54)
+        //
+        // This is the server's own guard against the three-device case. Phone C edits a row while offline;
+        // that write sits in Firestore's queue. Another phone deletes the row. C reconnects days later and
+        // the queued write flushes UNCONDITIONALLY — it never passes through any client-side reconcile. If it
+        // could clear `deletedAt`, the deleted block would return **and re-arm its alarm**. The client is
+        // already careful never to send `deletedAt` on a push; this makes it impossible even if it slips.
+        //
+        // There is no "undelete" in this app: a block you re-create gets a new id.
+        allow update: if isOwner()
+                      && request.resource.data.id == docId
+                      && !(resource.data.get('deletedAt', null) != null
+                           && request.resource.data.get('deletedAt', null) == null);
 
         // No hard deletes. Tombstone via update (deletedAt) — that is what propagates.
         allow delete: if false;
