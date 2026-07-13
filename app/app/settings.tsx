@@ -143,7 +143,64 @@ export default function Settings() {
           </Text>
         </Pressable>
 
-        {/* 실행 준비 상태 — replaces the login/sync card; re-runs onboarding to grant permissions */}
+        {/* 계정 — the FIRST thing in 설정 (founder, 2026-07-13). Login enables **sync** and nothing else: the
+            app is whole without it (R4/D20), so this card offers, it never demands. No warning icon and no
+            "서비스를 이용하려면" — that would be a lie here, and this app does not pressure (B2/R14).
+            Signed in, it shows only the **id**; a password is never displayed anywhere. */}
+        <Pressable
+          onPress={() => router.push("/account")}
+          className="bg-surface"
+          style={{ borderRadius: 24, padding: 22, marginBottom: 4 }}
+        >
+          <View className="flex-row items-start">
+            <View className="flex-1 pr-3">
+              <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600", marginBottom: 8 }}>
+                {account ? "동기화" : "로그인"}
+              </Text>
+              <Text className="text-ink" style={{ fontSize: 24, fontWeight: "800", lineHeight: 33 }}>
+                {account ? "다른 기기와 자동으로\n맞춰지고 있어요" : "다른 기기에서도 그대로 쓰려면\n로그인하세요"}
+              </Text>
+            </View>
+            <View
+              className="items-center justify-center"
+              style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: account ? "#F7EFD6" : "#E8F3FF" }}
+            >
+              <Text style={{ fontSize: 26 }}>{account ? "✓" : "↻"}</Text>
+            </View>
+          </View>
+
+          {!account && (
+            <Text className="text-grey" style={{ fontSize: 13, lineHeight: 19, marginTop: 10 }}>
+              로그인하지 않아도 모든 기능은 그대로 동작해요.
+            </Text>
+          )}
+
+          <View
+            className="bg-brand items-center"
+            style={{ borderRadius: 16, paddingVertical: 17, marginTop: 18 }}
+          >
+            <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "800" }}>
+              {account ? "계정 관리" : "로그인 하기"}
+            </Text>
+          </View>
+
+          {account && (
+            <View className="flex-row items-center" style={{ marginTop: 16 }}>
+              <View
+                className="bg-group items-center justify-center"
+                style={{ width: 30, height: 30, borderRadius: 8 }}
+              >
+                <Text style={{ fontSize: 14 }}>👤</Text>
+              </View>
+              <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600", marginLeft: 10 }}>
+                아이디: {account.email ?? "로그인됨"}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* 실행 준비 상태 — the permissions that gate the LEVER. Sync is optional; this is not. */}
+        <GroupLabel>실행</GroupLabel>
         <Pressable onPress={() => router.push("/onboarding" as never)} className="bg-surface flex-row items-center" style={{ borderRadius: 18, padding: 16 }}>
           <View
             className="items-center justify-center"
@@ -332,28 +389,6 @@ export default function Settings() {
               </Text>
             </Row>
           </Pressable>
-        </View>
-
-        {/* 계정 — login enables SYNC and nothing else; the app is whole without it (R4/D20). */}
-        <GroupLabel>계정</GroupLabel>
-        <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
-          <Link href="/account" asChild>
-            <Pressable>
-              <Row>
-                <View className="flex-1 pr-3">
-                  <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                    로그인 · 동기화
-                  </Text>
-                  <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                    {account ? account.email ?? "동기화 켜짐" : "로그인하면 다른 기기와 자동으로 맞춰져요"}
-                  </Text>
-                </View>
-                <Text className="text-faint" style={{ fontSize: 18 }}>
-                  ›
-                </Text>
-              </Row>
-            </Pressable>
-          </Link>
         </View>
 
         {/* 돌아보기 — 계획 대 실제 (R17). Counts + the collected reasons; no score, no auto-suggestion (D29/D5). */}

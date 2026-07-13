@@ -14,6 +14,26 @@
 
 ## 2026-07-13 — F0 (backend)
 
+### D55. A "<id>#recheck" alarm is NOT an orphan — the sweep that kept alarms honest was eating the lever
+- **The device failure (founder, 2026-07-13):** commit → **"응, 할게"** → the **~5-minute re-check never came**,
+  and the block was sitting in the app as a **miss**. The heart of R7 — *the moment comes back and asks
+  "진짜 했어?"* — silently did not happen.
+- **The cause.** `rearmBlockAlarms()` compares every **armed alarm id** against the set of **block ids** and
+  cancels anything unmatched ("orphan alarm → evict", architecture §11 layer 4). But the native moment arms its
+  own follow-up under the id **`<blockId>#recheck`** — and **no block has that id, and none ever will**. So every
+  in-flight re-check looked like a ghost and **was cancelled**. Open the app inside those five minutes and the
+  follow-up died; the moment never returned and the catch-up net (R18) later recorded a neutral **miss**.
+  `scheduleBlock` had been written *carefully* to preserve the re-check (it only cancels one once the block is
+  resolved, with a comment saying exactly why) — and the orphan sweep next door undid that care.
+- **F0 turned a latent bug into a constant one.** The sweep now also runs on **every Firestore snapshot** (the
+  sync apply-hook), so merely **reconnecting** — coming out of airplane mode — could kill the follow-up.
+- **Decision.** An alarm is an orphan only when **the block it belongs to is gone**, and a re-check **belongs to
+  the block whose id it carries**: strip the `#recheck` suffix before deciding. An armed re-check whose block
+  still exists is left **untouched** — it is the lever mid-flight, not a leak.
+- **Tested** (`blockRepository.test.ts`): an in-flight `#recheck` survives a re-arm; an alarm whose block is
+  gone still gets evicted **along with its re-check**. This is the second time a "tidy-up" nearly cost the
+  product its heart — **any sweep that cancels alarms must be able to name what it is cancelling.**
+
 ### D54. A tombstone is TERMINAL — a queued write from an offline device must not undo a delete
 - **The hole D53 did not close** (found by the founder walking three devices through a week, before any device
   ran it). D53 made *our* cutover refuse to push over a tombstone. But a device's edits are **already queued

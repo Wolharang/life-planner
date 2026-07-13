@@ -159,15 +159,30 @@ export async function deleteBlock(id: string): Promise<void> {
  * failed schedule, cleared app data, a restored backup, later a Firestore listener) heals on app open.
  */
 export async function rearmBlockAlarms(): Promise<void> {
-  const armed = new Set<string>();
+  const armed: string[] = [];
   try {
-    for (const a of alarm.getScheduled()) armed.add(a.id);
+    for (const a of alarm.getScheduled()) armed.push(a.id);
   } catch {
     // native unavailable (dev skew) — still (re)schedule below; cancels of unknown ids are harmless
   }
   const blocks = await listBlocks();
   const live = new Set(blocks.map((b) => b.id));
-  for (const id of armed) if (!live.has(id)) unscheduleBlock(id); // orphan alarm → evict
+
+  // **A "<id>#recheck" alarm is NOT an orphan.** It is the R7 follow-up the native moment armed for itself
+  // ("진짜 했어?", ~5 min after the commit), and it is in flight — there is no block by that id and there
+  // never will be. Matching armed ids against block ids therefore made every re-check look like a ghost, and
+  // this sweep **cancelled it**: open the app inside those 5 minutes and the follow-up silently died, so the
+  // moment never came back and the block fell to the catch-up net as a miss. `scheduleBlock` goes out of its
+  // way to preserve the re-check (it only cancels one once the block is resolved) — and this undid that.
+  // F0 made it far worse: every Firestore snapshot re-arms, so a reconnect alone could kill the follow-up.
+  //
+  // So an alarm is an orphan only when **the block it belongs to is gone**, and a re-check belongs to the
+  // block whose id it carries.
+  for (const id of armed) {
+    const owner = id.endsWith("#recheck") ? id.slice(0, -"#recheck".length) : id;
+    if (!live.has(owner)) unscheduleBlock(owner); // evicts the block's alarm AND its re-check
+  }
+
   for (const b of blocks) await scheduleBlock(b);
 }
 
