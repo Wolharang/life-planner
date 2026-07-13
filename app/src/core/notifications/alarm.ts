@@ -56,25 +56,41 @@ export type MissedMarker = {
   missedAt: number;
 };
 
-// Untyped native surface; the typed API below is what the app uses.
-const Native = requireNativeModule("LpAlarm") as any;
+/**
+ * Untyped native surface, resolved **lazily**.
+ *
+ * This used to be `const Native = requireNativeModule("LpAlarm")` at module scope — which **throws at import
+ * time** when the module isn't linked (Expo Go, a dev build made before `prebuild`). `blockRepository` imports
+ * this file and `app/_layout` imports `blockRepository`, so the root layout's module graph blew up and the app
+ * showed a white screen. Worse, it made **liars of every guard in the codebase**: the `try { alarm.getSound() }
+ * catch { /* native not linked * / }` blocks in settings, onboarding, add-block, home and the repository were
+ * unreachable — the import had already killed the app.
+ *
+ * Lazily, the throw happens at the *call*, which is exactly where those guards are waiting for it. A missing
+ * native module now costs the alarm, not the app.
+ */
+let cached: any;
+function Native(): any {
+  if (!cached) cached = requireNativeModule("LpAlarm") as any;
+  return cached;
+}
 
 export const alarm = {
   /** Android 12+: whether exact alarms may be scheduled (else openExactAlarmSettings()). */
   canScheduleExactAlarms(): boolean {
-    return Native.canScheduleExactAlarms();
+    return Native().canScheduleExactAlarms();
   },
   isIgnoringBatteryOptimizations(): boolean {
-    return Native.isIgnoringBatteryOptimizations();
+    return Native().isIgnoringBatteryOptimizations();
   },
   openExactAlarmSettings(): void {
-    Native.openExactAlarmSettings();
+    Native().openExactAlarmSettings();
   },
   requestIgnoreBatteryOptimizations(): void {
-    Native.requestIgnoreBatteryOptimizations();
+    Native().requestIgnoreBatteryOptimizations();
   },
   openAppNotificationSettings(): void {
-    Native.openAppNotificationSettings();
+    Native().openAppNotificationSettings();
   },
   /**
    * Android 14+: whether the alarm may pierce the lock screen (else it degrades to a heads-up).
@@ -82,12 +98,12 @@ export const alarm = {
    * instead of crashing the screen.
    */
   canUseFullScreenIntent(): boolean {
-    return typeof Native.canUseFullScreenIntent === "function"
-      ? Native.canUseFullScreenIntent()
+    return typeof Native().canUseFullScreenIntent === "function"
+      ? Native().canUseFullScreenIntent()
       : false;
   },
   openFullScreenIntentSettings(): void {
-    Native.openFullScreenIntentSettings?.();
+    Native().openFullScreenIntentSettings?.();
   },
 
   /**
@@ -97,29 +113,29 @@ export const alarm = {
    * the lever (it makes execution opt-in at exactly the point the user is trying to avoid it).
    */
   canDrawOverlays(): boolean {
-    return typeof Native.canDrawOverlays === "function" ? Native.canDrawOverlays() : false;
+    return typeof Native().canDrawOverlays === "function" ? Native().canDrawOverlays() : false;
   },
   openOverlaySettings(): void {
-    Native.openOverlaySettings?.();
+    Native().openOverlaySettings?.();
   },
 
   // --- sound (read natively at fire time; OFF = vibration only) ---
   /** The device's alarm/notification tones for the settings picker. */
   listAlarmTones(): { title: string; uri: string }[] {
-    return typeof Native.listAlarmTones === "function" ? Native.listAlarmTones() : [];
+    return typeof Native().listAlarmTones === "function" ? Native().listAlarmTones() : [];
   },
   /** "" = follow the device's default alarm tone. */
   getAlarmTone(): string {
-    return typeof Native.getAlarmTone === "function" ? Native.getAlarmTone() : "";
+    return typeof Native().getAlarmTone === "function" ? Native().getAlarmTone() : "";
   },
   setAlarmTone(uri: string): void {
-    Native.setAlarmTone?.(uri);
+    Native().setAlarmTone?.(uri);
   },
   previewTone(uri: string): void {
-    Native.previewTone?.(uri);
+    Native().previewTone?.(uri);
   },
   stopPreview(): void {
-    Native.stopPreview?.();
+    Native().stopPreview?.();
   },
 
   schedule(opts: {
@@ -135,7 +151,7 @@ export const alarm = {
     /** D43: does THIS block's moment ring, or vibrate only? The tone itself is a global setting. */
     sound?: boolean;
   }): void {
-    Native.scheduleExactAlarm(
+    Native().scheduleExactAlarm(
       opts.id,
       opts.fireAt,
       opts.title,
@@ -147,42 +163,42 @@ export const alarm = {
     );
   },
   cancel(id: string): void {
-    Native.cancelAlarm(id);
+    Native().cancelAlarm(id);
   },
   /** Kick a one-shot backup scan that fires any missed alarm — call on app open (§11 layers 3+5). */
   catchUp(): void {
-    Native.catchUp?.();
+    Native().catchUp?.();
   },
   /** Read + clear a fired alarm's handoff (legacy RN handoff; native moment normally handles it). */
   consumePendingExecution(): PendingExecution | null {
-    return (Native.consumePendingExecution?.() as PendingExecution | null) ?? null;
+    return (Native().consumePendingExecution?.() as PendingExecution | null) ?? null;
   },
   /** Drain outcomes the native execution moment recorded (over-lock) so the app can persist them. */
   consumePendingOutcomes(): PendingOutcome[] {
-    return (Native.consumePendingOutcomes?.() as PendingOutcome[] | undefined) ?? [];
+    return (Native().consumePendingOutcomes?.() as PendingOutcome[] | undefined) ?? [];
   },
   /** Drain "the moment appeared" markers (R6 catch-up net + S1 fire latency). */
   consumePendingFires(): FiredMarker[] {
-    return (Native.consumePendingFires?.() as FiredMarker[] | undefined) ?? [];
+    return (Native().consumePendingFires?.() as FiredMarker[] | undefined) ?? [];
   },
   /** Drain R6 "never fired" markers produced by the native backup/boot scans. */
   consumePendingMisses(): MissedMarker[] {
-    return (Native.consumePendingMisses?.() as MissedMarker[] | undefined) ?? [];
+    return (Native().consumePendingMisses?.() as MissedMarker[] | undefined) ?? [];
   },
 
   /** R8: execution-moment sound (default off = haptic-only). Stored natively for fire-time reads. */
   getSound(): boolean {
-    return (Native.getSound?.() as boolean | undefined) ?? false;
+    return (Native().getSound?.() as boolean | undefined) ?? false;
   },
   setSound(enabled: boolean): void {
-    Native.setSound?.(enabled);
+    Native().setSound?.(enabled);
   },
   getScheduled(): ScheduledAlarm[] {
-    return Native.getScheduledAlarms();
+    return Native().getScheduledAlarms();
   },
 
   /** Fires only while the JS process is alive (measurement); the alarm itself fires regardless. */
   addFiredListener(listener: (e: AlarmFiredEvent) => void): EventSubscription {
-    return Native.addListener("onAlarmFired", listener);
+    return Native().addListener("onAlarmFired", listener);
   },
 };

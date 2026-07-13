@@ -51,6 +51,7 @@ class ExecutionActivity : Activity() {
   private var taskId = ""
   private var alarmId = "" // the raw alarm/notification id ("<taskId>" or "<taskId>#recheck")
   private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
+  private var occurrenceDate = "" // the day the OUTCOME belongs to; carried by the re-check (see below)
   private var wantSound = false // per-block (D43): this block asked for a tone. false = vibration only.
   private var phase = ""        // the phase currently on screen — so we can resume exactly where we froze
   private var visible = false   // the moment only advances (timers, tone) while it is actually on screen
@@ -88,7 +89,9 @@ class ExecutionActivity : Activity() {
     val createdAt: Long,
     val leadMinutes: Int,
     val mode: String = "commit",
-    val sound: Boolean = false
+    val sound: Boolean = false,
+    /** The day the OUTCOME belongs to. Empty on a commit (derivable); carried on a re-check (not). */
+    val occurrenceDate: String = ""
   )
 
   companion object {
@@ -137,7 +140,8 @@ class ExecutionActivity : Activity() {
     createdAt = i.getLongExtra(LpAlarmConstants.EXTRA_CREATED, 0L),
     leadMinutes = i.getIntExtra(LpAlarmConstants.EXTRA_LEAD, 0),
     mode = i.getStringExtra(LpAlarmConstants.EXTRA_MODE) ?: "commit",
-    sound = i.getBooleanExtra(LpAlarmConstants.EXTRA_SOUND, false)
+    sound = i.getBooleanExtra(LpAlarmConstants.EXTRA_SOUND, false),
+    occurrenceDate = i.getStringExtra(LpAlarmConstants.EXTRA_DATE) ?: ""
   )
 
   private fun startItem(item: Item) {
@@ -161,6 +165,7 @@ class ExecutionActivity : Activity() {
     createdAt = item.createdAt
     leadMinutes = item.leadMinutes
     wantSound = item.sound // per-block (D43); the TONE is the global setting
+    occurrenceDate = item.occurrenceDate
     count = 5
     doneRecorded = false
     stopSound()
@@ -176,7 +181,18 @@ class ExecutionActivity : Activity() {
     }
   }
 
-  /** Arm the transient ~5-min re-check follow-up (one-shot; not persisted across reboot). */
+  /**
+   * Arm the ~5-min "진짜 했어?" follow-up — and **persist it**.
+   *
+   * It used to be scheduled with `persist = false`, so it existed only as an OS alarm with no record behind
+   * it. Android drops an app's alarms when the app is force-stopped (a Samsung "close all" does exactly
+   * that), and a reboot drops them too — and with nothing in the mirror, **nothing could ever re-arm it**.
+   * The moment never came back, and the occurrence fell to the catch-up net as a miss. The founder hit this:
+   * he committed, closed the app, and the re-check never came.
+   *
+   * Mirrored, `BootReceiver` and `AlarmBackupWorker` re-arm it like any other alarm — and now that the mirror
+   * carries `mode`, it comes back as the **re-check** it is, not as a fresh execution moment.
+   */
   private fun scheduleRecheck() {
     AlarmScheduler.schedule(
       this,
@@ -189,9 +205,10 @@ class ExecutionActivity : Activity() {
         createdAt = createdAt,
         leadMinutes = 0, // the re-check's "intended" is just now+5m — no lead offset
         mode = "recheck",
-        sound = wantSound
+        sound = wantSound,
+        occurrenceDate = occurrenceYmd() // the block's day — NOT the day the re-check happens to land on
       ),
-      persist = false
+      persist = true
     )
   }
 
@@ -592,7 +609,17 @@ class ExecutionActivity : Activity() {
     return String.format("%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
   }
 
-  private fun occurrenceYmd(): String = ymd(intended + leadMinutes * 60_000L)
+  /**
+   * The day this occurrence belongs to.
+   *
+   * A **commit** derives it: `intended + lead` is the block's start. A **re-check** cannot — its `intended` is
+   * merely "commit + 5 minutes", so a 23:58 block's re-check at 00:03 derived **tomorrow**. The DONE was then
+   * filed against a day the block does not exist on, today's fire marker stayed unanswered, and seven days
+   * later the catch-up net auto-archived it as a **miss the user had explicitly answered "했어" to**. The
+   * re-check therefore carries the original day with it, and that always wins.
+   */
+  private fun occurrenceYmd(): String =
+    if (occurrenceDate.isNotEmpty()) occurrenceDate else ymd(intended + leadMinutes * 60_000L)
 
   private fun ymd(ms: Long): String {
     val c = Calendar.getInstance().apply { timeInMillis = ms }

@@ -8,7 +8,7 @@
 
 import { View, Text, Pressable, FlatList, Alert, AppState, Switch, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import Svg, { Path, Circle } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -282,6 +282,9 @@ export default function Home() {
     ]);
   };
 
+  // Occurrences whose answer is mid-flight — see resolveCatchUp.
+  const resolving = useRef(new Set<string>());
+
   // "오늘은 쉼" (R7): the pre-fire, re-togglable skip — the ONLY intentional skip. A `skipped` outcome
   // (source `pre-skip`) makes it visible in history and keeps it out of the catch-up net; un-toggling
   // removes that record and re-arms the block, so nothing stale is left behind.
@@ -312,6 +315,21 @@ export default function Home() {
   // it). The record is already closed by the time the field appears, so "그냥 닫기" is a real option and
   // costs nothing: an empty reason is a perfectly valid outcome.
   const resolveCatchUp = async (f: CatchUpItem, status: "done" | "miss") => {
+    // The card stays on screen across several awaits, so a second tap — or a tap of the *opposite* answer —
+    // used to run a second settle. The outcome store now upserts (one outcome per occurrence), but an
+    // in-flight guard keeps the two answers from racing each other at all: whichever the user pressed first
+    // is the one that stands.
+    const key = `${f.taskId}|${f.date}`;
+    if (resolving.current.has(key)) return;
+    resolving.current.add(key);
+    try {
+      await doResolve(f, status);
+    } finally {
+      resolving.current.delete(key);
+    }
+  };
+
+  const doResolve = async (f: CatchUpItem, status: "done" | "miss") => {
     await settle(f.taskId, f.date, f.title, status, "catch-up");
     const fires = await listFires();
     await setFires(fires.filter((x) => !(x.taskId === f.taskId && x.date === f.date)));
@@ -339,12 +357,24 @@ export default function Home() {
 
   const now = Date.now();
   const todayBlocks = blocksOn(blocks, today);
-  const blockRows: Extract<HomeRow, { kind: "block" }>[] = todayBlocks.map((block) => ({
-    kind: "block" as const,
-    block,
-    fireAt: blockFireAt(block),
-    started: blockStartAt(block) <= now,
-  }));
+  // `started` = **the moment has been cued**, not "the clock reached the block's start". It gates the card's
+  // affordance: before the cue you may pre-skip ("오늘은 쉼"); after it, the only thing on offer is 했어요.
+  //
+  // It used to compare against `blockStartAt`, but the moment fires at **`start − lead`**. With a 1-hour lead
+  // a 21:00 block's moment appeared at 20:00 — and at 20:02 the card still showed the **skip switch**, because
+  // 21:00 had not arrived. Flipping it recorded a *pre-fire* skip for an occurrence that had already fired,
+  // and cancelled the armed "진짜 했어?" re-check. That is precisely the **post-fire escape the product
+  // forbids** (R7: once the moment fires the only answers are 응 / 아직). The skip is a PRE-fire decision, so
+  // it must close when the cue fires.
+  const blockRows: Extract<HomeRow, { kind: "block" }>[] = todayBlocks.map((block) => {
+    const fireAt = blockFireAt(block);
+    return {
+      kind: "block" as const,
+      block,
+      fireAt,
+      started: (fireAt ?? blockStartAt(block)) <= now,
+    };
+  });
 
   // The hero = the next block still ahead today (a flagged one wins ties by being earlier anyway).
   const hero = blockRows.find((r) => !r.started && !isSkipped(r.block)) ?? null;

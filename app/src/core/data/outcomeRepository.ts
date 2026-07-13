@@ -22,12 +22,35 @@ export interface OutcomeRecord {
 
 export async function listOutcomes(): Promise<OutcomeRecord[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as OutcomeRecord[]) : [];
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? (rows as OutcomeRecord[]) : [];
+  } catch {
+    return []; // a corrupt store must not take the whole app down on its first read
+  }
 }
 
+/**
+ * **An occurrence has exactly ONE outcome.** This used to blindly `push`, so any double tap wrote the record
+ * twice — and an impatient "했어" followed by "안 했어" (the buttons stay live across several awaits) wrote a
+ * `done` **and** a `miss` for the same occurrence. Both land in S1, the one number the whole self-experiment
+ * turns on. A duplicated or contradictory outcome is worse than a crash: it is a lie we then reason from.
+ *
+ * So this is an **upsert keyed by `taskId|date`** — with one asymmetry: an outcome the **execution moment
+ * itself** produced is never overwritten by a later `catch-up` one. S1 counts only what the moment produced
+ * (R18), so letting a catch-up tap rewrite the source would quietly steal the lever's own evidence.
+ */
 export async function recordOutcome(record: OutcomeRecord): Promise<void> {
   const all = await listOutcomes();
-  all.push(record);
+  const i = all.findIndex((o) => o.taskId === record.taskId && o.date === record.date);
+  if (i < 0) {
+    all.push(record);
+  } else if (all[i].source === "execution-screen" && record.source === "catch-up") {
+    return; // the moment already spoke for this occurrence — a later catch-up may not rewrite it
+  } else {
+    all[i] = record;
+  }
   await AsyncStorage.setItem(KEY, JSON.stringify(all));
 }
 

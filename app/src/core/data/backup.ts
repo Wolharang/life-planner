@@ -13,6 +13,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
 import { listBlocks } from "@/core/data/blockRepository";
 import { listEvents } from "@/core/data/eventRepository";
+import { listExpenses } from "@/core/data/expenseRepository";
+import { listMeals } from "@/core/data/mealRepository";
+import { syncPutMany } from "@/core/data/sync";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
 import { rearmEventNotifications } from "@/core/notifications/plainReminders";
 
@@ -156,6 +159,16 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   for (const b of afterBlocks) await scheduleBlock(b);
   // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
   await rearmEventNotifications(await listEvents());
+
+  // **Push the restored rows to the cloud.** An import writes AsyncStorage directly, behind the repositories'
+  // backs, so nothing else would ever tell Firestore they exist. They would sit locally until the next
+  // snapshot reconciled them up — which is correct but not immediate, and a user who restores a backup and
+  // then reinstalls before the next snapshot would lose the restore. Pushing here closes that window.
+  // (No-op when logged out, which is the ordinary case for an import.)
+  syncPutMany("blocks", afterBlocks);
+  syncPutMany("events", await listEvents());
+  syncPutMany("expenses", await listExpenses());
+  syncPutMany("meals", await listMeals());
 
   return { imported: true, mode, blocks: afterBlocks.length };
 }

@@ -30,7 +30,10 @@ class AlarmBackupWorker(context: Context, params: WorkerParameters) : Worker(con
       for (item in AlarmMirror.getAll(context)) {
         when {
           item.fireAt <= now - GRACE_MS -> {
-            PendingMisses.record(context, item, now)
+            // A stale re-check is not a miss — see isRecheck(). The commit's own fire marker already
+            // represents this occurrence; recording another under "<id>#recheck" would invent a miss for a
+            // block that does not exist.
+            if (!isRecheck(item.id)) PendingMisses.record(context, item, now)
             if (item.recurrence != "none") {
               AlarmScheduler.schedule(context, item.copy(fireAt = AlarmScheduler.nextFutureOccurrence(item, now)))
             } else {
@@ -53,3 +56,13 @@ class AlarmBackupWorker(context: Context, params: WorkerParameters) : Worker(con
     }
   }
 }
+
+/**
+ * A past-due **re-check** ("<id>#recheck") is not a missed occurrence and must never be recorded as one.
+ *
+ * Its `id` belongs to no block, so a `PendingMiss` for it lands in `lp.missed.v1` keyed to a task that does
+ * not exist — a **phantom miss** that then shows up in the catch-up net and in S1. The occurrence it belongs
+ * to already has its own fire marker from the commit, and the catch-up net owns it from there. So: drop the
+ * stale re-check, say nothing.
+ */
+internal fun isRecheck(id: String) = id.endsWith("#recheck")

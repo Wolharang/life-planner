@@ -38,7 +38,12 @@ object AlarmMirror {
           note = o.optString("note", ""),
           createdAt = o.optLong("createdAt", 0L),
           leadMinutes = o.optInt("leadMinutes", 0),
-          sound = o.optBoolean("sound", false)
+          sound = o.optBoolean("sound", false),
+          // `mode` was NOT persisted. A re-arm from the mirror therefore rebuilt every alarm as a
+          // "commit", so a re-check restored after a reboot would have re-opened as a full execution
+          // moment for a block the user had already committed to.
+          mode = o.optString("mode", "commit"),
+          occurrenceDate = o.optString("occurrenceDate", "")
         )
       )
     }
@@ -58,6 +63,8 @@ object AlarmMirror {
           .put("createdAt", it.createdAt)
           .put("leadMinutes", it.leadMinutes)
           .put("sound", it.sound)
+          .put("mode", it.mode)
+          .put("occurrenceDate", it.occurrenceDate)
       )
     }
     prefs(context).edit().putString(KEY, arr.toString()).apply()

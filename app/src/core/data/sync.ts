@@ -118,10 +118,22 @@ function fire(work: () => Promise<unknown> | undefined): void {
  * With the field simply absent, `merge: true` leaves `deletedAt` untouched: C's late write lands harmlessly on
  * a dead document, updating fields nobody will ever read. **Deletion is permanent.** That is honest for this
  * app — there is no "undelete"; a block you re-create gets a **new id**.
+ *
+ * It must also carry **no `undefined` values**. Firestore **rejects** `undefined` outright (`Unsupported field
+ * value: undefined`), and the screens hand us rows full of them — a block with no end time literally holds
+ * `end: undefined` as an own property, as do `location`, `microStartNote`, `completedAt`, an expense's `store`,
+ * an event's `time`… That rejection was thrown inside `fire()` and **swallowed**, so the row silently never
+ * reached the cloud — and then the next snapshot, seeing no such document, **deleted it from the phone and
+ * cancelled its alarm**. Saving a workout with no end time was enough to lose it. An absent key is the correct
+ * encoding of "not set" anyway: `merge: true` leaves the field alone.
  */
 export function putPayload<T extends Syncable>(row: T): Record<string, unknown> {
-  const { ...fields } = row as Record<string, unknown>;
-  delete fields.deletedAt; // defensive: a row must never carry a resurrection with it
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+    if (key === "deletedAt") continue; // a row must never carry a resurrection with it
+    if (value === undefined) continue; // Firestore rejects undefined — and the rejection was invisible
+    fields[key] = value;
+  }
   return fields;
 }
 
@@ -219,32 +231,31 @@ async function reconcile(name: CollectionName, snap: any): Promise<void> {
   await writeLocal(name, merged);
 }
 
-/** Steady state: the cloud drives. Snapshots include this device's own pending writes, so an offline edit is
- *  never lost by being projected over. */
-async function project(name: CollectionName, snap: any): Promise<void> {
-  const rows: Syncable[] = [];
-  snap.forEach((doc: any) => {
-    const data = doc.data();
-    if (!data || data.deletedAt) return; // tombstone — dead everywhere (§6: reads filter deletedAt)
-    const { deletedAt, ...row } = data;
-    rows.push(row as Syncable);
-  });
-  await writeLocal(name, rows);
-}
-
+/**
+ * **Every** snapshot is a reconcile — never a blind projection.
+ *
+ * There used to be a second, "steady state" path that simply replaced local storage with whatever the cloud
+ * held. It rested on a rule that is **false**: *"absent from the cloud ⇒ deleted"*. It is not. A real deletion
+ * leaves a **tombstone document** (§6, D54), so a row that is merely *absent* means the cloud has never
+ * received it — a row created offline, a row whose push failed, a row restored from a backup. Projecting over
+ * it **deleted the user's block and cancelled its alarm**, silently, with no error anywhere.
+ *
+ * `planReconcile` already encodes the right rule (tombstone → drop; absent → push; older → push; newer →
+ * take), and it is idempotent: once a row has been pushed, the cloud carries the same `updatedAt`, so it is
+ * not pushed again and the loop converges. So there is only one path now, and it cannot lose a row.
+ */
 async function applySnapshot(uid: string, name: CollectionName, snap: any): Promise<void> {
   const key = `${uid}:${name}`;
 
   if (!reconciled.has(key)) {
     // Until we have heard from the SERVER we do not know what was deleted, so we must not act: pushing could
-    // resurrect a tombstoned row, and projecting a cold cache could erase rows made while logged out. Local
-    // storage keeps serving the app in the meantime — which is the whole point of being local-first.
+    // resurrect a tombstoned row, and reconciling against a cold cache could look like "the cloud has nothing"
+    // for rows it actually holds. Local storage keeps serving the app in the meantime — which is the whole
+    // point of being local-first.
     if (snap.metadata?.fromCache !== false) return;
     reconciled.add(key);
-    await reconcile(name, snap);
-    return;
   }
-  await project(name, snap);
+  await reconcile(name, snap);
 }
 
 /** Turn sync on for `uid`. Idempotent per uid, so the auth listener can call it freely. */

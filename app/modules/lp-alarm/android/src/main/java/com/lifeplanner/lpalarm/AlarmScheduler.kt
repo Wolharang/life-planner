@@ -17,7 +17,17 @@ data class AlarmItem(
   val createdAt: Long = 0L,    // when the task was created — for the time-accurate commit line
   val leadMinutes: Int = 0,    // set − lead = fireAt; carried so the commit line shows the SET time (PRD R3)
   val mode: String = "commit", // "commit" (normal moment) | "recheck" (the ~5-min "진짜 했어?" follow-up)
-  val sound: Boolean = false   // per-block (D43): false = vibration only. The TONE itself is a global setting.
+  val sound: Boolean = false,  // per-block (D43): false = vibration only. The TONE itself is a global setting.
+  /**
+   * The day the OUTCOME belongs to (YYYY-MM-DD), when it cannot be derived from `fireAt`.
+   *
+   * A commit alarm can derive it (`fireAt + lead` = the block's start), but the **re-check** cannot: its
+   * `fireAt` is just "commit + 5 minutes". Near midnight that lands on the **next day**, so a 23:58 block
+   * answered "응, 했어" at 00:03 recorded its DONE against **tomorrow** — leaving today's occurrence forever
+   * unanswered, until the catch-up net auto-archived it as a **miss the user had explicitly denied**. So the
+   * re-check carries the original day with it.
+   */
+  val occurrenceDate: String = ""
 )
 
 object LpAlarmConstants {
@@ -32,6 +42,7 @@ object LpAlarmConstants {
   const val EXTRA_LEAD = "leadMinutes"
   const val EXTRA_MODE = "mode"
   const val EXTRA_SOUND = "sound"
+  const val EXTRA_DATE = "occurrenceDate"
 }
 
 /**
@@ -50,8 +61,16 @@ object AlarmScheduler {
     try {
       am.setAlarmClock(info, firePendingIntent(context, item))
     } catch (e: SecurityException) {
-      // Exact-alarm permission not granted (Android 12+). The app must drive
-      // openExactAlarmSettings(); nothing is armed until then.
+      // Exact-alarm permission not granted (Android 12+). NOTHING is armed.
+      //
+      // We must not mirror it anyway. The mirror is what `getScheduledAlarms()` reports, and JS trusts that
+      // report: `pastUnfiredBlocks` treats a mirrored block as "armed" and therefore **excludes it from the
+      // never-fired catch-up net**. So a block that failed to arm used to look armed, never fire, and never
+      // be caught — the R6 net disarmed by the very failure it exists to catch. Leaving it out of the mirror
+      // means the net sees it. The repository re-arms everything from storage on app open, so a later grant
+      // still recovers it.
+      AlarmMirror.remove(context, item.id)
+      return
     }
     if (persist) AlarmMirror.put(context, item)
   }
@@ -94,6 +113,7 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_LEAD, item.leadMinutes)
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
       putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
+      putExtra(LpAlarmConstants.EXTRA_DATE, item.occurrenceDate)
     }
     return PendingIntent.getBroadcast(context, item.id.hashCode(), intent, IMMUTABLE_UPDATE)
   }
@@ -112,6 +132,7 @@ object AlarmScheduler {
       putExtra(LpAlarmConstants.EXTRA_LEAD, item.leadMinutes)
       putExtra(LpAlarmConstants.EXTRA_MODE, item.mode)
       putExtra(LpAlarmConstants.EXTRA_SOUND, item.sound)
+      putExtra(LpAlarmConstants.EXTRA_DATE, item.occurrenceDate)
     }
     return PendingIntent.getActivity(context, item.id.hashCode() + 1, intent, IMMUTABLE_UPDATE)
   }

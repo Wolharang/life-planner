@@ -36,7 +36,17 @@
       </intent-filter>
     </receiver>
 
-    <!-- Full-screen execution surface shown OVER the lock screen (Phase-1 native placeholder). -->
+    <!--
+      The execution moment, shown OVER the lock screen.
+
+      configChanges + a locked orientation are NOT cosmetic here. Without them, ANY configuration change —
+      a rotation, dark mode, a font-size or locale change — destroys and recreates the activity. onCreate
+      then re-runs startItem() with the original commit intent, and because the moment is still unanswered
+      it falls straight through to recording a SECOND fire marker and arming a SECOND re-check. Picking the
+      phone up off a table was enough: the occurrence was counted twice in S1's latency data, and the
+      catch-up net held two rows for it. The moment owns the screen for one minute; it has no business
+      being rebuilt underneath the user.
+    -->
     <activity
       android:name="com.lifeplanner.lpalarm.ExecutionActivity"
       android:exported="false"
@@ -45,6 +55,8 @@
       android:excludeFromRecents="true"
       android:launchMode="singleInstance"
       android:taskAffinity=".LpAlarmExecution"
+      android:screenOrientation="portrait"
+      android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|layoutDirection|fontScale|density"
       android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
   </application>

@@ -26,12 +26,14 @@ class BootReceiver : BroadcastReceiver() {
       when {
         item.fireAt > now -> AlarmScheduler.schedule(context, item)
         item.recurrence != "none" -> {
-          PendingMisses.record(context, item, now)
+          if (!isRecheck(item.id)) PendingMisses.record(context, item, now)
           val next = AlarmScheduler.nextFutureOccurrence(item, now)
           AlarmScheduler.schedule(context, item.copy(fireAt = next))
         }
         else -> {
-          PendingMisses.record(context, item, now)
+          // A re-check that died with the process is not a missed occurrence (isRecheck) — the commit's
+          // fire marker already stands for it, and the catch-up net will ask.
+          if (!isRecheck(item.id)) PendingMisses.record(context, item, now)
           AlarmMirror.remove(context, item.id)
         }
       }
