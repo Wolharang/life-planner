@@ -11,6 +11,14 @@ expo-env.d.ts
 /android
 /ios
 
+# Firebase (F0) — per-project config and credentials. NEVER commit these.
+google-services.json
+GoogleService-Info.plist
+.env
+.env.*
+firebase-debug.log
+.firebase/
+
 # misc
 *.log
 .DS_Store

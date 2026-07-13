@@ -5,7 +5,7 @@ The running app. **State (2026-07-11): everything except the backend is built an
 left is **F0 (Firebase: Auth + Firestore + sync)**.
 
 > **Where the truth lives.** Product = `../docs/core/prd.md` (R1–R18) · decisions = `../docs/core/decisions.md`
-> (D1–D49) · **"where are we" = `../docs/research/implementation-plan.md` → "Build progress (live) — CURRENT
+> (D1–D50) · **"where are we" = `../docs/research/implementation-plan.md` → "Build progress (live) — CURRENT
 > STATE"** · history = `../docs/research/build-log.md` · device acceptance =
 > `../docs/research/device-test-checklist.md`.
 

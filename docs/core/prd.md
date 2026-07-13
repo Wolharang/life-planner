@@ -201,7 +201,8 @@ Adding a new event, he already **sees** the existing Saturday event → no doubl
 
 ### 7.0 — Data & behavior model (canonical fields: `docs/core/data-model.md`)
 Entities: **ImportantEvent** (date, time, title, notifyLeadMinutes, color, memo) · **TimeBlock** (date, start–end,
-title, location?, `kind`, `alert` (`none|soft|execution`, D40) + `alarmLeadMinutes` + `microStartNote`, D-1 snapshot
+title, location?, `kind`, `alert` (`soft|execution`, default `execution` — D43/D45 removed D40's `none`) +
+`alarmLeadMinutes` + `microStartNote` + `alertSound` (per-block) + `alertLeads` (≤3, soft only), D-1 snapshot
 `snapStart/snapEnd/snapTitle/plannedAt`, `status` planned|success|fail, `failReason`) · **Expense** (timestamp,
 category[8 fixed D16], amount[KRW D25], payment[free-text D26], store, name) · **MealEntry** (mealType[아침/점심/
 저녁/간식], foodName, detail, kcal[manual D27], **no photo** D19) · **DayAggregate** (derived totals) ·
@@ -322,7 +323,10 @@ signal**; returning after a miss is **frictionless** (a gentle catch-up, never a
 (a) the **soft path** — important-event advance alerts **and** a block's optional 단순 알림 (D40) — a standard
 **non-exact** local notification on a **quiet channel** (DEFAULT importance · no sound · lock-screen PRIVATE):
 it informs, it never pierces; (b) the **execution cue** — the native **exact-alarm + full-screen** path (the
-core lever, **NOT minimized**, D30). A block carries **exactly one** alert (`none | soft | execution`).
+core lever, **NOT minimized**, D30). A block carries **exactly one** alert, and there are **two** of them
+(`soft | execution`; **execution is the default** — you opt *out* of the lever, D43). A `soft` alert arrives at up
+to **3 moments the user picks** (D45). **Sound is an independent per-block axis** — the execution moment may be
+silent, a soft alert may ring (D43).
 The soft tier is what **keeps the cue rare** — and therefore loud (C1/D30). Sound default off = vibration only.
 - *Acceptance:* soft alerts don't pierce the lock screen (enforced by the **channel**, not by convention); the
   execution cue does — **in every state, not only when the phone is locked** (D41); the two are never disguised
@@ -388,8 +392,9 @@ Governing principles (`docs/core/design-principles.md`; tie-breaker order there 
   the core lever, deliberately **not** minimized.
 - **Two surfaces (D32):** plan/execution (calendar + My Day) vs in-the-moment logs (spend/meal) are separate; the
   day summary **links** them, never merges.
-- **Design system:** tokens in `docs/core/design-system.md` (currently running the provisional "v5 Toss-form" skin;
-  the confirmed D36 forest/gold baseline stands until a skin-lock D-entry — a design-stage task, not a spec gap).
+- **Design system:** tokens in `docs/core/design-system.md` — the skin is **LOCKED to v5 "Toss-form"** (blue/gold,
+  **D39**, 2026-07-11); D36's forest/gold *colors* are superseded (its no-guilt *semantics* — calm gold DONE, taupe
+  miss, never red — survive unchanged). Every screen, **including the native execution moment**, is on v5.
 - **Beyond-PRD (per instructions.md):** IA + full-app user-flows, per-screen states (초기/입력중/유효/무효/에러/로딩)
   and transitions, business rules, and exception/recovery paths are authored at each screen's build phase
   (`implementation-plan.md`); the prototype's `user-flows.md` is the template.

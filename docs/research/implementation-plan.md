@@ -210,6 +210,6 @@ native moment is repainted — no screen is on the old palette) · **D40/D43/D45
 - **Not a gap, by decision:** no streaks/score/auto-suggestions anywhere (R14/D29).
 
 ### Where the truth lives
-What/Why = `docs/core/prd.md` (R1–R17) · decisions = `docs/core/decisions.md` (D1–D48) · How =
+What/Why = `docs/core/prd.md` (R1–R18) · decisions = `docs/core/decisions.md` (D1–D50) · How =
 `docs/core/architecture.md` + `docs/core/data-model.md` · build order = **this file** · history =
 `docs/research/build-log.md` · device acceptance = `docs/research/device-test-checklist.md`.

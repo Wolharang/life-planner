@@ -140,7 +140,9 @@ the plan-vs-actual bookkeeping — is the real target.
 - **ImportantEvent**: id, date, time, title, **notifyLeadMinutes** (per-event offset before start; default if
   unset, D28), color (optional), memo, createdAt/updatedAt.
 - **TimeBlock** (day plan): id, date, **start–end** (free-form interval), title, **location** (optional),
-  **kind** (`normal | workout | run`), **alert** (`none | soft | execution`, D40) (+ alarmLeadMinutes, microStartNote),
+  **kind** (`normal | workout | run`), **alert** (`soft | execution` — **default `execution`**; the `none` tier of
+  D40 was **removed** by D43/D45) (+ alarmLeadMinutes, microStartNote, **alertSound** per-block, **alertLeads** =
+  the ≤3 moments a `soft` alert arrives at),
   **snapStart / snapEnd / snapTitle + plannedAt** (frozen D-1 values for evaluation, D23),
   **status** (`planned | success | fail`), **failReason**, completedAt, updatedAt.
 - **Expense** (per `docs/research/reference-apps.md` §A2): id, date, timestamp, category (one of 8 fixed, D16),
