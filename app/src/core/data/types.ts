@@ -142,8 +142,8 @@ export type BlockStatus = "planned" | "success" | "fail" | "skipped";
  * How a block announces itself (**D40**, revised by **D43** 2026-07-11). A block carries **exactly one**
  * alert, and there are exactly **two** kinds — a block with *no* alert is a block you'd never act on, so
  * the founder removed that option:
- *  · `soft` — a plain notification at `start − lead`. It **tells** you; it never takes the screen. Can
- *    repeat (`alertRepeat`) so it isn't missed. For the blocks that need telling, not forcing (강의, 점심).
+ *  · `soft` — a plain notification. It **tells** you; it never takes the screen. It arrives at up to
+ *    **3 moments the user picks** (`alertLeads`, D45). For blocks that need telling, not forcing (강의, 점심).
  *  · `execution` — **the default**: the exact alarm + the full-screen moment over the lock screen (R7).
  *    The lever is the product, so a new block gets it unless you say otherwise.
  * Either kind can be **silent (vibration only) or audible** (`alertSound`) — the tier and the loudness are

@@ -12,7 +12,7 @@
 // has no home in the full-app model (D37), so a recurring task lands as a single block on today.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { BlockKind, Task, TimeBlock } from "./types";
+import type { BlockAlert, BlockKind, Task, TimeBlock } from "./types";
 import { alarm } from "@/core/notifications/alarm";
 import { cancelReminders } from "@/core/notifications/plainReminders";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
@@ -101,11 +101,20 @@ async function ensureMigrated(): Promise<void> {
   for (const b of migrated) await scheduleBlock(b);
 }
 
-/** Blocks written before D40 carry `executionAlarm: boolean`; read them as the new three-way `alert`. */
-function normalize(b: any): TimeBlock {
-  if (b.alert) return b as TimeBlock;
-  const { executionAlarm, ...rest } = b;
-  return { ...rest, alert: executionAlarm ? "execution" : "none" } as TimeBlock;
+/**
+ * Read old rows forward. Two shapes predate the current one:
+ *  · pre-D40 blocks carry `executionAlarm: boolean` instead of `alert`.
+ *  · D40 blocks may carry `alert: "none"` — a tier D43 **deleted**. `none` is no longer a `BlockAlert`,
+ *    and `scheduleBlock` matches on the two live tiers, so a `none` row would arm **nothing**: a block
+ *    sitting in the plan that can never announce itself. Land it on `soft` (it still tells you) rather
+ *    than `execution` (never silently *add* a lock-screen takeover to a block that opted out of one).
+ * `alertRepeat` (D40's fixed interval) is dropped — D45 replaced it with user-picked `alertLeads`.
+ */
+function normalize(raw: any): TimeBlock {
+  const { executionAlarm, alertRepeat, ...rest } = raw;
+  const alert: BlockAlert =
+    rest.alert === "execution" || (rest.alert === undefined && executionAlarm) ? "execution" : "soft";
+  return { ...rest, alert } as TimeBlock;
 }
 
 export async function listBlocks(): Promise<TimeBlock[]> {
