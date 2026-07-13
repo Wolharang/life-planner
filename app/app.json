@@ -19,7 +19,11 @@
         "VIBRATE",
         "WAKE_LOCK",
         "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAFAFA"
+      }
     },
     "plugins": [
       "expo-router",
@@ -44,6 +48,7 @@
       "eas": {
         "projectId": "c2e60ce5-73dd-45d2-a78a-65ce1c99d5b3"
       }
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
