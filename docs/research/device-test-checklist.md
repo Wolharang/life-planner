@@ -138,6 +138,16 @@ If the device still has prototype data (`할 일`s):
 
 ## Result
 
-Record the outcome here (date · device · Android version), and file anything that failed as the **next work**,
-ahead of F0. The prototype's own gate applies unchanged: **if the moment doesn't fire reliably, nothing else
-matters.**
+**2026-07-11 — PASSED (founder, real Android device).** The full pre-Firebase app is verified: the lever fires
+and re-checks, it appears while the phone is in use, it stays on top of another app's overlay (캐시워크), it can't
+be escaped or silently ended, and the tone can't outlive its screen. F1–F5 all behave.
+
+Every failure this pass produced is fixed and logged: **D41** (only a heads-up notification appeared) · **D44**
+(a tone rang on with no screen and no way to stop it) · **D46** (the countdown ran on in the background and ended
+the moment) · **D47** (coming back must be the app's job, not the user's) · **D48** (another app's overlay covered
+the moment). Full write-ups: `docs/research/build-log.md`.
+
+**Still unverified:** firing with the screen **fully off** for a long idle period (Doze), and multi-day
+reliability — those are for the founder self-experiment, not a single pass.
+
+The prototype's gate applies unchanged: **if the moment doesn't fire reliably, nothing else matters.**

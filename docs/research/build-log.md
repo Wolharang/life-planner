@@ -7,6 +7,25 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — ✅ DEVICE PASS: the whole pre-Firebase app is verified
+
+The founder ran the acceptance pass on a real Android device and it **passed**: the lever fires, re-checks
+itself ~5 minutes later, appears while the phone is in use, **stays on top of another app's overlay** (캐시워크),
+cannot be escaped or silently ended, and its tone cannot outlive its screen. F1–F5 all behave.
+
+**Everything this device cycle produced is fixed and logged:** D41 (only a heads-up notification appeared) ·
+D44 (a tone rang on with no screen and no way to stop it) · D46 (the countdown ran on in the background and
+ended the moment) · D47 (coming back must be the app's job, not the user's) · D48 (another app's overlay covered
+the moment) — plus D39 (skin locked to v5) and D40/D42/D43/D45 (the alert model, in three founder revisions).
+
+**Status: only F0 (Firebase) remains.** The single "where are we" record is
+`implementation-plan.md` → "Build progress (live) — CURRENT STATE".
+
+**Not covered by one pass (for the self-experiment, not a checklist):** firing after a long idle with the screen
+fully off (Doze), and multi-day reliability.
+
+---
+
 ## 2026-07-11 — Another app's overlay covered the moment → the moment becomes an overlay too (D48)
 
 - **Symptom (founder):** 캐시워크 (a lock-screen/ad app) pops **over** our execution moment; the moment is up,

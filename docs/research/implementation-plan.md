@@ -127,60 +127,68 @@ time under Doze** → micro-start prompt → mark done → the entry **syncs to 
 → F4 (day summary) → F5 (evaluation, Later).** Prep P-a/P-b/P-c inside F0; P-d inside F3; P-e before F1; P-f as each
 feature lands. Nothing here changes the validated execution lever — it is reused, not rebuilt.
 
-## Build progress (live) — CURRENT STATE (self-contained; updated 2026-07-11)
-> This section is the single "where are we" record so context survives a compaction. Detailed history:
-> `docs/research/build-log.md`. **Local-first is allowed to run ahead of F0:** UI can be built on a local
-> AsyncStorage repository and its storage impl swapped to Firestore later behind the same interface
-> (architecture §7), so a feature's UI need not wait for the backend — only its *sync/notification* does.
+## Build progress (live) — CURRENT STATE (self-contained; updated 2026-07-11, after the device pass)
 
-**Repo / git.** This is now a git repo → remote `origin = git@github.com:Wolharang/life-planner.git` (**private**,
-branch `main`, SSH key `~/.ssh/id_ed25519`). Policy (memory): **commit after every change; push ONLY when the user
-says to.** As of 2026-07-11 there are **several local commits not yet pushed** (initial import → docs reorg → PRD →
-tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
+> The single **"where are we"** record — written to survive a context compaction. Read this + `docs/core/prd.md`
+> and you know what exists, what's left, and what to be careful of. Detailed history: `docs/research/build-log.md`.
+> **Local-first may run ahead of F0:** a feature's UI can sit on a local AsyncStorage repository and have its
+> storage impl swapped to Firestore later behind the same interface (architecture §7) — only *sync* waits.
 
-**Phase status:**
-- **Prototype (foundation):** ✅ complete & founder-validated. Snapshot: `docs/research/prototype/PROTOTYPE-STATE.md`.
-  Reused, not rebuilt (native alarm module + execution moment + Repository interfaces).
-- **Nav shell:** ✅ bottom tab bar (**홈 · 캘린더 · 기록**) — expo-router `(tabs)` group (`app/app/(tabs)/`). 기록
-  (`logs.tsx`) = placeholder.
-- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started. **Correction: F0 gates
-  only R2 (cross-device propagation)** — *not* R3. R3/D18 specify a **local** notification (no server push),
-  so it shipped without a backend (below).
-- **F1 calendar:** 🟨 **all but sync, built local-first** (2026-07-11) — R1 month calendar (square grid +
-  event bars + selected-day detail, `app/app/(tabs)/calendar.tsx`) + `ImportantEvent` + `eventRepository`
-  (`lp.events.v1`) + `add-event.tsx`; **R3 advance notification ✅** (soft local alert at
-  `time − notifyLeadMinutes`, default lead when unset; `plainReminders.ts` event path + re-arm on app-open
-  and after backup import). **Remaining: R2 sync only (needs F0).**
-- **F2 time-blocks + execution:** ✅ **built local-first** (2026-07-11). `TimeBlock` (`lp.blocks.v1`) +
-  `blockScheduler` (live `start − lead`; D-1 snapshot mirrors→freezes) + **`/day`** day plan w/ free-slot hint +
-  **`/add-block`** (multi-date add) + **Home = My Day** execution cards. **The prototype's `Task` is retired**
-  (one-time migration, ids preserved). Two decisions logged: **D37** (no recurrence → multi-date add instead) ·
-  **D38** (a block's only notification is the execution cue). The execution moment also carries the founder's
-  **R7 re-check** (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** → 응했어=DONE /
-  아직안했어=5·4·3·2·1→나가 (pending). **Remaining in F2:** on-device verification; evaluation UI is R17/F5.
-- **F3 logs:** ✅ **built local-first** (2026-07-11). `Expense` (`lp.expenses.v1`) + `MealEntry`
-  (`lp.meals.v1`) + `src/core/logs/{constants,aggregate}.ts` + the real **기록 탭** (지출/식사 segmented, month
-  total + category distribution, kcal vs target) + `/add-expense` · `/add-meal` (≤2 taps + a number). Ported
-  per `reference-apps.md` §A/§B — no photos (D19), no activity records (D22: 운동/러닝 O·X is derived from
-  blocks), separate surface (D32). **Remaining:** on-device check; sync (R2) with F0.
-- **F4 day summary:** ✅ **built** (2026-07-11). `DayAggregate` **derived on read** (`logs/aggregate.ts`,
-  data-model §2.6 — no stored rollup) + **`/summary?date=`**: 계획·실행 and 기록 as **two distinct sections**
-  (D32 — links, never merges), reachable from the calendar day panel and the day view. 운동/러닝 O·X derived
-  from success blocks (D22).
-- **F5 evaluation (R17):** ✅ **built** (2026-07-11) — **`/review` 돌아보기**: month rollup executed-vs-planned
-  (+ how many were **pre-committed at D-1**, D23) · past blocks markable 해냄/미스 · **못 한 이유들** gathered in
-  one place, editable later. **The fail reason is offered, never demanded** (founder call: D5 ∧ B1) — the miss is
-  recorded first, then a skippable "한 줄 남길까요? · 그냥 닫기". No score, no quantitative comparison, no
-  auto-suggestion (D29/D5). **Gap:** "D-1 계획인데 당일 삭제 = fail" (spec §3.6) needs soft-delete tombstones → F0.
+### Headline
+**Everything before the backend is BUILT and founder-verified on a real device (2026-07-11).**
+The app is a working "integrated day": calendar + day plan + the execution lever + logs + day summary +
+review. **The only phase left is F0 (Firebase: Auth + Firestore + sync).**
 
-**Loose ends / caveats to remember:**
-- **The native execution moment can't be compile-checked here** (Kotlin builds only at `npx expo run:android`).
-  The R7 re-check change needs an on-device build to verify it compiles + works. Same for any native edit.
-- **The native moment still uses the prototype forest/gold palette.** The v5 "Toss-form" blue skin was applied to
-  the JS screens + the **JS preview `app/app/execution.tsx`** — which is NOT the live moment (`ExecutionActivity`
-  is). Reskinning the native moment to v5 is a separate TODO.
-- **Design skin v5 is provisional** (design-system.md §1); D36 forest/gold is the confirmed baseline until a
-  skin-lock D-entry (prep P-e).
-- **`[TBD]`s** open: full-app default lead-time (D28), R6 window/render caps, the R7 re-check delay (~5 min).
-- **Where the truth lives:** What/Why = `docs/core/prd.md` (R1–R17); How = `docs/core/architecture.md` +
-  `docs/core/data-model.md`; build order = this file; history = `docs/research/build-log.md`.
+### Repo / git
+Private `origin = git@github.com:Wolharang/life-planner.git` (SSH, branch `main`). Policy (memory):
+**commit after every change; push ONLY when the founder says to.** As of this writing there are **~21 local
+commits not yet pushed**.
+
+### Phases
+| Phase | State |
+|---|---|
+| **Prototype (foundation)** | ✅ complete, reused not rebuilt. Snapshot: `docs/research/prototype/PROTOTYPE-STATE.md` |
+| **Nav shell** | ✅ bottom tabs 홈 · 캘린더 · 기록 (`app/app/(tabs)/`) |
+| **F1 calendar (R1/R3)** | ✅ except **R2 sync** — month grid (square cells, event bars, month **swipe**), `ImportantEvent` (`lp.events.v1`), `/add-event`, **advance notification** (soft local alert; **R3 never needed F0** — D18 says local, not push) |
+| **F2 time-blocks + execution (R5–R7)** | ✅ `TimeBlock` (`lp.blocks.v1`) · `blockScheduler` (fires at **live** `start − lead`; D-1 snapshot mirrors → freezes) · `/day` (day plan + free-slot hint) · `/add-block` (**multi-date add**) · **Home = My Day**. The prototype's `Task` is **retired** (one-time migration, ids preserved) |
+| **F3 logs (R8/R9)** | ✅ `Expense` (`lp.expenses.v1`) + `MealEntry` (`lp.meals.v1`) + `logs/{constants,aggregate}.ts` + the real **기록 탭** + `/add-expense` · `/add-meal` (**amount/name only** → ≤2 taps). Ported per `reference-apps.md` |
+| **F4 day summary (R10)** | ✅ `DayAggregate` **derived on read** + `/summary?date=` — 계획·실행 and 기록 as **two distinct sections** (D32) |
+| **F5 evaluation (R17)** | ✅ `/review` 돌아보기 — month rollup vs the **D-1 plan of record**, fails gathered with **optional** reasons |
+| **F0 backend (Auth + Firestore + rules + cutover)** | ⬜ **NOT started — the only thing left.** It gates **R2** (cross-device sync) and the two gaps below |
+
+### The execution lever, as it now stands (all founder-driven, all device-verified)
+COMMIT ("…하기로 했잖아" + the **micro-start**) → ack → **~5 min later** the moment **re-opens by itself** at
+**"진짜 했어?"** → 응했어 = **DONE** (one calm gold mark) / 아직안했어 = **5·4·3·2·1 → "지금 나가."** → leaves,
+outcome **pending** (never an immediate miss). Around it, the hard-won invariants (each from a real device bug):
+- **It appears in every state** — locked *and* while the phone is in use (**"다른 앱 위에 표시"**, D41).
+- **It out-layers other apps** — it renders as an **overlay window** and re-claims the top every ~2s, because an
+  Activity can never beat an ad/lock-screen overlay (캐시워크 …) (**D48**).
+- **It exists only on screen** — every timer freezes when it isn't visible, and resumes at the same phase; it can
+  no longer end itself in the background (**D46**). The screen can't sleep under it.
+- **It comes back by itself** if sent away unanswered — bounded to 3 re-summons: **insist, never trap** (**D47**).
+- **The tone can never outlive its screen** — stops when not visible, hard-capped (**D44**).
+- **No in-flow escape** — back button *and* predictive back are consumed (R7/A2). The only skip is the pre-fire
+  **"오늘은 쉼"**.
+- **One-shot** — a finished moment leaves no tappable ghost; an unanswered one keeps its notification as the way back.
+
+### Alerts (the model, after 3 founder revisions)
+A block carries **exactly one** alert, one of **two** (D40 → D43): **알림** (a plain notification; arrives at up
+to **3 moments the user picks** — D45) · **실행** (the lever; **the default**). **Sound is a separate per-block
+axis** (default off = **vibration only**): the moment may be silent, an alert may ring (D43). The tone itself is
+a setting, with a picker + preview (D42). Only **실행** may pierce the lock screen (R15).
+
+### Decisions taken during this phase (all in `docs/core/decisions.md`)
+**D37** no recurrence → multi-date add · **D38** *(superseded)* · **D39** skin **LOCKED to v5** (blue/gold; the
+native moment is repainted — no screen is on the old palette) · **D40/D43/D45** the alert model above ·
+**D41** overlay grant · **D42** tone picker · **D44/D46/D47/D48** the moment's visibility/topmost/return rules.
+
+### Open `[TBD]`s and known gaps
+- **`[TBD]`**: full-app default lead (D28) · R6 catch-up window (~7d) · the R7 re-check delay (5 min, hard-coded).
+- **Needs F0:** **R2** cross-device sync · spec §3.6's "a D-1 block **soft-deleted** on the day counts as fail"
+  (needs tombstones) · account/login (R4).
+- **Not a gap, by decision:** no streaks/score/auto-suggestions anywhere (R14/D29).
+
+### Where the truth lives
+What/Why = `docs/core/prd.md` (R1–R17) · decisions = `docs/core/decisions.md` (D1–D48) · How =
+`docs/core/architecture.md` + `docs/core/data-model.md` · build order = **this file** · history =
+`docs/research/build-log.md` · device acceptance = `docs/research/device-test-checklist.md`.
