@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// LifePlanner security rules (P-b · data-model §6 · architecture §3).
+//
+// The whole model is one sentence: **a user can touch their own documents and nothing else.** This is a
+// single-user personal app (D3), so there is no sharing, no public read, no admin path — anything not
+// written here is denied by default, which is exactly what we want.
+//
+// Deletes are SOFT (§6): the client writes a `deletedAt` tombstone instead of removing the document, so the
+// other device can hear about the deletion. Hard `delete` is therefore not allowed — a hard delete would
+// vanish without a trace and the other phone would simply push the row back up.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      // The owner, and only the owner. `request.auth == null` (logged out) fails this, so an
+      // unauthenticated client can read nothing at all.
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      allow read, write: if isOwner();
+
+      // The four synced collections (data-model §2). The measurement/catch-up stores
+      // (lp.outcomes/fires/missed/latencies, §2.7) never leave the device, so they have no rule here.
+      match /{collection}/{docId} {
+        allow read: if isOwner();
+
+        // Create/update only. The document's own id must match its path — a client-generated id is the
+        // join key everywhere else (§0), so a row whose `id` disagrees with its document name would break
+        // the local projection.
+        allow create, update: if isOwner()
+                              && request.resource.data.id == docId;
+
+        // No hard deletes. Tombstone via update (deletedAt) — that is what propagates.
+        allow delete: if false;
+      }
+    }
+  }
+}

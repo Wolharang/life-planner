@@ -7,12 +7,13 @@
 
 import { View, Text, Pressable, Switch, TextInput, Alert, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, Stack, useRouter, useFocusEffect } from "expo-router";
 import { alarm } from "@/core/notifications/alarm";
 import { notificationPermissionGranted } from "@/core/notifications/plainReminders";
 import { getSettings, updateSettings } from "@/core/data/settingsRepository";
 import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup";
+import { onAccountChanged, type Account } from "@/core/data/firebase";
 
 const LEADS = [
   { label: "정각", v: 0 },
@@ -40,6 +41,9 @@ export default function Settings() {
   const [leadOpen, setLeadOpen] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
   const [busy, setBusy] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
+
+  useEffect(() => onAccountChanged(setAccount), []);
 
   const refresh = useCallback(async () => {
     setSound(safeBool(() => alarm.getSound()));
@@ -328,6 +332,28 @@ export default function Settings() {
               </Text>
             </Row>
           </Pressable>
+        </View>
+
+        {/* 계정 — login enables SYNC and nothing else; the app is whole without it (R4/D20). */}
+        <GroupLabel>계정</GroupLabel>
+        <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
+          <Link href="/account" asChild>
+            <Pressable>
+              <Row>
+                <View className="flex-1 pr-3">
+                  <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                    로그인 · 동기화
+                  </Text>
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                    {account ? account.email ?? "동기화 켜짐" : "로그인하면 다른 기기와 자동으로 맞춰져요"}
+                  </Text>
+                </View>
+                <Text className="text-faint" style={{ fontSize: 18 }}>
+                  ›
+                </Text>
+              </Row>
+            </Pressable>
+          </Link>
         </View>
 
         {/* 돌아보기 — 계획 대 실제 (R17). Counts + the collected reasons; no score, no auto-suggestion (D29/D5). */}
