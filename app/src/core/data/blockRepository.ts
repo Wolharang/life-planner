@@ -136,21 +136,21 @@ export async function addBlock(block: TimeBlock): Promise<void> {
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
   await writeBlocks([...(await listBlocks()), ...blocks]);
   for (const b of blocks) await scheduleBlock(b); // write-through (architecture §9-2)
-  await syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
+  syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
 }
 
 export async function updateBlock(block: TimeBlock): Promise<void> {
   const blocks = await listBlocks();
   await writeBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
   await scheduleBlock(block); // re-arms the block's ONE alert, or cancels both paths (D40)
-  await syncPut("blocks", block);
+  syncPut("blocks", block);
 }
 
 export async function deleteBlock(id: string): Promise<void> {
   const blocks = await listBlocks();
   await writeBlocks(blocks.filter((b) => b.id !== id));
   unscheduleBlock(id); // eviction — no ghost fire behind a deleted block
-  await syncRemove("blocks", id); // soft-delete tombstone, so the OTHER phone evicts its alarm too (§6)
+  syncRemove("blocks", id); // soft-delete tombstone, so the OTHER phone evicts its alarm too (§6)
 }
 
 /**

@@ -71,38 +71,65 @@ async function readLocal<T extends Syncable>(name: CollectionName): Promise<T[]>
 
 // ── Push (called by the repositories, after the local write has already succeeded) ──────────────────────
 
-/** Mirror one row up. No account → a no-op, not an error: writing offline/logged-out is the normal case,
- *  and Firestore's own queue handles "online later". A failed push must never fail the user's edit. */
-export async function syncPut<T extends Syncable>(name: CollectionName, row: T): Promise<void> {
-  const account = currentAccount();
-  if (!account) return;
+/**
+ * **NEVER await the server.** Firestore's `set()` promise resolves only on *server acknowledgement* — offline
+ * it stays pending **forever** (it does not reject). The repositories are called as
+ * `await addBlocks(…); router.back();`, so awaiting the cloud here would mean: **in airplane mode the save
+ * button hangs and the screen never closes** — R11 ("works identically offline") destroyed by the very feature
+ * meant to be invisible. Online it would still stall the UI for a full server round-trip per row (a 5-date
+ * block add = 5 sequential round-trips).
+ *
+ * We don't need the acknowledgement. The row is **already** committed locally (the repository wrote it and
+ * armed its alarm before calling us), and Firestore's own queue guarantees the write reaches the server
+ * eventually, in order, across restarts. So: hand the write to Firestore's cache and return immediately.
+ * Latency and connectivity become invisible — which is also why the database's *region* stops mattering.
+ */
+function fire(work: () => Promise<unknown> | undefined): void {
   try {
-    await col(account.uid, name)
-      ?.doc(row.id)
-      .set({ ...row, deletedAt: null }, { merge: true });
+    void work()?.catch(() => {
+      // the row is safe locally and queued in Firestore's cache; a rejection here must never reach the user
+    });
   } catch {
-    // swallowed on purpose — the row is already safe locally; the next full push reconciles it
+    /* native missing / not signed in — local-only, exactly as designed */
   }
 }
 
-export async function syncPutMany<T extends Syncable>(name: CollectionName, rows: T[]): Promise<void> {
-  for (const row of rows) await syncPut(name, row);
+/** Mirror one row up. No account → a no-op, not an error: logged-out is a normal, supported state (D20). */
+export function syncPut<T extends Syncable>(name: CollectionName, row: T): void {
+  const account = currentAccount();
+  if (!account) return;
+  fire(() =>
+    col(account.uid, name)
+      ?.doc(row.id)
+      .set({ ...row, deletedAt: null }, { merge: true }),
+  );
+}
+
+export function syncPutMany<T extends Syncable>(name: CollectionName, rows: T[]): void {
+  for (const row of rows) syncPut(name, row);
 }
 
 /** Soft-delete (§6). The tombstone is what actually travels; the row is already gone locally. */
-export async function syncRemove(name: CollectionName, id: string): Promise<void> {
+export function syncRemove(name: CollectionName, id: string): void {
   const account = currentAccount();
   if (!account) return;
-  try {
-    await col(account.uid, name)?.doc(id).set({ id, deletedAt: Date.now() }, { merge: true });
-  } catch {
-    /* see syncPut */
-  }
+  fire(() => col(account.uid, name)?.doc(id).set({ id, deletedAt: Date.now() }, { merge: true }));
 }
 
 // ── Pull (the listener projects the cloud into AsyncStorage) ────────────────────────────────────────────
 
 async function applySnapshot(name: CollectionName, snap: any): Promise<void> {
+  // **An empty cloud collection can never erase local data.** Zero documents means the cloud has never heard
+  // of this collection — not that everything was deleted. A real deletion leaves a *tombstone document*
+  // behind (§6), so a genuinely emptied collection still arrives as N docs, all of them dead. Without this
+  // guard, a fresh account's first snapshot (or one that raced ahead of the cutover push) would land on a
+  // phone full of real plans and wipe them. Instead we treat it as "nothing to say" and push local up.
+  if (snap.size === 0) {
+    const local = await readLocal(name);
+    if (local.length > 0) syncPutMany(name, local);
+    return;
+  }
+
   const rows: Syncable[] = [];
   snap.forEach((doc: any) => {
     const data = doc.data();
@@ -123,14 +150,15 @@ async function enable(uid: string): Promise<void> {
   disable();
   syncingFor = uid;
 
-  // 1) Cutover FIRST (P-c) — everything this device made while logged out goes up. Must complete before a
-  //    listener can project an empty cloud back down over it.
+  // 1) Cutover (P-c) — everything this device made while logged out goes up. Enqueued, not awaited (see
+  //    `fire`): waiting on the server here would stall login on a slow network and hang it offline. The
+  //    "empty snapshot cannot erase local" guard in `applySnapshot` is what actually makes the data safe —
+  //    ordering alone would leave the outcome depending on a race.
   for (const name of NAMES) {
-    const rows = await readLocal(name);
-    await syncPutMany(name, rows);
+    syncPutMany(name, await readLocal(name));
   }
 
-  // 2) Now it is safe to let the cloud drive.
+  // 2) Now let the cloud drive.
   for (const name of NAMES) {
     const unsub = col(uid, name)?.onSnapshot(
       (snap: any) => {
