@@ -98,7 +98,7 @@ export default function AccountScreen() {
         <Text className="text-ink" style={{ fontSize: 26, fontWeight: "700", marginBottom: 6 }}>
           계정
         </Text>
-        <Text className="text-muted" style={{ fontSize: 14, lineHeight: 21, marginBottom: 20 }}>
+        <Text className="text-grey" style={{ fontSize: 14, lineHeight: 21, marginBottom: 20 }}>
           로그인은 <Text style={{ fontWeight: "700" }}>기기 간 동기화</Text>만 켜요. 로그인하지 않아도 앱의 모든 기능은
           그대로 동작하고, 로그아웃해도 이 기기의 기록은 지워지지 않아요.
         </Text>
@@ -108,19 +108,19 @@ export default function AccountScreen() {
             <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600", marginBottom: 6 }}>
               이 빌드에서는 동기화를 쓸 수 없어요
             </Text>
-            <Text className="text-muted" style={{ fontSize: 13, lineHeight: 20 }}>
+            <Text className="text-grey" style={{ fontSize: 13, lineHeight: 20 }}>
               앱은 평소대로 쓰면 돼요. 모든 기록은 이 기기에 안전하게 저장돼요.
             </Text>
           </View>
         ) : account ? (
           <View className="bg-surface" style={{ borderRadius: 18, padding: 18 }}>
-            <Text className="text-muted" style={{ fontSize: 12, marginBottom: 4 }}>
+            <Text className="text-grey" style={{ fontSize: 12, marginBottom: 4 }}>
               동기화 켜짐
             </Text>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "600", marginBottom: 14 }}>
               {account.email ?? "로그인됨"}
             </Text>
-            <Text className="text-muted" style={{ fontSize: 13, lineHeight: 20, marginBottom: 18 }}>
+            <Text className="text-grey" style={{ fontSize: 13, lineHeight: 20, marginBottom: 18 }}>
               일정·시간블록·지출·식사가 다른 기기와 자동으로 맞춰져요. 오프라인에서 바꾼 것은 연결되면 올라가요.
             </Text>
             <Pressable
@@ -164,7 +164,7 @@ export default function AccountScreen() {
 
             {error ? (
               // A miss is neutral data and so is a failed login — stated, never scolded (no red-alarm UI).
-              <Text className="text-muted" style={{ fontSize: 13, marginTop: 10 }}>
+              <Text className="text-grey" style={{ fontSize: 13, marginTop: 10 }}>
                 {error}
               </Text>
             ) : null}
@@ -226,7 +226,7 @@ function Tab({ label, on, onPress }: { label: string; on: boolean; onPress: () =
       style={{ borderRadius: 10, paddingVertical: 9, paddingHorizontal: 18, marginRight: 8 }}
     >
       <Text
-        className={on ? "" : "text-muted"}
+        className={on ? "" : "text-grey"}
         style={{ fontSize: 14, fontWeight: "600", color: on ? "#FFFFFF" : undefined }}
       >
         {label}

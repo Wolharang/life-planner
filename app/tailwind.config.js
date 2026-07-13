@@ -1,7 +1,13 @@
 /**
- * Design tokens — v5 "Toss-form + one craft moment".  ⚠ PROVISIONAL / iterating — NOT the locked
- * palette. The confirmed baseline is still D36's calm forest/gold (docs/research/design-system.md);
- * this skin is under active revision and will change across rounds. Do not treat as final.
+ * Design tokens — v5 "Toss-form + one craft moment". **LOCKED (D39, 2026-07-11).**
+ *
+ * This header used to say the opposite — "PROVISIONAL, the confirmed baseline is still D36's forest/gold" —
+ * long after D39 locked v5 and repainted the native execution moment to match. It even pointed at a doc path
+ * that no longer exists. That is the most dangerous kind of stale comment: an instruction. A future agent
+ * reading it would have "restored" a palette the founder had already retired, and the moment — the one screen
+ * that must not be touched casually — would have gone with it. The truth: **v5 is confirmed**; D36's *colors*
+ * are superseded, while its no-guilt *semantics* survive unchanged (gold = the one calm DONE and never a
+ * button; a miss is taupe #8B7E74 and never red). Source of truth: `docs/core/design-system.md`.
  *
  * Utility screens (home/add/settings): clean white · blue interactive · grey-grouped settings.
  * Execution moment: warm-white ground · serif commit · gold 도장(seal) DONE.

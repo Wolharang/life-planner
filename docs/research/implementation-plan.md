@@ -49,8 +49,12 @@ re-deriving the sequence.
 - **P-c · Storage cutover** (F0): migrate the running prototype's local data into the full-app model per
   **data-model §8.4** (prototype `Task` → `TimeBlock`; add `uid`/serverTimestamp/tombstones). Preserve existing local
   outcomes/history. One-time on first login; keep working offline if never logged in.
-- **P-d · Reference-app migration mapping** (F3): field-map `@expense_list`→`Expense`, `@diet_list`→`MealEntry`
-  (table below). Port the compute logic (monthly totals, category distribution) from the reference apps.
+- ~~**P-d · Reference-app migration**~~ **DONE (D59, 2026-07-13)** — and it was **NOT done in F3, despite this
+  plan saying so**. F3 did the *field mapping* only; the **data** had no way in, and `backup.ts` rejected the
+  reference apps' own export files outright. The founder's spending/meal history could not enter the app built
+  to replace those apps. Now: `expense_backup_*.json` / `diet_backup_*.json` import directly
+  (`src/core/data/referenceImport.ts`); 러닝/운동 rows are refused (D22) and photos dropped (D19), and the
+  dialog says how many were refused.
 - ~~**P-e · Design-skin lock**~~ **DONE (D39, 2026-07-11)** — v5 "Toss-form" is **confirmed**; `design-system.md`
   §1 is no longer provisional and the native execution moment was repainted to match. Nothing left here.
 - **P-f · Resolve small [TBD]s**: full-app **default lead-time** (D28, e.g. 30 min — differs from prototype's 0);
@@ -150,6 +154,35 @@ feature lands. Nothing here changes the validated execution lever — it is reus
 > **Local-first may run ahead of F0:** a feature's UI can sit on a local AsyncStorage repository and have its
 > storage impl swapped to Firestore later behind the same interface (architecture §7) — only *sync* waits.
 
+
+### The audit (2026-07-13) — five independent auditors, and what they found
+Before cutting a release APK, the whole app was audited against **every doc in `core/` and `research/`** by five
+independent agents (PRD R1–R18 · spec/data-model/architecture · design-principles/design-system/decisions ·
+research-for-dropped-features · an adversarial code-only bug hunt that was told to **ignore the docs**).
+
+**It found 8 defects that each fail in SILENCE** — no error, no crash, nothing the founder would notice until
+the self-experiment was already built on a lie. All are fixed (see `build-log.md`, 2026-07-13):
+- **Data loss:** a block with any empty optional field (e.g. no end time) failed to sync — Firestore rejects
+  `undefined`, and the rejection was swallowed — and then the **next snapshot deleted it from the phone and
+  cancelled its alarm.** The deletion rested on a rule that is **false**: *"absent from the cloud ⇒ deleted"*.
+  A real deletion leaves a **tombstone**; absent means *never received*.
+- **The lever:** the ~5-min re-check was **not persisted**, so a force-stop (a Samsung "close all") or a reboot
+  killed it and **nothing could re-arm it**. A failed exact-alarm schedule was **mirrored as if it succeeded**,
+  which **disarmed the never-fired catch-up net** — the net defeated by the very failure it exists to catch.
+- **False outcomes:** a DONE answered after midnight was filed against the **next day**, so the occurrence was
+  later auto-archived as **a miss the user had explicitly denied**. A screen rotation **double-recorded** the
+  fire. A double tap wrote **two outcomes**, or a `done` *and* a `miss`.
+- **A forbidden escape:** "오늘은 쉼" stayed tappable **after the moment had fired** (the switch was gated on the
+  block's *start*, but the moment fires at `start − lead`).
+
+**And features the docs designed that the build had quietly dropped:** the reference-app data migration (P-d,
+above), **plan templates** (the designed S3 mitigation — D58), delete confirmations, the D-1 snapshot explanation
+in onboarding, and 돌아보기 as a reachable destination.
+
+**Lesson for the next audit:** the agent told to **ignore the docs** found the worst bugs. Reading the docs first
+induces "it was decided this way, so it must be right" — and four of today's data-destroying defects were in code
+that matched its spec exactly.
+
 ### Headline
 **Everything before the backend is BUILT and founder-verified on a real device (2026-07-11).**
 The app is a working "integrated day": calendar + day plan + the execution lever + logs + day summary +
@@ -171,7 +204,7 @@ Private `origin = git@github.com:Wolharang/life-planner.git` (SSH, branch `main`
 | **F3 logs (R8/R9)** | ✅ `Expense` (`lp.expenses.v1`) + `MealEntry` (`lp.meals.v1`) + `logs/{constants,aggregate}.ts` + the real **기록 탭** + `/add-expense` · `/add-meal` (**amount/name only** → ≤2 taps). Ported per `reference-apps.md` |
 | **F4 day summary (R10)** | ✅ `DayAggregate` **derived on read** + `/summary?date=` — 계획·실행 and 기록 as **two distinct sections** (D32) |
 | **F5 evaluation (R17)** | ✅ `/review` 돌아보기 — month rollup vs the **D-1 plan of record**, fails gathered with **optional** reasons |
-| **F0 backend (Auth + Firestore + rules + cutover)** | 🟡 **BUILT, not yet device-verified (2026-07-13).** `@react-native-firebase` wired via config plugin (the console's hand-edit-Gradle instructions are **wrong for us** — `android/` is regenerated by every prebuild; the plugin injects it) · `firebase.ts` (auth) · `sync.ts` (the engine) · `/account` · `firestore.rules`. Native build compiles. **Remaining: deploy the rules, then verify on two devices.** |
+| **F0 backend (Auth + Firestore + rules + cutover)** | 🟡 **BUILT; rules deployed; email login + the lever verified on device (2026-07-13). Two-device sync still unverified.** `@react-native-firebase` wired via config plugin (the console's hand-edit-Gradle instructions are **wrong for us** — `android/` is regenerated by every prebuild; the plugin injects it) · `firebase.ts` (auth) · `sync.ts` (the engine) · `/account` · `firestore.rules`. Native build compiles. **Remaining: deploy the rules, then verify on two devices.** |
 
 #### F0 as built (2026-07-13) — the storage model, and the one ordering rule
 **AsyncStorage stays the store of record; Firestore is a mirror that switches on at login (D51).** D34's "sole

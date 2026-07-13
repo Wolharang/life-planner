@@ -818,7 +818,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" 
     return (
       <View className="bg-gold-soft rounded-full px-3 py-1">
         <Text className="text-gold" style={{ fontSize: 12, fontWeight: "700" }}>
-          됨
+          해냄
         </Text>
       </View>
     );

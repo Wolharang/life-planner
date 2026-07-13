@@ -7,6 +7,79 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-13 (evening) — the pre-release audit: five auditors, eight silent killers
+
+The founder refused to cut a release APK until the app had been checked against **every doc**, not just the
+ones we happened to remember. Five independent agents audited in parallel — PRD R1–R18 · spec/data-model/
+architecture · design/decisions · research-for-dropped-features · and **one adversarial bug hunt that was told
+to ignore the docs entirely**.
+
+**The most useful auditor was the one forbidden to read the docs.** It found the worst defects. Reading the
+spec first induces *"this was decided, so it must be right"* — and four of today's data-destroying bugs sat in
+code that matched its spec **exactly**.
+
+### The eight that fail in silence (stage 1)
+Every one of these produces no error, no crash, and nothing the founder would notice — until the
+self-experiment was already built on a lie.
+
+**Data loss.** Firestore **rejects `undefined`**, and the screens hand it rows full of them (a block with no end
+time literally carries `end: undefined`). The rejection was thrown inside `fire()` and **swallowed**, so the row
+never reached the cloud — and then the next snapshot, **seeing no such document, deleted it from the phone and
+cancelled its alarm.** Saving a workout without an end time was enough to lose it. Underneath sat a rule that is
+**false**: *"absent from the cloud ⇒ deleted."* A real deletion leaves a **tombstone** (D54); absent means the
+cloud **never received it** — created offline, push failed, restored from a backup. The blind-projection path is
+gone: every snapshot reconciles now, and reconcile cannot lose a row. Backup import, which wrote behind the
+repositories' backs, was the third way to lose data the same way.
+
+**The lever.** The ~5-minute re-check was scheduled with `persist = false` — an OS alarm with **no record behind
+it**. Android drops an app's alarms on force-stop (a Samsung "close all" does exactly that) and on reboot, and
+with nothing in the mirror **nothing could ever re-arm it**. *This is what the founder hit: he committed, closed
+the app, and "진짜 했어?" never came.* **(And it corrects yesterday's diagnosis: D55's orphan sweep was not the
+cause — the re-check was never in the mirror to be swept. The fix was still right; the reasoning was not.)*
+Separately, a **failed** exact-alarm schedule was **mirrored as if it had succeeded**, so `pastUnfiredBlocks`
+read the block as armed and **excluded it from the never-fired catch-up net** — the net disarmed by the very
+failure it exists to catch.
+
+**False outcomes** — and these are the worst, because they are not lost data but *invented* data, and we reason
+from it. A **DONE answered after midnight** was filed against the **next day**: a 23:58 block answered "응, 했어"
+at 00:03 left today's occurrence unanswered, and seven days later the catch-up net auto-archived it as **a miss
+the user had explicitly denied**. A **screen rotation** recreated `ExecutionActivity` (no `configChanges`) and
+re-recorded the fire — picking the phone up off a table double-counted the occurrence. A **double tap** wrote two
+outcomes, and an impatient 했어-then-안 했어 wrote a `done` *and* a `miss` for the same occurrence.
+
+**A forbidden escape.** "오늘은 쉼" stayed tappable **after the moment had fired**: the switch was gated on the
+block's *start*, but the moment fires at `start − lead`. With a 1-hour lead, a 21:00 block's moment appeared at
+20:00 and at 20:02 the card still offered the skip — flipping it filed a *pre-fire* skip for an occurrence that
+had already fired **and cancelled the armed re-check**. That is the post-fire escape R7 forbids.
+
+### The instrument was lying too (stage 2 — D60/D61)
+**S1's denominator was every outcome**, so 강의/점심 blocks carrying a plain `알림` — which the moment never fires
+on — were grading the lever, and could only drag it **down**. PRD §4's falsification condition would then have
+fired on a number that was measuring something else: **a working lever could have been thrown away.** **S5 was
+structurally 0% forever** (it matched `taskId`, but D37 gave every date its own id). And the whole 측정 screen sat
+behind `__DEV__` — **the release build the experiment runs on had no instrument at all.**
+
+Also: **"아직" left no trace anywhere**, so the app looked like it hadn't heard you (D61); and **no record could
+be deleted**, on a device full of test data and bug-invented outcomes — you cannot run an honest experiment on a
+log you cannot correct.
+
+### What the docs designed and the build had dropped (stage 3)
+**P-d, the reference-app data migration, was recorded as "done". It was not** (D59) — only the field mapping was.
+The founder's own budget/calorie backups **bounced off the app built to replace those apps**. **Plan templates**
+— the designed mitigation for **S3, the biggest non-technical risk** — were never built at all (D58); the app's
+only S3 support was a nudge that asks for the very effort at risk. Plus: **deleting a pre-committed block on its
+day now counts as a miss** (spec §3.6 — deletion was a silent, cost-free "can't today"); **timezone changes**
+re-armed the wrong instant (D57); granting exact-alarm later re-armed nothing; no delete confirmations; and
+**onboarding described the OLD lever** — the first thing the app ever said about its core mechanic was wrong.
+
+### Docs corrected (stage 4)
+`architecture.md` still said **"Firestore is the sole local store"** and "the storage impl is *replaced*" —
+both revoked by D51. `data-model.md` specified **`serverTimestamp()` conflict resolution that exists nowhere in
+the code**. `tailwind.config.js`'s header **instructed** a future agent that the skin was provisional and D36's
+forest/gold was the truth — the most dangerous kind of stale comment, because it is an order.
+
+---
+
 ## 2026-07-13 — F0: the backend, built (not yet device-verified)
 
 **The last phase.** Firebase is wired, the sync engine is written, `/account` exists, and the security rules

@@ -111,7 +111,7 @@ the plan-vs-actual bookkeeping — is the real target.
 - Same user logged in on multiple devices; a write on one device propagates via Firestore's realtime
   listeners to all other logged-in devices (**last-write-wins**). Firestore's offline cache keeps the app
   usable offline and syncs on reconnect.
-- Auth: **Firebase Authentication**, ID + password first; Google login later (docs/core/decisions.md D12, D17).
+- Auth: **Firebase Authentication**, ID + password first; Google login is **IN** (D52 revised D12, 2026-07-13); **Kakao** is the deferred one (docs/core/decisions.md D12, D17).
 - **Free-plan only**: all synced data is text/numbers in Firestore. Meal photos are dropped (docs/core/decisions.md
   D19), so Firebase Cloud Storage (paid since 2026-02-03) is never needed.
 

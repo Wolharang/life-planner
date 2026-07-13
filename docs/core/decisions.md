@@ -12,6 +12,70 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-13 — the full audit (5 independent auditors: PRD · spec/data/arch · design · research · code)
+
+### D57. An alarm means a WALL CLOCK, not an instant
+- **Bug.** The native mirror stored only `fireAt` (an epoch), so `BootReceiver`'s TIMEZONE_CHANGED handler
+  re-armed **the same instant** in the new zone. Fly one zone east and "21:00 헬스" arrives at **22:00 local**.
+  The layer built to survive a timezone change was doing the one thing such a change must undo. Same class of
+  failure for DST, and for a user correcting a wrong system clock.
+- **Decision.** A block's `start` **is a wall clock** (data-model §2.3: "절대시각 아님") — nine in the evening
+  *wherever you are*. The mirror now carries the wall clock the alarm **means** (`wallDate` + `wallMinute`), and
+  the instant is **re-derived in whatever zone we are in**. The stored epoch is a cache, not the truth.
+- **The exception, and why it is not one:** the **re-check** (`#recheck`) keeps its absolute instant. It is a
+  genuine *interval* — "five minutes after you committed" — not an appointment. Re-timing it to a wall clock
+  would be the same error in reverse.
+
+### D58. Templates: planning is something you PICK, not something you COMPOSE (the S3 mitigation)
+- **The gap.** PRD §4 names **S3 (does the founder actually make a next-day plan?) the single biggest
+  non-technical risk** — "if it stays ~0, the whole flow fails regardless of quality" — and the research
+  answered it (essence §3, HMW H1) with **templates**. **None of it was built.** The only S3 support in the app
+  was a nudge row saying "go plan tomorrow", which asks for **exactly the effort that is at risk**. The gap was
+  never logged as a scope cut; it simply vanished.
+- **Decision.** The last day you actually planned can be **copied into another day in one tap** (`/day`).
+- **The rule that keeps it honest:** each copy is an **independent new block** (D37 — still no recurrence),
+  **planned now** (`plannedAt = now`, snapshot = the copied values). So S3 keeps measuring the real habit and
+  **cannot be gamed by the feature built to support it** — copying tomorrow's plan tonight *is* planning ahead;
+  copying it on the day is not, and the number will say so.
+
+### D59. P-d is DONE now — the reference apps' own data can finally get in
+- **The lie in the plan.** `implementation-plan.md` recorded **P-d (reference-app migration) as "done inside
+  F3"**. Only the **field mapping** was done. The **data** had no path in — and `backup.ts` *rejected* any file
+  whose `app !== "lifeplanner"`, so the founder's own `expense_backup_*.json` / `diet_backup_*.json` **bounced
+  off the app built to replace those apps.** Half of "one integrated day" (G2) was unreachable.
+- **Decision.** The reference exports (bare JSON arrays) import directly. Rows are sniffed, not trusted:
+  `amount` → Expense, `kcal` → MealEntry.
+- **What we refuse to import, and why it matters:** the calorie app logged **러닝/운동 as diet rows**. Here a
+  workout **is a TimeBlock marked success** (D22) — importing them as meals would **invent calories nobody ate**
+  and corrupt every kcal total. They are dropped, and the dialog **says how many**, because a silent drop is a
+  lie. Photos are dropped too (D19).
+
+### D60. Measurement: S1 counts only the LEVER's universe; S5 matches the task, not the id
+- **S1 was grading the lever with blocks the lever never touched.** Its denominator was *every* outcome, so a
+  강의 or 점심 block carrying a plain `알림` — which the execution moment never fires on — could be ticked from
+  home or 돌아보기 and land in S1. Those can only drag it **down** (a soft block cannot produce an
+  `execution-screen` done). PRD §4's falsification condition is *"if S1 is no better than a plain reminder, the
+  lever has failed → stop and redesign"*: **a working lever could have been thrown away on a number that was
+  measuring something else.** S1 now counts only `alert === "execution"` blocks.
+- **S5 was structurally 0% forever.** It looked for "a later `done` with the same `taskId`", but **D37 killed
+  recurrence** — a block belongs to one date and gets a fresh id per date, so two outcomes can never share an
+  id. It was a leftover from the prototype's recurring `Task`. It now matches **the task's name**, which is what
+  actually recurs (헬스 missed Monday, 헬스 done Wednesday).
+- **The instrument shipped behind `__DEV__`** — so the **release build the self-experiment runs on had no
+  instrument at all**. Two weeks of honest use and nothing to read at the end. It is a real 자가실험 section now.
+- **The log can be corrected.** There was no way to delete a record. You cannot run an honest self-experiment on
+  a log you cannot correct, and **a false record is worse than none, because we reason from it** — this device
+  carries test blocks, prototype leftovers, and outcomes the bugs above *invented*. Long-press a line to remove
+  it; 설정 → **기록 초기화** clears the **evidence** (never the plan) for day zero.
+
+### D61. "아직" is an event worth recording — the log shows what happened, not only what was decided
+- Answering **"아직 안 했어"** deliberately records **nothing** (R7: the outcome stays *pending*, never an instant
+  miss). But 지난 기록 showed **outcomes only**, so the answer left **no trace at all**. The founder looked for
+  what he had just done, found nothing, and read the nearest unrelated line as his own.
+- **An app that keeps no record of your answer looks like an app that didn't hear you.** The fire marker already
+  knew; it simply was not shown. **"아직" is neutral data** — taupe, never red, **not a miss**, and it does not
+  enter S1. Nothing about the no-guilt model changes; only the silence does.
+
 ## 2026-07-13 — words that lied (found on the device)
 
 ### D56. A miss may only be recorded by someone who said they missed it — "미룸" → "안 했어"
