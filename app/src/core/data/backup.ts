@@ -2,9 +2,9 @@
 // LOCAL only: writes/reads a file and uses the OS share/pick sheets — NO network, NO account, so it
 // respects the prototype's offline principle (PRD R5). Import offers D24's merge vs overwrite.
 //
-// A backup bundles every `lp.*` AsyncStorage key (tasks, outcomes, fires, missed, latencies, baseline,
-// onboarded flag, settings) plus the native sound flag. On import we re-arm alarms + reminders for the
-// resulting task set so restored tasks actually fire.
+// A backup bundles every `lp.*` AsyncStorage key (blocks, events, expenses, meals, outcomes, fires,
+// missed, latencies, baseline, onboarded flag, settings) plus the native sound flag. On import we re-arm
+// every alarm/alert from the restored data so nothing is left ghosting or silently unarmed.
 
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -86,7 +86,7 @@ export async function exportBackup(): Promise<string> {
 export interface ImportResult {
   imported: boolean; // false when the user cancels the picker
   mode: ImportMode;
-  tasks: number; // task count after import (for a confirmation message)
+  blocks: number; // block count after import (for a confirmation message)
 }
 
 /** Pick a backup JSON file and apply it (merge or overwrite), then re-arm alarms + reminders. */
@@ -96,7 +96,7 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
     copyToCacheDirectory: true,
   });
   const asset = res.assets?.[0];
-  if (res.canceled || !asset) return { imported: false, mode, tasks: 0 };
+  if (res.canceled || !asset) return { imported: false, mode, blocks: 0 };
 
   const raw = await FileSystem.readAsStringAsync(asset.uri);
   let backup: Backup;
@@ -157,7 +157,7 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
   await rearmEventNotifications(await listEvents());
 
-  return { imported: true, mode, tasks: afterBlocks.length };
+  return { imported: true, mode, blocks: afterBlocks.length };
 }
 
 function safeBool(fn: () => boolean): boolean {

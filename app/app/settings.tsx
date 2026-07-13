@@ -97,7 +97,7 @@ export default function Settings() {
         const r = await importBackup(mode);
         if (r.imported) {
           await refresh();
-          Alert.alert("가져오기 완료", `${mode === "merge" ? "병합" : "덮어쓰기"} 완료 · 할 일 ${r.tasks}개.`);
+          Alert.alert("가져오기 완료", `${mode === "merge" ? "병합" : "덮어쓰기"} 완료 · 블록 ${r.blocks}개.`);
         }
       } catch (e) {
         Alert.alert("가져오기 실패", String((e as Error)?.message ?? e));

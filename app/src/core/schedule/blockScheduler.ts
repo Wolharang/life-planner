@@ -29,9 +29,12 @@ export function blockStartAt(block: TimeBlock): number {
   return new Date(y, mo - 1, d, h, mi, 0, 0).getTime();
 }
 
+/** A block the user pre-skipped ("오늘은 쉼", R7) — the single source of that fact is `status`. */
+export const isSkipped = (block: TimeBlock) => block.status === "skipped";
+
 /** When the execution moment should fire: `start − lead`. Null when the block isn't a cue target. */
 export function blockFireAt(block: TimeBlock): number | null {
-  if (!block.executionAlarm || block.skipped) return null;
+  if (!block.executionAlarm || isSkipped(block)) return null;
   return blockStartAt(block) - block.alarmLeadMinutes * 60_000;
 }
 

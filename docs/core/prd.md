@@ -259,9 +259,11 @@ re-opens over the lock screen with a **re-check: "진짜 했어?"** (did you rea
 - **"응, 했어"** → **DONE** (one calm gold signal "안 하던 걸 해냈다"; **no confetti/streak**).
 - **"아직 안 했어"** → **5·4·3·2·1 countdown** → **"지금 나가."** (pushes them out) → dismiss; the outcome stays
   **pending** (a neutral, no-guilt catch-up later — never an immediate "miss" punishment).
-The moment is **LIGHT** (never a dark takeover); **no in-flow "can't-today" escape** — the only responses are
-**응/아직** at commit and **응 했어 / 아직 안 했어** at re-check (neither is an escape); the intentional skip is the
-**pre-fire, re-togglable "오늘은 쉼"** per-occurrence toggle. *(This revises the prototype flow COMMIT→immediate
+The commit card also carries the **micro-start** ("딱 첫 동작 — 지금 신발 신기", A2: ask for the 5-second first
+move, not the task). The moment is **LIGHT** (never a dark takeover); **no in-flow "can't-today" escape** — the
+commit's only response is the acknowledgement **"응, 할게"**, and the re-check's are **응 했어 / 아직 안 했어**
+(neither is an escape; **the hardware Back button is a no-op** — it was a silent side door out of the
+countdown). The intentional skip is the **pre-fire, re-togglable "오늘은 쉼"** per-occurrence toggle. *(This revises the prototype flow COMMIT→immediate
 5·4·3·2·1→micro-start→GO; the counter-deliberation countdown now runs on the re-check's "아직 안 했어", not before
 commit — see the design-principles A2 note.)*
 - *Acceptance:* the commit fires within **±`[TBD: 1 min]`** (S2) over the lock screen under kill/Doze/reboot; a
@@ -270,10 +272,12 @@ commit — see the design-principles A2 note.)*
   module (`app/modules/lp-alarm`).
 
 **R8 — In-the-moment expense logging.** **[P0]** A **separate 기록 (Logs)** surface logs an expense **when money is
-spent**: amount, **category (8 fixed, D16)**, payment (**free-text**, D26), store, name; **KRW only** (D25);
+spent**: amount, **category (8 fixed, D16)**, payment (**free-text**, D26), store, name, memo; **KRW only** (D25);
 monthly total + per-day subtotals + category distribution. Port `reference/calculator.js` (fields/logic).
-- *Acceptance:* log an expense in **≤2 taps** + amount; monthly total & category distribution match the reference
-  app; entries sync; **not** shown on the plan/execution surface.
+**Only the amount is required** — the reference app's mandatory *name* is the single biggest friction, and a
+forgotten log is the problem we're solving, so a blank name falls back to the category (C2/S4).
+- *Acceptance:* log an expense in **≤2 taps** + amount (**no second keyboard trip**); monthly total & category
+  distribution match the reference app; entries sync; **not** shown on the plan/execution surface.
 
 **R9 — In-the-moment meal/calorie logging.** **[P0]** The Logs surface logs a meal **when eating**: mealType
 (아침/점심/저녁/간식), foodName (required), detail, **kcal (manual, D27)**; **no photo** (D19). Per-meal targets
@@ -317,9 +321,11 @@ carries **exactly one** type. Everything else is quiet/opt-in (sound default off
 
 **R16 — First-run onboarding & permissions (enabler).** **[P0]** Explain **why** before requesting; drive the
 notification / exact-alarm / full-screen-intent / battery-optimization grants; any denial falls through to a
-persistent, gentle home banner (never fail silently).
-- *Acceptance:* permissions are requested with rationale, not cold; a denied grant surfaces a one-tap banner to the
-  right setting.
+persistent, gentle home banner (never fail silently). **All three of notification / exact-alarm / full-screen-intent
+gate the lever** — the cue is delivered *as* a full-screen-intent **notification**, so a denied POST_NOTIFICATIONS
+kills it just as dead as a denied exact-alarm, and the banner must watch **all three**.
+- *Acceptance:* permissions are requested with rationale, not cold; a denied grant — **including notifications** —
+  surfaces a one-tap banner to the right setting; the lever never fails silently.
 
 **R17 — Plan-vs-actual evaluation (LATER).** **[P2 / Later]** Per time-block **success/fail + free-text
 failReason** (D5), evaluated against the **D-1 snapshot** (D23); a simple month rollup of executed-vs-planned and a

@@ -11,8 +11,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState, type ReactNode } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addBlocks, updateBlock, deleteBlock, listBlocks, type TimeBlock } from "@/core/data/blockRepository";
-import { scheduleBlock, unscheduleBlock, snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
+import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { getSettings } from "@/core/data/settingsRepository";
+import { newId } from "@/core/data/id";
 import type { BlockKind } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -154,15 +155,14 @@ export default function AddBlock() {
         ...snapshotFor(live, orig, now), // a same-day edit moves the alarm, never the plan of record (D23)
         updatedAt: now,
       };
-      await updateBlock(updated);
-      scheduleBlock(updated);
+      await updateBlock(updated); // the repository re-arms / cancels the alarm (architecture §9-2)
       router.back();
       return;
     }
 
     // Add: one independent block per ticked date (not a repeat — each is its own block).
-    const created: TimeBlock[] = targetDates.map((date, i) => ({
-      id: `block-${now}-${i}`,
+    const created: TimeBlock[] = targetDates.map((date) => ({
+      id: newId("block"),
       date,
       ...common,
       ...snapshotFor({ date, start, end, title: common.title }, null, now),
@@ -170,15 +170,13 @@ export default function AddBlock() {
       createdAt: now,
       updatedAt: now,
     }));
-    await addBlocks(created);
-    for (const b of created) scheduleBlock(b);
+    await addBlocks(created); // arms each one
     router.back();
   };
 
   const remove = async () => {
     if (!editId) return;
-    unscheduleBlock(editId); // cancel first → no ghost fire
-    await deleteBlock(editId);
+    await deleteBlock(editId); // evicts the alarm → no ghost fire
     router.back();
   };
 

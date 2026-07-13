@@ -41,7 +41,7 @@ describe("blockFireAt (R7)", () => {
   });
 
   it("does not fire on a pre-skipped block (오늘은 쉼)", () => {
-    expect(blockFireAt(block({ skipped: true }))).toBe(null);
+    expect(blockFireAt(block({ status: "skipped" }))).toBe(null);
   });
 });
 

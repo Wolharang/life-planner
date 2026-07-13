@@ -154,7 +154,7 @@ every other screen stays in the 12–24 restrained range (C1).
 | Component | Decision | 기준 (why) |
 |---|---|---|
 | **Button** | Primary (brand fill · pill · ≥48dp · **one per screen**); Secondary (ghost/outline); Text. Destructive = **muted, never alarm-red**. | A3 (one clear primary) · B1 (no aggressive/red) |
-| **Task row (할 일)** | title `body` · effective time (mono `caption`, `inkSoft`) · alarm & recurrence marks · **outcome dot** (done=`accent` gold · **miss=`inkFaint` neutral** · pending=outline). ≥48dp. | B1 (miss neutral, never red) · A3 (scannable) · C2 (conventional row) |
+| **Block row (시간 블록)** | title `body` · start(–end) (mono `caption`, `inkSoft`) · 실행 알림 mark · **outcome** (done=`accent` gold · **miss=`miss` taupe, never red** · 쉼=neutral · pending=none). ≥48dp. *(프로토타입의 "할 일 row"가 이것으로 대체됨 — 반복 표식 없음, D37.)* | B1 (miss neutral, never red) · A3 (scannable) · C2 (conventional row) |
 | **Input / field** | `fieldBg`, radius 8, ≥48dp · **inline validation in `warn`** (the *무효* state), not a red alarm | user-flow 무효 vs 에러 · A3 |
 | **Toggle** | execution-alarm (**default ON**, prominent) · settings sound. `brand` when on. | user-flow re-check (no "do-nothing task") |
 | **Execution-moment surface** ★ | full-bleed `execBg` · `commitLine` → `countdown` → `microStart` → single primary "시작할게" · done = "안 하던 걸 해냈다" + **one** gold mark, **no confetti**. **Custom-built** (not a library component). | A1 (deepest craft) · A3 (contrast) · B1 (calm done) |
@@ -194,9 +194,9 @@ badge collection / trophies / levels · **no** leaderboard · **no** red "실패
 | **Micro-start + confirm** (v0.5 병합) | 5초짜리 첫 동작(노트 또는 기본)과 "시작했어?"를 **한 화면에**(BeReal식). **응/아직만** · 자동 타임아웃. **인-플로우 이탈구 없음** — "오늘은 쉼"은 발화 *전* 사전 토글(R1) | A2/B1 — 이탈은 착수 *전*에만 |
 | **GO 추진 비트** (v0.6) | 응 직후 **"이제 그대로 나가."**로 실제로 나가게 미는 짧은 단계(신발 신기 ≠ 완료), 전진 전용 | A1/A2 |
 | **Outcome dot** | done=gold · miss=taupe · pending=outline | B1 |
-| **Lead-time preset picker** | {정각/15/30/60분/직접} 칩 | 사용자 결정 |
-| **Plain-reminder offset picker** | 다중 선택 {정각/15/30/60/직접} | D35 |
-| **Recurrence picker** | 없음/매일/매주 | D35 |
+| **Lead-time preset picker** | {정각/10/30/60분/직접} 칩 | 사용자 결정 |
+| ~~**Plain-reminder offset picker**~~ | **블록에서 폐기(D38)** — 소프트 알림은 **중요일정(R3)** 에만 있고, 리드 칩 하나로 고른다 | D38 |
+| ~~**Recurrence picker**~~ | **폐기(D37)** — 대신 **여러 날짜 일괄 선택기**(추가 화면의 날짜 칩 줄): N개 날짜 → **독립 블록 N개**. 문구로 "반복이 아니라 각각 따로"임을 밝힌다 | D37 |
 | **Catch-up banner** | 2변형 부드러운 프롬프트("놓쳤어요"/"아직 안 했죠") | B1/R6 |
 | **Permission/degraded banner** | "실행 알림이 잠금화면을 못 뚫어요 — 켜기" | user-flow(조용히 실패 금지) |
 

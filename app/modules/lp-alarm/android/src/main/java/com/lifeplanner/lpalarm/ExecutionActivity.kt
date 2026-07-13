@@ -154,6 +154,18 @@ class ExecutionActivity : Activity() {
     super.onDestroy()
   }
 
+  /**
+   * **No in-flow escape** (PRD R7 · design-principle A2 · CLAUDE.md): once the moment is up, the only
+   * ways out are the moment's own answers (응, 할게 / 응, 했어 / 아직 안 했어 → 나가) or its timeouts.
+   * Back was a silent side door — it let the deliberating brain leave mid-countdown, which is exactly
+   * what the countdown exists to prevent. It is deliberately a no-op. (The intentional skip is the
+   * PRE-fire "오늘은 쉼" toggle; nothing here punishes leaving — an unanswered moment stays pending.)
+   */
+  @Suppress("DEPRECATION", "MissingSuperCall")
+  override fun onBackPressed() {
+    // no-op
+  }
+
   private fun render(phase: String) {
     handler.removeCallbacksAndMessages(null)
     if (phase != "commit") stopSound() // the alarm tone rings during COMMIT, then hands off to haptics
@@ -176,19 +188,6 @@ class ExecutionActivity : Activity() {
         setContentView(leaveGoView())
         after(3_500) { dismiss() } // pushed out; outcome stays pending (no guilt) — catch-up resolves it
       }
-      "countdown" -> {
-        count = 5
-        renderCountdown()
-      }
-      "act" -> {
-        setContentView(actView())
-        after(60_000) { render("pending") } // MICRO+CONFIRM auto → PENDING
-      }
-      "go" -> {
-        vibrate(40)
-        setContentView(goView())
-        after(3_500) { render("done") }
-      }
       "done" -> {
         recordDone()
         vibrate(90)
@@ -198,18 +197,14 @@ class ExecutionActivity : Activity() {
     }
   }
 
-  private fun renderCountdown() {
-    setContentView(countView(count))
-    vibrate(25)
-    if (count <= 1) after(1_000) { render("act") }
-    else after(1_000) { count -= 1; renderCountdown() }
-  }
-
   // --- views ---
 
   private fun commitView(): View = column().apply {
     addView(label("내가 정한 약속", 13, soft))
     addView(label(commitLine(), 23, ink, top = 12, bold = true))
+    // A2: ask for the 5-second FIRST MOVE, not the task. The micro-start note lost its screen when the
+    // flow became commit → re-check, so it lives here now — the one thing to do in the next 5 seconds.
+    if (note.isNotEmpty()) addView(label("딱 첫 동작 — $note", 17, soft, top = 14))
     // v1: commit only acknowledges — the "진짜 했어?" re-check comes ~5 min later (already armed).
     addView(brandButton("응, 할게") { dismiss() })
   }
@@ -230,7 +225,8 @@ class ExecutionActivity : Activity() {
 
   private fun leaveGoView(): View = column().apply {
     addView(label("지금 나가.", 28, ink, bold = true))
-    addView(label("딱 첫 동작만 — 나가면 이긴다.", 16, soft, top = 12))
+    // B2: 어제의 나의 목소리 — 이기고 지는 경쟁 프레임이 아니라, 딱 첫 동작만 하면 된다는 사실.
+    addView(label("딱 첫 동작만 하면 돼.", 16, soft, top = 12))
     addView(brandButton("나간다 →") { dismiss() })
   }
 
@@ -251,26 +247,6 @@ class ExecutionActivity : Activity() {
       })
     }
     addView(row)
-  }
-
-  private fun actView(): View = column().apply {
-    addView(label("딱 첫 동작", 13, soft))
-    addView(label(if (note.isNotEmpty()) note else "딱 첫 동작만 — 지금 일어나기", 27, ink, top = 12, bold = true))
-    addView(View(this@ExecutionActivity).apply {
-      setBackgroundColor(line)
-      layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
-        topMargin = dp(30); bottomMargin = dp(30)
-      }
-    })
-    addView(label("시작했어?", 22, ink, bold = true))
-    addView(brandButton("응, 시작했어") { render("go") })
-    addView(textLink("아직", top = 22) { render("pending") })
-  }
-
-  private fun goView(): View = column().apply {
-    addView(label("이제 그대로 나가.", 28, ink, bold = true))
-    addView(label("여기서 멈추면 아까워.", 16, soft, top = 12))
-    addView(brandButton("나간다 →") { render("done") })
   }
 
   private fun doneView(): View = column(Gravity.CENTER).apply {

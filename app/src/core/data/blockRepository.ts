@@ -2,13 +2,20 @@
 // pattern as eventRepository — features talk to this interface, never storage, so the impl swaps to
 // Firestore at F0 without touching any screen (architecture §7).
 //
+// **Alarm discipline lives HERE, not in the screens** (architecture §9-2: write-through on save,
+// eviction on delete — "고스트 알람 방지"). Every mutation below reconciles the native alarm for the
+// blocks it touched, so a future Firestore impl (where deletes arrive from a listener, not a screen)
+// cannot bypass it.
+//
 // It also owns the ONE-TIME prototype migration (data-model §8.4): the old `lp.tasks.v1` Task list is
 // converted to per-date blocks the first time blocks are read, then the old key is dropped. Recurrence
-// has no home in the full-app model, so a recurring task lands as a single block on today (the founder
-// re-places it on the days he wants — the add screen can do several dates at once).
+// has no home in the full-app model (D37), so a recurring task lands as a single block on today.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { BlockKind, Task, TimeBlock } from "./types";
+import { alarm } from "@/core/notifications/alarm";
+import { cancelReminders } from "@/core/notifications/plainReminders";
+import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
 
 const KEY = "lp.blocks.v1";
 const LEGACY_KEY = "lp.tasks.v1";
@@ -27,6 +34,7 @@ export function guessKind(title: string): BlockKind {
 }
 
 function fromTask(t: Task, date: string): TimeBlock {
+  const skipped = (t.skippedDates ?? []).includes(date);
   return {
     id: t.id, // keep the id → existing outcomes/fires/latencies stay attached to their block
     date,
@@ -36,34 +44,61 @@ function fromTask(t: Task, date: string): TimeBlock {
     executionAlarm: t.executionAlarm,
     alarmLeadMinutes: t.leadMinutes,
     microStartNote: t.microStartNote,
-    skipped: (t.skippedDates ?? []).includes(date),
     snapStart: t.setTime,
     snapTitle: t.title,
     plannedAt: t.createdAt,
-    status: "planned",
+    status: skipped ? "skipped" : "planned",
     createdAt: t.createdAt,
     updatedAt: Date.now(),
   };
 }
 
-/** Idempotent: runs at most once (it deletes the legacy key), and no-ops when there's nothing to move. */
+/**
+ * Idempotent one-time move (§8.4). Two things beyond the data itself, both mandatory:
+ *  · **Evict the prototype's alarms.** A `daily`/`weekly` task's alarm re-arms itself natively (mirror →
+ *    AlarmReceiver → BootReceiver), so if we only rewrote storage it would keep firing **forever** with
+ *    no block behind it — ghost fires that poison the catch-up net and the metrics. Same for its soft
+ *    reminders, which blocks may no longer have at all (D38).
+ *  · **Re-arm the migrated blocks** from their new (per-date) times.
+ * The legacy key is dropped **only after** the new payload is safely written — an earlier version deleted
+ * it even when the write threw, which would have destroyed the prototype's data.
+ */
 async function ensureMigrated(): Promise<void> {
   const legacy = await AsyncStorage.getItem(LEGACY_KEY);
   if (!legacy) return;
-  const existing = await AsyncStorage.getItem(KEY);
+
+  let tasks: Task[];
   try {
-    const tasks = JSON.parse(legacy) as Task[];
-    const blocks = existing ? (JSON.parse(existing) as TimeBlock[]) : [];
-    const have = new Set(blocks.map((b) => b.id));
-    const today = ymd(new Date());
-    for (const t of tasks) {
-      if (!have.has(t.id)) blocks.push(fromTask(t, today));
-    }
-    await AsyncStorage.setItem(KEY, JSON.stringify(blocks));
+    tasks = JSON.parse(legacy) as Task[];
+    if (!Array.isArray(tasks)) throw new Error("not an array");
   } catch {
-    // corrupt legacy payload — drop it rather than block the app on it
+    await AsyncStorage.removeItem(LEGACY_KEY); // unreadable legacy payload — nothing to save
+    return;
   }
+
+  const existingRaw = await AsyncStorage.getItem(KEY);
+  let blocks: TimeBlock[] = [];
+  if (existingRaw) {
+    try {
+      blocks = JSON.parse(existingRaw) as TimeBlock[];
+    } catch {
+      return; // the DESTINATION is corrupt — keep the legacy key rather than lose both
+    }
+  }
+
+  const have = new Set(blocks.map((b) => b.id));
+  const today = ymd(new Date());
+  const migrated = tasks.filter((t) => !have.has(t.id)).map((t) => fromTask(t, today));
+  await AsyncStorage.setItem(KEY, JSON.stringify([...blocks, ...migrated])); // throws → legacy survives
   await AsyncStorage.removeItem(LEGACY_KEY);
+
+  // Alarms: kill every prototype alarm/reminder first (recurring ones would otherwise fire forever),
+  // then arm the migrated blocks at their new per-date times.
+  for (const t of tasks) {
+    unscheduleBlock(t.id);
+    await cancelReminders(t.id); // blocks carry no soft reminder (D38)
+  }
+  for (const b of migrated) scheduleBlock(b);
 }
 
 export async function listBlocks(): Promise<TimeBlock[]> {
@@ -72,26 +107,48 @@ export async function listBlocks(): Promise<TimeBlock[]> {
   return raw ? (JSON.parse(raw) as TimeBlock[]) : [];
 }
 
-export async function saveBlocks(blocks: TimeBlock[]): Promise<void> {
+/** Raw write — callers must reconcile alarms themselves. Internal; the exported mutations below do it. */
+async function writeBlocks(blocks: TimeBlock[]): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(blocks));
 }
 
 export async function addBlock(block: TimeBlock): Promise<void> {
-  await saveBlocks([...(await listBlocks()), block]);
+  await addBlocks([block]);
 }
 
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
-  await saveBlocks([...(await listBlocks()), ...blocks]);
+  await writeBlocks([...(await listBlocks()), ...blocks]);
+  for (const b of blocks) scheduleBlock(b); // write-through (architecture §9-2)
 }
 
 export async function updateBlock(block: TimeBlock): Promise<void> {
   const blocks = await listBlocks();
-  await saveBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
+  await writeBlocks(blocks.map((b) => (b.id === block.id ? block : b)));
+  scheduleBlock(block); // moves / cancels the alarm to match the new state (off · skipped · past → none)
 }
 
 export async function deleteBlock(id: string): Promise<void> {
   const blocks = await listBlocks();
-  await saveBlocks(blocks.filter((b) => b.id !== id));
+  await writeBlocks(blocks.filter((b) => b.id !== id));
+  unscheduleBlock(id); // eviction — no ghost fire behind a deleted block
+}
+
+/**
+ * Re-derive every block alarm from storage. Architecture §11 layer 4 ("앱 포그라운드 진입 시 저장소에서
+ * 재예약"): the repository is the truth, the native mirror is a derived cache, so any divergence (a
+ * failed schedule, cleared app data, a restored backup, later a Firestore listener) heals on app open.
+ */
+export async function rearmBlockAlarms(): Promise<void> {
+  const armed = new Set<string>();
+  try {
+    for (const a of alarm.getScheduled()) armed.add(a.id);
+  } catch {
+    // native unavailable (dev skew) — still (re)schedule below; cancels of unknown ids are harmless
+  }
+  const blocks = await listBlocks();
+  const live = new Set(blocks.map((b) => b.id));
+  for (const id of armed) if (!live.has(id)) unscheduleBlock(id); // orphan alarm → evict
+  for (const b of blocks) scheduleBlock(b);
 }
 
 /** A day's blocks in clock order — the day view and My Day both read the day this way. */

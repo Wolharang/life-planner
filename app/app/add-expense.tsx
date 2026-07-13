@@ -10,6 +10,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addExpense, updateExpense, deleteExpense, listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { CATEGORY_COLOR, CATEGORY_ICON, EXPENSE_CATEGORIES } from "@/core/logs/constants";
 import { stampFor } from "@/core/logs/aggregate";
+import { newId } from "@/core/data/id";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import type { ExpenseCategory } from "@/core/data/types";
 
@@ -31,6 +32,7 @@ export default function AddExpense() {
   const [amount, setAmount] = useState("");
   const [store, setStore] = useState("");
   const [payment, setPayment] = useState("");
+  const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,28 +47,34 @@ export default function AddExpense() {
       setAmount(String(e.amount));
       setStore(e.store ?? "");
       setPayment(e.payment ?? "");
+      setMemo(e.memo ?? "");
     })();
   }, [editId]);
 
   const amountNum = parseInt(amount.replace(/,/g, ""), 10); // the reference app strips commas
-  const canSave = name.trim().length > 0 && !isNaN(amountNum) && amountNum > 0;
+  // The bar is **≤2 taps + the amount** (S4/R8): only the amount is genuinely required. A blank name
+  // falls back to the category (간식 → "간식"), so logging never demands the keyboard twice — the
+  // reference app's "name required" gate was the single biggest friction, and forgotten logs are the
+  // problem we're solving (C2).
+  const canSave = !isNaN(amountNum) && amountNum > 0;
 
   const save = async () => {
     if (!canSave) {
-      setError(name.trim() ? "금액을 숫자로 적어주세요." : "이름과 금액을 적어주세요.");
+      setError("금액을 적어주세요.");
       return;
     }
     const now = Date.now();
     const expense: Expense = {
-      id: editId ?? `expense-${now}`,
+      id: editId ?? newId("expense"),
       date,
       // the reference apps' convention: the CHOSEN date + the current clock time
       timestamp: orig?.date === date ? orig.timestamp : stampFor(date, now),
-      name: name.trim(),
+      name: name.trim() || category,
       amount: amountNum,
       category,
       store: store.trim() || undefined,
       payment: payment.trim() || undefined,
+      memo: memo.trim() || undefined,
       createdAt: orig?.createdAt ?? now,
       updatedAt: now,
     };
@@ -151,7 +159,7 @@ export default function AddExpense() {
             setName(t);
             setError(null);
           }}
-          placeholder="이름 (예: 점심 식사, 커피, 버스)"
+          placeholder="이름 (선택 — 비우면 분류 이름)"
           placeholderTextColor="#B0B8C1"
           className="text-ink"
           style={{ fontSize: 17, fontWeight: "600", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 26 }}
@@ -176,6 +184,16 @@ export default function AddExpense() {
             style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 6 }}
           />
         </View>
+
+        {/* memo (optional) — data-model §2.4 */}
+        <TextInput
+          value={memo}
+          onChangeText={setMemo}
+          placeholder="메모 (선택)"
+          placeholderTextColor="#B0B8C1"
+          className="text-ink"
+          style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 6 }}
+        />
 
         {/* date — defaults to today; only touched when back-filling */}
         <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", marginTop: 26, marginBottom: 10 }}>

@@ -14,7 +14,9 @@
 ## 0. 설계 원칙
 - **로컬 우선(D2)**: 로컬 저장소가 진실 소스, Firestore는 사본. 모든 엔티티는 오프라인에서 생성·수정 가능.
 - **사용자별 격리(D3)**: 모든 데이터는 `uid` 아래. 단일→다수 사용자 확장 시 재설계 없음.
-- **클라이언트 생성 ID**: 각 레코드 `id`는 앱이 만든 UUID → 서버 없이(오프라인) 즉시 생성. 동기화 충돌 순서는 **Firestore `serverTimestamp()`** 기준 last-write-wins(D17; 클라 `updatedAt`은 시계편차로 판정에 안 씀 — §6).
+- **클라이언트 생성 ID**: 각 레코드 `id`는 앱이 만든 **랜덤 ID**(`src/core/data/id.ts`) → 서버 없이(오프라인) 즉시
+  생성. **시각만으로 만들면 안 된다** — 두 기기가 같은 밀리초에 오프라인 생성하면 같은 id가 나오고, last-write-wins가
+  서로 무관한 두 레코드를 조용히 합쳐버린다. 동기화 충돌 순서는 **Firestore `serverTimestamp()`** 기준 last-write-wins(D17; 클라 `updatedAt`은 시계편차로 판정에 안 씀 — §6).
 - **두 개의 조인 키**: **`uid`(소유)** + **`date`(하루 묶음, 기기 로컬 자정 기준)**. 하루가 통합의 단위(D6, "병합 아닌 연결" D32).
 - **계획 vs 기록의 시간성 분리(D6)**: 시간블록은 **미리(D-1)** 만들고, 지출·식사는 **그 순간** 만든다.
 
@@ -94,7 +96,8 @@
 | `id` | string | ✓ | 클라 | |
 | `date` | date | ✓ | 구매 순간 | |
 | `timestamp` | timestamp | ✓ | 구매 순간 | 그때그때(D6) |
-| `amount` | number | ✓ | 구매 | **원(KRW) 단일 통화**(D25) |
+| `amount` | number | ✓ | 구매 | **원(KRW) 단일 통화**(D25). **유일한 필수 입력** — S4(≤2탭)를 지키기 위해 |
+| `name` | string | ✓ | 구매 | 소비 이름(레퍼런스 `@expense_list`의 필수 필드). **비우면 카테고리명으로 자동 채움** — 키보드를 두 번 요구하지 않기 위해(S4) |
 | `category` | enum(8 고정) | ✓ | 구매 | D16(아래) |
 | `payment` | string | ○ | 구매 | 카드/결제수단 **자유 텍스트**(D26) |
 | `store` | string | ○ | 구매 | |
@@ -114,7 +117,7 @@
 | `foodName` | string | ✓ | 식사 | |
 | `kcal` | number | ✓ | 식사 | **수동 입력만**(D27) |
 | `detail` | string | ○ | 식사 | |
-| `mealType` | enum `breakfast\|lunch\|dinner\|snack` | ✓ | 식사 | |
+| `mealType` | enum **`아침\|점심\|저녁\|간식`** | ✓ | 식사 | **저장되는 값 자체가 한글 리터럴**(레퍼런스 `@diet_list`와 동일 · `KCAL_TARGET`의 키). 표시용이 아니라 **on-disk 열거값**이라, 영문 식별자로 바꾸려면 데이터 마이그레이션이 필요하다 — 그럴 이유가 없어 레퍼런스를 그대로 따른다 |
 | `createdAt/updatedAt` | timestamp | ✓ | 자동 | |
 - **사진 필드 없음(D19)** — Cloud Storage 유료 회피.
 - **생성 위치/시점**: Logs 탭, 밥 먹는 순간.

@@ -22,6 +22,32 @@ function getNotifications(): any | null {
   }
 }
 
+// R15 is a *policy*, so it must be enforced by the channel, not by hope: the soft alert gets its own
+// channel with **DEFAULT importance, no sound, PRIVATE lock-screen visibility** — it informs, it does
+// not pierce. (The execution cue's channel is the opposite by design: HIGH + bypassDnd + PUBLIC, set
+// natively in AlarmNotifications.kt.) Android freezes a channel's settings after creation, so this id
+// is versioned — bump it if the policy ever changes.
+const SOFT_CHANNEL_ID = "lp-soft-v1";
+let softChannelReady = false;
+
+async function ensureSoftChannel(N: any): Promise<string | undefined> {
+  if (softChannelReady) return SOFT_CHANNEL_ID;
+  try {
+    await N.setNotificationChannelAsync(SOFT_CHANNEL_ID, {
+      name: "알림 (조용히)",
+      importance: N.AndroidImportance.DEFAULT, // not HIGH → no heads-up takeover
+      sound: null, // C1: sound off by default; the cue is the only loud thing
+      vibrationPattern: [0, 120],
+      lockscreenVisibility: N.AndroidNotificationVisibility.PRIVATE,
+      bypassDnd: false,
+    });
+    softChannelReady = true;
+    return SOFT_CHANNEL_ID;
+  } catch {
+    return undefined; // channel API unavailable (non-Android / not linked) — schedule without it
+  }
+}
+
 /** Android 13+ runtime notification permission — needed by plain reminders (and the FSI-degraded
  *  heads-up). Requested from first-run onboarding (PRD §8). No-op if the native module isn't linked. */
 export async function requestNotificationPermission(): Promise<void> {
@@ -86,13 +112,14 @@ export async function scheduleReminders(task: Task): Promise<void> {
   if (!N) return;
   try {
     await cancelReminders(task.id);
+    const channelId = await ensureSoftChannel(N);
     for (const offset of task.plainReminderOffsets ?? []) {
       const at = nextReminderAt(task.setTime, offset, task.recurrence, Date.now());
       if (at == null) continue;
       await N.scheduleNotificationAsync({
         identifier: `${task.id}-r${offset}`,
         content: { title: task.title, body: `${offset}분 후 · ${task.setTime}` },
-        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
       });
     }
   } catch {
@@ -147,13 +174,14 @@ export async function scheduleEventNotification(event: ImportantEvent): Promise<
     const lead = event.notifyLeadMinutes ?? (await defaultLead());
     const at = eventNotifyAt(event, lead, Date.now());
     if (at == null) return;
+    const channelId = await ensureSoftChannel(N); // R15: soft, quiet, does not pierce the lock screen
     await N.scheduleNotificationAsync({
       identifier: `${event.id}${EVENT_SUFFIX}`,
       content: {
         title: event.title,
         body: lead > 0 ? `${lead}분 후 · ${event.time}` : `지금 · ${event.time}`,
       },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
     });
   } catch {
     // best-effort

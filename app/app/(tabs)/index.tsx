@@ -12,17 +12,17 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import Svg, { Path, Circle } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { listBlocks, blocksOn, deleteBlock, updateBlock, type TimeBlock } from "@/core/data/blockRepository";
 import {
-  unscheduleBlock,
-  scheduleBlock,
-  blockFireAt,
-  blockStartAt,
-  pastUnfiredBlocks,
-  todayYmd,
-  shiftYmd,
-} from "@/core/schedule/blockScheduler";
+  listBlocks,
+  blocksOn,
+  deleteBlock,
+  updateBlock,
+  rearmBlockAlarms,
+  type TimeBlock,
+} from "@/core/data/blockRepository";
+import { blockFireAt, blockStartAt, isSkipped, pastUnfiredBlocks, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { recordOutcome, removeOutcome, listOutcomes, type OutcomeRecord } from "@/core/data/outcomeRepository";
+import { notificationPermissionGranted } from "@/core/notifications/plainReminders";
 import { listFires, setFires, appendFires, type FireRecord } from "@/core/data/firedRepository";
 import { listMisses, setMisses, appendMisses, type MissedRecord } from "@/core/data/missedRepository";
 import { appendLatencies } from "@/core/data/latencyRepository";
@@ -86,7 +86,7 @@ export default function Home() {
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
   const [catchUps, setCatchUps] = useState<CatchUpItem[]>([]);
-  const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean } | null>(null);
+  const [needsPerm, setNeedsPerm] = useState<{ exact: boolean; fsi: boolean; notif: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -106,6 +106,8 @@ export default function Home() {
       const all = await listBlocks();
       const b = all.find((x) => x.id === blockId);
       if (b) {
+        // `status` is the single field (a settled block can't also read as 쉼), and updateBlock
+        // reconciles the alarm, so a settled block never keeps a live cue.
         await updateBlock({
           ...b,
           status: status === "done" ? "success" : "fail",
@@ -199,12 +201,16 @@ export default function Home() {
     setCatchUps(items);
   }, [settle]);
 
-  // §8 graceful-denial: the lever dies silently if the OS denies exact-alarm / full-screen-intent.
-  const checkReadiness = useCallback(() => {
+  // §8 graceful-denial (R16): the lever dies **silently** if the OS denies any of the three grants it
+  // needs — and POST_NOTIFICATIONS is one of them: the cue is delivered as a full-screen-intent
+  // *notification*, and the native path swallows the SecurityException when it's missing. Checking only
+  // exact-alarm + FSI left exactly the failure mode R16 exists to prevent. Never fail silently.
+  const checkReadiness = useCallback(async () => {
     try {
       const exact = alarm.canScheduleExactAlarms();
       const fsi = alarm.canUseFullScreenIntent();
-      setNeedsPerm(exact && fsi ? null : { exact, fsi });
+      const notif = await notificationPermissionGranted();
+      setNeedsPerm(exact && fsi && notif ? null : { exact, fsi, notif });
     } catch {
       setNeedsPerm(null); // native not linked (dev skew) — don't block the app
     }
@@ -226,8 +232,12 @@ export default function Home() {
       await appendLatencies(enriched);
     }
     await computeCatchUps();
-    checkReadiness(); // §8 permission banner
-    await rearmEventNotifications(await listEvents()); // R3 advance alerts survive reboot/reinstall
+    await checkReadiness(); // §8/R16 permission banner
+    // Self-healing (architecture §11 layer 4): re-derive every alarm from the repositories, so a
+    // divergence from the native mirror (cleared data, restored backup, failed schedule, migration)
+    // is corrected on app open instead of silently dropping — or ghosting — a cue.
+    await rearmBlockAlarms();
+    await rearmEventNotifications(await listEvents());
     load();
   }, [load, computeCatchUps, checkReadiness, settle]);
 
@@ -260,8 +270,7 @@ export default function Home() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
-          unscheduleBlock(block.id); // cancel the alarm first → no ghost fire
-          await deleteBlock(block.id);
+          await deleteBlock(block.id); // the repository evicts the alarm → no ghost fire
           load();
         },
       },
@@ -272,15 +281,14 @@ export default function Home() {
   // (source `pre-skip`) makes it visible in history and keeps it out of the catch-up net; un-toggling
   // removes that record and re-arms the block, so nothing stale is left behind.
   const toggleSkip = async (block: TimeBlock) => {
-    const skipped = !block.skipped;
-    if (skipped) {
+    const skip = !isSkipped(block);
+    if (skip) {
       await recordOutcome({ taskId: block.id, title: block.title, date: block.date, status: "skipped", source: "pre-skip", at: Date.now() });
     } else {
       await removeOutcome(block.id, block.date, "pre-skip");
     }
-    const updated: TimeBlock = { ...block, skipped, status: skipped ? "skipped" : "planned", updatedAt: Date.now() };
-    await updateBlock(updated);
-    scheduleBlock(updated); // skipped → cancels; un-skipped → re-arms
+    // updateBlock re-arms / cancels the alarm for us (the repository owns that, architecture §9-2).
+    await updateBlock({ ...block, status: skip ? "skipped" : "planned", updatedAt: Date.now() });
     load();
   };
 
@@ -318,7 +326,7 @@ export default function Home() {
   }));
 
   // The hero = the next block still ahead today (a flagged one wins ties by being earlier anyway).
-  const hero = blockRows.find((r) => !r.started && !r.block.skipped) ?? null;
+  const hero = blockRows.find((r) => !r.started && !isSkipped(r.block)) ?? null;
 
   const historyRows: HomeRow[] = outcomes.slice(0, 12).map((outcome) => ({ kind: "history", outcome }));
   const rows: HomeRow[] = [
@@ -350,7 +358,14 @@ export default function Home() {
       {/* §8 graceful-denial banner — never fail silently when the OS blocks the lever. */}
       {needsPerm && (
         <Pressable
-          onPress={() => (needsPerm.exact ? alarm.openFullScreenIntentSettings() : alarm.openExactAlarmSettings())}
+          onPress={() =>
+            // send the user to whichever grant is actually missing
+            !needsPerm.notif
+              ? alarm.openAppNotificationSettings()
+              : !needsPerm.exact
+                ? alarm.openExactAlarmSettings()
+                : alarm.openFullScreenIntentSettings()
+          }
           className="mx-5 rounded-card px-4 py-3 mt-2 flex-row items-center justify-between"
           style={{ backgroundColor: "#FBEEEA" }}
         >
@@ -512,12 +527,13 @@ export default function Home() {
             // today's block card
             const b = item.block;
             const settled = b.status === "success" || b.status === "fail";
+            const skipped = isSkipped(b);
             return (
               <Pressable
                 onPress={() => router.push({ pathname: "/add-block", params: { id: b.id } })}
                 onLongPress={() => confirmDelete(b)}
                 className="bg-group rounded-card flex-row items-center"
-                style={{ padding: 14, opacity: b.skipped || settled ? 0.6 : 1 }}
+                style={{ padding: 14, opacity: skipped || settled ? 0.6 : 1 }}
               >
                 <View className="flex-1 pr-3">
                   <Text className="text-ink" style={{ fontSize: 15.5, fontWeight: "700", letterSpacing: -0.2 }}>
@@ -526,7 +542,7 @@ export default function Home() {
                   <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
                     {b.start}
                     {b.end ? `–${b.end}` : ""}
-                    {b.executionAlarm ? (b.skipped ? " · 오늘은 쉼" : " · 실행 알림") : ""}
+                    {b.executionAlarm ? (skipped ? " · 오늘은 쉼" : " · 실행 알림") : ""}
                     {b.location ? ` · ${b.location}` : ""}
                   </Text>
                 </View>
@@ -546,7 +562,7 @@ export default function Home() {
                 ) : (
                   // before the moment → the "오늘은 쉼" toggle (the only intentional skip, R7)
                   <Switch
-                    value={!b.skipped}
+                    value={!skipped}
                     disabled={!b.executionAlarm}
                     onValueChange={() => toggleSkip(b)}
                     trackColor={{ true: "#3182F6", false: "#E5E8EB" }}

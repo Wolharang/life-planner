@@ -10,6 +10,7 @@ import { addMeal, updateMeal, deleteMeal, listMeals, type MealEntry } from "@/co
 import { KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
 import { stampFor } from "@/core/logs/aggregate";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
+import { newId } from "@/core/data/id";
 import type { MealType } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -64,7 +65,7 @@ export default function AddMeal() {
     }
     const now = Date.now();
     const meal: MealEntry = {
-      id: editId ?? `meal-${now}`,
+      id: editId ?? newId("meal"),
       date,
       timestamp: orig?.date === date ? orig.timestamp : stampFor(date, now),
       mealType,

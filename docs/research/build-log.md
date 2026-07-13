@@ -7,6 +7,76 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — Internal audit against `docs/core/` — 12 deviations found and fixed
+
+A strict conformance audit of the whole build against the core docs (PRD R1–R17 · spec · data-model ·
+architecture · design-principles · decisions · CLAUDE.md cautions). Two independent passes (product/UX and
+data/architecture). What follows is **only what was actually wrong**; each was verified before fixing.
+
+### The lever was breakable (HIGH)
+1. **The cue could die silently when notifications were denied (R16).** The home readiness banner watched
+   exact-alarm + full-screen-intent, but the cue is delivered *as* a full-screen-intent **notification** —
+   the native path swallows the `SecurityException` when POST_NOTIFICATIONS is missing. So the one grant
+   that also kills the lever was the one grant nothing surfaced. → The banner now watches **all three** and
+   deep-links to whichever is missing. **PRD R16 amended** to say so.
+2. **The migration left ghost alarms and unarmed blocks.** `ensureMigrated()` rewrote storage only. A
+   prototype `daily` task re-arms itself **natively** (mirror → receiver → boot), so it would have kept
+   firing **forever** with no block behind it (poisoning the catch-up net and S1), while migrated blocks got
+   **no alarm at all**. → Migration now **cancels every prototype alarm + soft reminder** and **arms the
+   migrated blocks**; app-open now also **re-derives every alarm from the repositories** (`rearmBlockAlarms`,
+   architecture §11 layer 4) so any mirror divergence self-heals.
+3. **The migration could destroy the prototype's data.** `removeItem(LEGACY_KEY)` sat *outside* the `try`,
+   so a corrupt *destination* or a failed write dropped the legacy key anyway → tasks gone, nothing written.
+   → The legacy key is now dropped **only after** the new payload is safely persisted.
+4. **`/execution` (the JS preview) wrote real S1 data and had an in-flow escape.** It was a live route that
+   recorded outcomes with `source: "execution-screen"` — the exact source S1 counts — and offered an "아직"
+   bail. It was also two flows out of date. → **Deleted.** `ExecutionActivity` is the single execution moment.
+5. **Hardware Back was an in-flow escape.** One Back press mid-5·4·3·2·1 ended the moment — precisely what
+   the countdown exists to prevent (A2, CLAUDE.md). → `onBackPressed` is now a **no-op**; the dead prototype
+   views (which still carried an "아직" escape) were deleted.
+
+### Policy that was unenforced (MED)
+6. **The soft path had no channel**, so R3 advance alerts landed on the OS default (default sound, default
+   lock-screen visibility) — the two notification intensities were distinguished only by accident. → A
+   dedicated **`lp-soft-v1` channel: IMPORTANCE_DEFAULT · no sound · lock-screen PRIVATE**. R15 is now
+   enforced by the channel, not by hope.
+7. **The metrics screen graded the wrong things.** It used the prototype's S-numbering (S1=정시발화,
+   S2=착수율) while PRD §4 defines S1=execution rate, S2=alarm reliability, **S3=D-1 planning adoption**
+   (the biggest non-technical risk), S4=logging friction, S5=no-guilt return — so the two numbers the PRD
+   says to watch hardest were swapped/absent. → Rebuilt to **S1–S5 as the PRD defines them**, incl. a real
+   S3 (days planned the day before, from each block's `plannedAt`) and S4 (same-day logging share).
+8. **The micro-start had no screen.** The R7 flow change (commit → re-check) quietly dropped "지금 신발 신기"
+   — the 5-second first move A2 is built on. → It's back, on the commit card.
+9. **`skipped` was modelled twice** (`status` *and* a boolean) and could diverge — a settled block could keep
+   rendering as 쉼 and stay uncued. → Collapsed to the **single `status`** the doc defines.
+10. **Alarm eviction lived in the screens**, so any path that didn't hand-pair it (a future Firestore
+    listener, `saveBlocks`) would ghost. → Moved **behind the repository**: add/update/delete reconcile the
+    alarm themselves (architecture §9-2).
+11. **Ids were timestamps**, so two same-millisecond records collided (and would silently merge under
+    last-write-wins). → `newId()` with entropy; data-model §0 corrected (it said UUID, the code didn't).
+12. **≤2-tap logging was not actually ≤2 taps** — the expense form required a *name* as well as an amount
+    (two keyboard trips). → **Only the amount is required**; a blank name falls back to the category. PRD R8
+    + data-model §2.4 amended. Also added the `memo` field the doc had but no screen could write.
+
+### Also corrected
+Tone: "나가면 이긴다" (a competitive frame the docs never license) → **"딱 첫 동작만 하면 돼."**; a mixed
+존댓말/반말 sentence in `/day`. Copy: 백업 복원이 아직 "할 일 N개"라 하던 것 → "블록 N개".
+**Docs that were themselves stale:** architecture §4.1 (recurrence / per-task soft reminders — retired by
+D37/D38), design-system §4.3 (Recurrence picker · Plain-reminder picker → the multi-date picker), the
+"Task row" component, data-model §2.4/§2.5 (`name` missing, `mealType` enum wrong).
+
+### Not defects (checked, left alone)
+**R10 day summary** and **R17 evaluation** are absent because they are **F4/F5** — the plan's next phases, not
+drift. The **native moment still runs the forest/gold palette** — that's blocked on the skin-lock decision
+(prep P-e), not a bug. `failReason` is still never captured; it lands with R17 (flagged: misses recorded
+today accrue without a reason).
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (24) · `expo prebuild --clean` ✓ (native changed: Back no-op, micro-start
+on the commit card, dead views removed). **On-device verification is still required** for the native changes.
+
+---
+
 ## 2026-07-11 — F3: 기록 탭 real — expense + meal logging (reference apps ported)
 
 The **기록** tab stops being a stub. Both reference apps are ported per their migration spec

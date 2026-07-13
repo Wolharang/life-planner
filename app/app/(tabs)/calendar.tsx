@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { listEvents, groupByDate, type ImportantEvent } from "@/core/data/eventRepository";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
-import { todayYmd } from "@/core/schedule/blockScheduler";
+import { isSkipped, todayYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const BRAND = "#3182F6";
@@ -241,7 +241,7 @@ export default function Calendar() {
                 <Text className="text-ink-soft flex-1" style={{ fontSize: 13.5 }} numberOfLines={1}>
                   {b.title}
                 </Text>
-                {b.executionAlarm && !b.skipped && (
+                {b.executionAlarm && !isSkipped(b) && (
                   <View className="bg-brand-soft rounded-full px-2 py-0.5">
                     <Text className="text-brand" style={{ fontSize: 10.5, fontWeight: "700" }}>
                       실행

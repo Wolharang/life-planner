@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
-import { freeSlots, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
+import { freeSlots, isSkipped, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const KIND_LABEL: Record<TimeBlock["kind"], string> = { normal: "", workout: "운동", run: "러닝" };
@@ -67,7 +67,7 @@ export default function DayPlan() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 110 }}>
         {blocks.length === 0 ? (
           <Text className="text-grey" style={{ fontSize: 14, paddingVertical: 20 }}>
-            아직 이 날의 계획이 없어요. 아래에서 하나 놓아보자.
+            아직 이 날의 계획이 없어요. 아래에서 하나 놓아볼까요?
           </Text>
         ) : (
           blocks.map((b) => (
@@ -75,7 +75,7 @@ export default function DayPlan() {
               key={b.id}
               onPress={() => router.push({ pathname: "/add-block", params: { id: b.id } })}
               className="bg-group rounded-card flex-row items-center mb-2"
-              style={{ padding: 14, opacity: b.skipped ? 0.55 : 1 }}
+              style={{ padding: 14, opacity: isSkipped(b) ? 0.55 : 1 }}
             >
               <View style={{ width: 62 }}>
                 <Text className="text-ink" style={{ fontSize: 15, fontWeight: "800", letterSpacing: -0.2 }}>
@@ -95,14 +95,14 @@ export default function DayPlan() {
                   {[
                     KIND_LABEL[b.kind],
                     b.location,
-                    b.executionAlarm ? (b.skipped ? "오늘은 쉼" : "실행 알림") : null,
+                    b.executionAlarm ? (isSkipped(b) ? "오늘은 쉼" : "실행 알림") : null,
                     b.status === "success" ? "해냄" : b.status === "fail" ? "미스" : null,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "계획"}
                 </Text>
               </View>
-              {b.executionAlarm && !b.skipped && (
+              {b.executionAlarm && !isSkipped(b) && (
                 <View className="bg-brand-soft rounded-full px-2.5 py-1">
                   <Text className="text-brand" style={{ fontSize: 11, fontWeight: "700" }}>
                     실행

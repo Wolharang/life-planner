@@ -11,6 +11,7 @@ import { addEvent, updateEvent, deleteEvent, listEvents, type ImportantEvent } f
 import { scheduleEventNotification, cancelEventNotification } from "@/core/notifications/plainReminders";
 import { getSettings } from "@/core/data/settingsRepository";
 import { todayYmd } from "@/core/schedule/blockScheduler";
+import { newId } from "@/core/data/id";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const COLORS = ["#3182F6", "#B0862A", "#46466B", "#3C7A89", "#B5533C", "#7C5295", "#8B7E74"];
@@ -107,7 +108,7 @@ export default function AddEvent() {
     }
     const nowMs = Date.now();
     const event: ImportantEvent = {
-      id: editId ?? `event-${nowMs}`,
+      id: editId ?? newId("event"),
       title: title.trim(),
       date: dateStr,
       time: timeOn ? `${pad(h)}:${pad(m)}` : undefined,

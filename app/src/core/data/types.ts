@@ -107,8 +107,13 @@ export interface MealEntry {
 }
 
 export type BlockKind = "normal" | "workout" | "run";
-/** `planned|success|fail` per data-model §2.3; `skipped` carries over the prototype's no-guilt pre-fire
- *  "오늘은 쉼" (§8.2) — it is NOT a fail and is excluded from the execution-rate denominator. */
+/**
+ * data-model §2.3: `planned|success|fail`, **plus** `skipped` — the pre-fire, re-togglable "오늘은 쉼"
+ * (§8.2). A skip is NOT a fail and is excluded from the execution-rate denominator.
+ *
+ * This is the **single** source of "is this block skipped" — there is deliberately no separate boolean:
+ * two fields drifted apart (a settled block could keep reading as 쉼) and the doc defines one.
+ */
 export type BlockStatus = "planned" | "success" | "fail" | "skipped";
 
 /**
@@ -136,8 +141,6 @@ export interface TimeBlock {
   executionAlarm: boolean;
   alarmLeadMinutes: number;
   microStartNote?: string;
-  /** pre-fire, re-togglable "오늘은 쉼" (R7). The only intentional skip; guilt-free, never a miss */
-  skipped?: boolean;
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes
   //   on its own once `date` arrives (no midnight job). Evaluation compares against THIS, never the
   //   live values; the alarm always follows the LIVE start − lead.
