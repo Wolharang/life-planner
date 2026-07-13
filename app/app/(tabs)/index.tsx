@@ -349,6 +349,12 @@ export default function Home() {
   // The hero = the next block still ahead today (a flagged one wins ties by being earlier anyway).
   const hero = blockRows.find((r) => !r.started && !isSkipped(r.block)) ?? null;
 
+  // Blocks whose moment fired and got no answer ("아직" at the re-check). The card must be able to SAY so:
+  // its state is neither "done" nor "missed" but **still open**, and the app owes the user that word — the
+  // alternative is a card that shows nothing and lets the user guess (which is how "해냄" got read as a
+  // verdict). It is stated in taupe, never red: an unanswered block is neutral data (R14).
+  const awaiting = new Set(catchUps.map((c) => `${c.taskId}|${c.date}`));
+
   const historyRows: HomeRow[] = outcomes.slice(0, 12).map((outcome) => ({ kind: "history", outcome }));
   const rows: HomeRow[] = [
     ...(blockRows.length > 0 ? [{ kind: "section" as const, title: "오늘" }, ...blockRows] : []),
@@ -622,18 +628,29 @@ export default function Home() {
                     {skipped ? " · 오늘은 쉼" : b.alert === "execution" ? " · 실행 알림" : " · 알림"}
                     {b.location ? ` · ${b.location}` : ""}
                   </Text>
+                  {awaiting.has(`${b.id}|${b.date}`) && !settled && (
+                    <Text className="text-miss mt-1" style={{ fontSize: 12.5, fontWeight: "600" }}>
+                      아직 안 했어요
+                    </Text>
+                  )}
                 </View>
                 {settled ? (
                   <OutcomeBadge status={b.status === "success" ? "done" : "miss"} />
                 ) : item.started ? (
-                  // the moment has passed → offer the calm "해냄", never a nag
+                  // The moment has passed → OFFER to record it, never nag. This must not be mistaken for a
+                  // *state*: it used to be a filled pill reading "해냄" (a noun) sitting exactly where the
+                  // settled badges 됨/미스 sit, so an unanswered block looked like the app had decided you
+                  // did it. That silently corrupts S1 — the founder read it as "the app says I did it" and
+                  // moved on. It is now an outlined button in the first person ("했어요"), which reads as an
+                  // answer you give, not a verdict you receive.
                   <Pressable
                     onPress={() => markDone(b)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    className="bg-surface rounded-full px-3.5 py-1.5"
+                    className="rounded-full px-3.5 py-1.5"
+                    style={{ borderWidth: 1.5, borderColor: "#3182F6", backgroundColor: "transparent" }}
                   >
                     <Text className="text-brand" style={{ fontSize: 12, fontWeight: "700" }}>
-                      해냄
+                      했어요
                     </Text>
                   </Pressable>
                 ) : (
