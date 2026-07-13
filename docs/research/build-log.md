@@ -7,6 +7,44 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — The moment must be a ONE-SHOT: the stale notification could replay it
+
+Second round of founder device findings. Answers + one more real defect.
+
+### THE DEFECT — a finished moment could be re-run from the notification shade
+- **Symptom (founder):** after 5·4·3·2·1 → "나간다" the screen closed, **but the notification stayed at the top
+  of the phone**; tapping it **re-ran the same 진짜 했어? flow**.
+- **Cause:** `ExecutionActivity` never cancelled the full-screen-intent notification that launched it. The
+  notification only auto-cancels *when tapped* — so after the moment ended by any other route (answer, timeout,
+  countdown → 나가), it lingered as a live re-entry point. Worse: tapping a stale **commit** notification would
+  re-enter commit and **arm a SECOND 5-min re-check**.
+- **Fix:** the moment is now explicitly a **one-shot**. `AlarmNotifications.cancel()` is called (a) the instant
+  the activity takes over an occurrence and (b) again when it dismisses; plus a process-level `handled` guard
+  so a duplicate intent can't replay an occurrence that was already answered.
+- **Same class of ghost, found while fixing it:** the native moment arms its own `"<id>#recheck"` alarm, but
+  **JS didn't know to cancel it** — so a block you resolved from the app (해냄 / 미룸) would still ask
+  "진짜 했어?" five minutes later. `unscheduleBlock` now cancels it too, and `scheduleBlock` cancels it **only
+  once the block is closed** (a still-open block must keep its re-check — an app-open re-arm would otherwise
+  silently delete a follow-up the user is still owed). Covered by 3 new tests.
+
+### The re-check also only arrived as a notification → **same cause, already fixed**
+The founder saw the 5-min re-check arrive as a heads-up ("지금 — 테스트…") that had to be tapped. It travels the
+**same** `AlarmScheduler → AlarmReceiver → showFullScreen` path as the commit, so **D41's "다른 앱 위에 표시"**
+covers both. With that grant, the re-check takes over the screen by itself.
+
+### "나간다 → the app just closes. Is that right?" → **yes, by design**
+The moment's job is to **push you out the door**, not to hold you for paperwork (A2/A3: one tap, no decisions,
+no typing — designed for the depleted self). So it ends. The outcome stays **pending** — deliberately **not** an
+immediate miss (R14) — and the evaluation happens **later, in the app**: the home **catch-up card** ("아직 안
+했죠 · 했어 / 미룸") and, if it becomes a miss, the optional one-line reason and **돌아보기** (R17). Nothing is
+lost by closing.
+
+### Verified
+`typecheck` ✓ · `31 tests` ✓ · `prebuild --clean --platform android` ✓.
+**Still unverified on a device:** the moment with the screen **OFF/locked** (the founder's pass was screen-on).
+
+---
+
 ## 2026-07-11 — On-device findings: the moment must APPEAR · skin locked to v5 · alert tiers · sound
 
 Founder ran the device pass. One real defect, one lock, two missing features. All four land here.

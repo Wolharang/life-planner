@@ -37,6 +37,10 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 - [ ] **"응, 했어"** → one calm **gold** DONE mark. No confetti, no streak. **(R14)**
 - [ ] Repeat with **"아직 안 했어"** → **5·4·3·2·1** → **"지금 나가."** → closes, and the outcome stays
       **pending** (it appears later as a gentle catch-up, **not** an immediate miss). **(R7/R14)**
+- [ ] **The re-check ALSO takes over by itself** (not just a heads-up you must tap) — same D41 grant.
+- [ ] **NO notification is left in the shade** after the moment ends (by answer, by 나가, or by timeout).
+      Pull down the shade and check. Tapping around must **not** re-run "진짜 했어?". **(the one-shot fix)**
+- [ ] Mark a block **해냄** in the app right after its commit → **no "진짜 했어?" arrives 5 minutes later**.
 
 ### The failure modes that matter
 - [ ] **App killed** (swipe from recents) → the moment still fires. **(S2)**
@@ -60,7 +64,7 @@ If the device still has prototype data (`할 일`s):
 - [ ] Old **history/records are still attached** (지난 기록 shows them).
 - [ ] A previously **recurring** task does **not** keep firing on later days with nothing behind it.
       **(the ghost-alarm bug — fixed, needs proof)**
-- [ ] Its old **soft reminders** no longer fire. **(D38)**
+- [ ] Its old **soft reminders** no longer fire. **(D40)**
 
 ## 3. F1 — calendar + events (R1/R3)
 

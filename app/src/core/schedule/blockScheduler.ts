@@ -52,6 +52,12 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
   alarm.cancel(block.id);
   await cancelBlockSoftAlert(block.id);
 
+  // The native moment arms its own ~5-min re-check ("<id>#recheck", R7). Kill it **only once the block is
+  // no longer open** — done / missed / 쉼 — so a resolved block never asks "진짜 했어?" again. A still-open
+  // block must KEEP its re-check: this function also runs on every app-open re-arm, and blindly cancelling
+  // here would silently delete the follow-up whenever the user opened the app within those 5 minutes.
+  if (block.status !== "planned") alarm.cancel(`${block.id}#recheck`);
+
   const fireAt = blockFireAt(block);
   if (fireAt == null || fireAt <= now) return;
 
@@ -70,9 +76,15 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
   }
 }
 
-/** Delete-safety: cancel BOTH alert paths so a removed block leaves no ghost fire. */
+/**
+ * Delete-safety: cancel **every** path a block could still fire on — the exact alarm, the **armed 5-min
+ * re-check** ("<id>#recheck", which the native moment schedules on its own and which JS must therefore
+ * know to kill), and the soft alert. Otherwise a block you already resolved (or deleted) still asks
+ * "진짜 했어?" five minutes later.
+ */
 export function unscheduleBlock(id: string): void {
   alarm.cancel(id);
+  alarm.cancel(`${id}#recheck`);
   void cancelBlockSoftAlert(id);
 }
 

@@ -1,4 +1,5 @@
-import { blockFireAt, freeSlots, pastUnfiredBlocks, snapshotFor, todayYmd } from "./blockScheduler";
+import { blockFireAt, freeSlots, pastUnfiredBlocks, scheduleBlock, snapshotFor, todayYmd, unscheduleBlock } from "./blockScheduler";
+import { alarm } from "@/core/notifications/alarm";
 import type { TimeBlock } from "@/core/data/types";
 
 jest.mock("@/core/notifications/alarm", () => ({
@@ -42,6 +43,32 @@ describe("blockFireAt (R7)", () => {
 
   it("does not fire on a pre-skipped block (오늘은 쉼)", () => {
     expect(blockFireAt(block({ status: "skipped" }))).toBe(null);
+  });
+});
+
+// The native moment arms its own "<id>#recheck" follow-up (R7). JS owns cancelling it — but only once the
+// block is closed, or an app-open re-arm would silently delete a re-check the user is still owed.
+describe("the 5-min re-check's lifetime", () => {
+  const cancel = alarm.cancel as unknown as { mock: { calls: unknown[][] } };
+  const cancelledRecheck = () => cancel.mock.calls.some((c) => c[0] === "b1#recheck");
+  const clear = () => (cancel.mock.calls.length = 0);
+
+  it("keeps the pending re-check while the block is still open", async () => {
+    clear();
+    await scheduleBlock(block({ status: "planned", date: "2099-01-01" }));
+    expect(cancelledRecheck()).toBe(false);
+  });
+
+  it("cancels it once the block is resolved — a done block never re-asks '진짜 했어?'", async () => {
+    clear();
+    await scheduleBlock(block({ status: "success" }));
+    expect(cancelledRecheck()).toBe(true);
+  });
+
+  it("cancels it when the block is deleted", () => {
+    clear();
+    unscheduleBlock("b1");
+    expect(cancelledRecheck()).toBe(true);
   });
 });
 

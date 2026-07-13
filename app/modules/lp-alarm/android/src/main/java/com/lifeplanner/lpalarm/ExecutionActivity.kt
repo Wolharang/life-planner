@@ -45,6 +45,7 @@ class ExecutionActivity : Activity() {
   private var createdAt = 0L
   private var leadMinutes = 0
   private var taskId = ""
+  private var alarmId = "" // the raw alarm/notification id ("<taskId>" or "<taskId>#recheck")
   private var mode = "commit" // "commit" (normal) | "recheck" (the ~5-min "진짜 했어?" follow-up)
   private var count = 5
   private var player: MediaPlayer? = null
@@ -76,6 +77,9 @@ class ExecutionActivity : Activity() {
   companion object {
     // Occurrences that fired while one was already showing (R2 sequential queue).
     private val queue = ArrayDeque<Item>()
+    // Alarm ids already run in this process — so a stale notification / duplicate intent can't replay a
+    // moment the user has already answered.
+    private val handled = HashSet<String>()
     // ~5 min after COMMIT, re-open at "진짜 했어?" (founder 2026-07-11). [TBD] — could become a setting.
     private const val RECHECK_DELAY_MS = 5 * 60_000L
   }
@@ -106,6 +110,7 @@ class ExecutionActivity : Activity() {
 
   private fun startItem(item: Item) {
     mode = item.mode
+    alarmId = item.taskId // the raw alarm id ("<taskId>" or "<taskId>#recheck") — keys its notification
     // The re-check alarm's id is "<taskId>#recheck"; outcomes/markers must key the ORIGINAL task.
     taskId = item.taskId.removeSuffix("#recheck")
     title = item.title
@@ -115,8 +120,19 @@ class ExecutionActivity : Activity() {
     leadMinutes = item.leadMinutes
     count = 5
     stopSound()
+
+    // The moment is a ONE-SHOT. Kill the notification that brought us here, so it can't sit in the shade
+    // and re-run the occurrence when tapped later (a second "진짜 했어?" after answering — and a stale
+    // *commit* tap would arm a SECOND re-check). Guard the same occurrence twice within this process too.
+    AlarmNotifications.cancel(this, alarmId)
+    if (!handled.add(alarmId)) {
+      // already ran in this process (a stale notification / duplicate intent) → do not run it again
+      dismiss()
+      return
+    }
+
     vibrate(60) // FIRING pulse
-    if (SoundSetting.isOn(this)) startSound() // R8: audible only if enabled (default off = haptic-only)
+    if (SoundSetting.isOn(this)) startSound() // audible only if enabled (default off = vibration-only)
     if (mode == "recheck") {
       render("recheck")
     } else {
@@ -147,6 +163,7 @@ class ExecutionActivity : Activity() {
 
   /** End the current occurrence: show the next queued one, or finish if none (R2 sequential). */
   private fun dismiss() {
+    AlarmNotifications.cancel(this, alarmId) // never leave a tappable ghost of a moment that is over
     val next = queue.removeFirstOrNull()
     if (next != null) startItem(next) else finish()
   }

@@ -17,6 +17,23 @@ import androidx.core.app.NotificationManagerCompat
  */
 object AlarmNotifications {
 
+  /**
+   * Remove the notification that launched (or would launch) an occurrence.
+   *
+   * **Why this is mandatory, not tidiness:** the full-screen-intent notification stays in the shade after
+   * the moment is over. Tapping that stale notification **re-runs the whole occurrence** — the user saw
+   * "진짜 했어?" a second time after already answering — and, worse, re-opening a stale *commit* would arm
+   * a **second** 5-min re-check. The moment must be a one-shot: the activity cancels its own notification
+   * the instant it takes over, and again when it dismisses.
+   */
+  fun cancel(context: Context, alarmId: String) {
+    try {
+      NotificationManagerCompat.from(context).cancel(alarmId.hashCode())
+    } catch (e: Exception) {
+      // best-effort
+    }
+  }
+
   fun ensureChannel(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val mgr = context.getSystemService(NotificationManager::class.java)
