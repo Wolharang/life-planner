@@ -89,6 +89,9 @@
   **`none`은 폐지**(알림이 안 오는 블록은 넣을 이유가 없다; 옛 `none` 행은 `soft`로 읽는다).
   **소리(`alertSound`)는 단계와 독립** — 실행이 무음일 수도, 알림이 울릴 수도 있다(D43).
 - **`status`**: `planned|success|fail` + **`skipped`**(발화 전 "오늘은 쉼" 토글 — 무죄책, 미스 아님, 실행률 분모에서 제외).
+- **소리 채널이 둘인 이유**: 안드로이드는 **채널 생성 후 소리 설정을 못 바꾼다** → 소프트 경로는 `lp-soft-v1`(무음)과
+  `lp-soft-sound-v1`(소리) **두 채널**로 나뉘고, 블록의 `alertSound`가 어느 쪽으로 갈지 고른다(D43). 정책을 바꾸려면
+  **채널 id를 올려야 한다**(기존 채널은 사용자가 이미 갖고 있으므로).
 - **생성 위치/시점**: Day 뷰에서 **D-1 설계**(D6). 당일 수정 가능하되 **평가는 스냅샷 기준**(D23). 홈=실행 카드에서 실행/done.
 - **저장**: `/users/{uid}/timeblocks/{id}` + 로컬 미러. **현재 로컬 구현(2026-07-11)**: AsyncStorage `lp.blocks.v1`
   (`app/src/core/data/blockRepository.ts`) — Firestore/uid는 F0에서 인터페이스 뒤로 추가(architecture §7).
@@ -144,7 +147,22 @@
   "두 개의 구분된 섹션"(D32)이 렌더링 취향이 아니라 **구조**로 강제된다. 운동/러닝 완료는 여기서 파생(D22).
 - **연결**: 하루의 세 계층을 묶는 **유일한 롤업**. 하루 요약 화면·계획-대-실제 내보내기의 소스.
 
-### 2.7 고정 설정값 (D16, 앱 상수)
+### 2.7 측정·캐치업 레코드 (실행 레버의 증거 — 프로토타입에서 이어짐, F0 이관 대상)
+> 이 넷은 **엔티티가 아니라 레버의 증거**다. 화면에 직접 안 보이지만 **R6 캐치업 그물(R18)과 지표(§4 S1–S5)가
+> 전부 여기서 나온다.** **F0의 저장소 이관(P-c)은 이것들을 반드시 보존해야 한다.**
+
+| 로컬 키 | 레코드 | 무엇 |
+|---|---|---|
+| `lp.outcomes.v1` | `{taskId, title, date, status(done\|miss\|skipped), source(execution-screen\|catch-up\|pre-skip), at}` | **결과** — `source`가 핵심: **S1은 `execution-screen`만** 센다(캐치업 완료는 별도) |
+| `lp.fires.v1` | `{taskId, title, date, intended, firedAt, deltaMs, createdAt?}` | "그 순간이 실제로 떴다"는 표식 → 캐치업 + S2 |
+| `lp.missed.v1` | `{taskId, title, date, intended, missedAt}` | 네이티브 부팅/백업 스캔이 찾은 **미발화** |
+| `lp.latencies.v1` | `{taskId, date, intended, firedAt, deltaMs, createdAt?}` | **S2 알람 신뢰성**(±1분) + 선약정 가드(커밋→발화 간격) |
+| `lp.settings.v1` · `lp.baseline.v1` · `lp.onboarded.v1` | — | 개인 기본값 · 지표 기준선(수기) · 첫 실행 플래그 |
+
+**필드명 주의**: 이 레코드들은 프로토타입 시절의 `taskId`를 그대로 쓴다 — 값은 **TimeBlock의 id**다(이관 시 id를
+보존했기 때문). 이름만 옛것이고 대상은 블록이다.
+
+### 2.8 고정 설정값 (D16, 앱 상수)
 8 가계부 카테고리 + 4 끼니 목표는 지금 **하드코딩(사용자 편집 불가, D16)**. 나중에 편집 가능해지면 `/users/{uid}.settings`로 이동.
 
 ## 3. 관계 (ER)

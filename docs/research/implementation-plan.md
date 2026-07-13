@@ -27,15 +27,17 @@ re-deriving the sequence.
 - **Local-first, free-only, Android-first, no-guilt invariants** all carry over (design-principles; D2/D10/D1).
 
 ## What's built vs what to build
-| Area | Prototype (done, in `app/`) | Full app (this plan builds) |
+> ⚠ **This table was the ORIGINAL plan (2026-07-10). It is history.** The live status is
+> **"Build progress (live) — CURRENT STATE"** at the bottom of this file — F1–F5 are **done**; only F0 remains.
+
+| Area | Then (prototype) | Now (2026-07-11) |
 |---|---|---|
-| Native alarm + execution moment | ✅ reuse as-is | reuse on flagged time-blocks |
-| Storage | AsyncStorage repos | **Firestore-backed repos** (same interface) + Auth + sync |
-| Calendar / important events | ✗ | **F1** |
-| Time-block planning (D-1) + My Day | ✗ (single task list only) | **F2** (reuses execution) |
-| Logs — expense + meal | ✗ | **F3** (port `reference/calculator.js` + `reference/kcal.js`) |
-| Day summary | ✗ | **F4** |
-| Plan-vs-actual evaluation | ✗ | **F5 (Later)** |
+| Native alarm + execution moment | ✅ | ✅ reused, hardened (D41/D44/D46/D47/D48) |
+| Calendar / important events | ✗ | ✅ **F1** (sync still needs F0) |
+| Time-block planning (D-1) + My Day | ✗ | ✅ **F2** |
+| Logs — expense + meal | ✗ | ✅ **F3** |
+| Day summary · evaluation | ✗ | ✅ **F4 · F5** |
+| Storage | AsyncStorage repos | ⬜ **F0** — Firestore-backed repos (same interface) + Auth + sync |
 
 ## Cross-cutting prep (resolve at the phase that needs it — listed once here)
 - **P-a · Firebase project** (F0): create Spark(free)-tier project(s) **dev + prod**; enable **Auth (id+password**,
@@ -49,15 +51,29 @@ re-deriving the sequence.
   outcomes/history. One-time on first login; keep working offline if never logged in.
 - **P-d · Reference-app migration mapping** (F3): field-map `@expense_list`→`Expense`, `@diet_list`→`MealEntry`
   (table below). Port the compute logic (monthly totals, category distribution) from the reference apps.
-- **P-e · Design-skin lock** (before heavy UI, ≤F1): decide **v5 "Toss-form" (current code) vs D36 forest/gold**;
-  record a confirmed D-entry in `decisions.md` and update `design-system.md` §1 (it's currently marked provisional).
-  Building can proceed on the current v5 tokens; this just formalizes the choice.
+- ~~**P-e · Design-skin lock**~~ **DONE (D39, 2026-07-11)** — v5 "Toss-form" is **confirmed**; `design-system.md`
+  §1 is no longer provisional and the native execution moment was repainted to match. Nothing left here.
 - **P-f · Resolve small [TBD]s**: full-app **default lead-time** (D28, e.g. 30 min — differs from prototype's 0);
   miss auto-archive window (~7d) and render caps (architecture §11). Set when their feature lands.
 
 ## Phases (dependency-ordered; each has a DoD gate)
 
-### F0 — Backend foundation: Auth + Firestore repos + sync + rules  ← gates all sync
+### F0 — Backend foundation: Auth + Firestore repos + sync + rules  ← **the only phase left**
+
+> **⚠ FOUNDER-ONLY STEPS (an agent cannot do these — it will stall or invent a config):**
+> 1. **Create the Firebase project(s)** in the console on the **Spark (free) plan** — no billing card (D10/D17).
+>    dev + prod if you want the split; one is fine to start.
+> 2. **Enable Auth → Email/Password** (id+password first; Google later, D12).
+> 3. **Download `google-services.json`** and put it in `app/` (it is gitignored — never commit it).
+> 4. **Firebase CLI login** (`npx firebase login`) so the security rules can be deployed.
+>
+> **What the agent then does, and the ONE rule it must not break:** the Firestore implementation goes
+> **behind the existing Repository interfaces** (`app/src/core/data/*Repository.ts`) — **screens and the native
+> alarm layer do not change** (architecture §7). If a screen ends up importing Firestore, the refactor is wrong.
+>
+> **The cutover (P-c) must preserve the measurement/catch-up stores** (`lp.outcomes/fires/missed/latencies`,
+> data-model §2.7) — they are the lever's evidence (S1–S5) and the catch-up net (R18); losing them silently
+> destroys the self-experiment.
 - P-a Firebase project + `@react-native-firebase` wiring; **Account screen** (`/account`): app usable **without**
   login (local), **login enables sync** (D20). id+password Auth (D12).
 - Implement the **Firestore-backed Repository** behind the existing interfaces; Firestore **offline persistence** is
@@ -141,8 +157,8 @@ review. **The only phase left is F0 (Firebase: Auth + Firestore + sync).**
 
 ### Repo / git
 Private `origin = git@github.com:Wolharang/life-planner.git` (SSH, branch `main`). Policy (memory):
-**commit after every change; push ONLY when the founder says to.** As of this writing there are **~21 local
-commits not yet pushed**.
+**commit after every change; push ONLY when the founder says to.** **Pushed through the doc-consolidation commit
+(2026-07-11) — `main` is up to date with `origin/main`.**
 
 ### Phases
 | Phase | State |
@@ -183,7 +199,12 @@ native moment is repainted — no screen is on the old palette) · **D40/D43/D45
 **D41** overlay grant · **D42** tone picker · **D44/D46/D47/D48** the moment's visibility/topmost/return rules.
 
 ### Open `[TBD]`s and known gaps
-- **`[TBD]`**: full-app default lead (D28) · R6 catch-up window (~7d) · the R7 re-check delay (5 min, hard-coded).
+- **Genuinely undecided (a founder call, from the self-experiment):**
+  · **default lead time** — PRD R13 says `[TBD ~30분]`, the code currently **ships `0` (정각)** (`settingsRepository.ts`).
+  · **the R7 re-check delay** — **5 min, hard-coded** in `ExecutionActivity` (`RECHECK_DELAY_MS`). Could become a setting.
+- **Decided in code, not yet promoted to a decision** (recorded here so nobody "fixes" them by guessing):
+  catch-up window **7d** · never-fired lookback **30d** · free-slot day window **07:00–23:00, ≥30분** ·
+  execution tone hard cap **60s** · re-summon **3 attempts / 700ms** · soft alert **≤3 moments**.
 - **Needs F0:** **R2** cross-device sync · spec §3.6's "a D-1 block **soft-deleted** on the day counts as fail"
   (needs tombstones) · account/login (R4).
 - **Not a gap, by decision:** no streaks/score/auto-suggestions anywhere (R14/D29).

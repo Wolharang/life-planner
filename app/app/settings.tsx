@@ -166,10 +166,10 @@ export default function Settings() {
           <Row>
             <View className="flex-1 pr-3">
               <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                소리
+                소리 (새 블록 기본값)
               </Text>
               <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                {sound ? "실행 순간에 알림음 + 진동" : "진동만 (소리 없음)"}
+                {sound ? "새 블록은 소리 + 진동으로 시작해요" : "새 블록은 진동만 (블록마다 바꿀 수 있어요)"}
               </Text>
             </View>
             <Switch

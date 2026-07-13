@@ -59,8 +59,9 @@ the plan-vs-actual bookkeeping — is the real target.
   **D-1 snapshot** drives **evaluation only** and never scheduling (D23).
 - Workouts/runs are planned as blocks with `kind = workout | run` (to raise follow-through); marking such a
   block success = the workout is done (D22).
-- A **select few** blocks may carry a notification (see 3.9); most do not. Notifications stay **spam-minimized**,
-  but the **precisely-scheduled execution cue** on flagged blocks (fires at `start − alarmLeadMinutes`, D28) is the core lever and is deliberately **not** minimized (D30).
+- **Every block carries exactly one alert** (§3.9, D43): **알림** (a plain notification) or **실행** (the cue) —
+  **`실행` is the default**. The "select few" of the original plan is now the set the user *leaves* on 실행; the
+  soft tier is what lets that set stay small. The cue itself is deliberately **not** minimized (D30).
 
 ### 3.3 Secondary — Household budget (spending), in-the-moment
 - Logged **when money is actually spent**, tied to date/time.

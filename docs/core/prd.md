@@ -14,7 +14,7 @@
 >
 > **Instruction to an implementing AI agent.** This PRD is written to be **self-contained**: you should be able to
 > understand *what to build and why* from this file (+ its cited How-docs) without reading prior conversation.
-> Every requirement (**R1–R17**) carries **acceptance criteria** — meeting them = "done" — and a **priority
+> Every requirement (**R1–R18**) carries **acceptance criteria** — meeting them = "done" — and a **priority
 > (P0/P1/P2)**. Placeholders marked `[TBD]` are deliberately unset (numeric targets, a few constants); **do not
 > invent values — leave them and flag them.**
 >
@@ -37,7 +37,7 @@
 
 | Version | Date | Change |
 |---|---|---|
-| v1.0 | 2026-07-10 | Initial full-app PRD. Extends the archived trigger-prototype PRD (`docs/research/prototype/prd.md`) from the execution lever to the whole integrated day. Requirements R1–R17 with acceptance criteria + P0/P1/P2. Reuses the validated prototype execution module (R7). |
+| v1.0 | 2026-07-10 | Initial full-app PRD. Extends the archived trigger-prototype PRD (`docs/research/prototype/prd.md`) from the execution lever to the whole integrated day. Requirements R1–R17 with acceptance criteria + P0/P1/P2. *(R18, the catch-up net, was added 2026-07-11 — it was built from the prototype but had no requirement number.)* Reuses the validated prototype execution module (R7). |
 
 ---
 
@@ -307,8 +307,10 @@ with preview, or follow the device default — D42; read natively at fire time; 
 tone is a per-block choice, D43) — **and a tone may never outlive the moment it belongs to (D44)**;
 **default lead-time** (per-event/-block default if unset — full-app default e.g. **`[TBD: ~30 min]`**, D28);
 account/sync; backup (R12); battery-optimization guidance. Settings persist and take effect on the next firing.
-- *Acceptance:* toggling sound persists and applies at the next execution moment; the default lead pre-fills new
-  flagged blocks/events.
+- *Acceptance:* the sound switch **pre-fills new blocks** and gates the tone picker (**D49** — what actually
+  fires is the *block's own* flag, D43, so the switch may never silently override a per-block choice); the
+  default lead pre-fills new blocks/events. **Note:** the default lead currently **ships as `0` (정각)** — R13's
+  `[TBD ~30분]` is still an open founder call.
 
 **R14 — No-guilt principle (INVIOLABLE, cross-cutting).** **[P0]** **No** streaks, consecutive-day counters,
 penalties, or shame UI anywhere; a **miss is neutral** (taupe `#8B7E74`, **never red**); success is **one calm gold
@@ -345,6 +347,18 @@ be added later from 돌아보기 instead. Nothing is ever blocked on a reason, a
 - *Acceptance:* a block is markable success/fail, **with or without** a reason; a reason can be added/edited/
   removed later; a month view shows executed vs planned counts (and how many were pre-committed at D-1); **no**
   streak, score, or suggestion appears anywhere on the screen.
+
+**R18 — The no-guilt catch-up net (the miss half of the lever).** **[P0]** A flagged block whose moment fired
+but was left unanswered, **or never fired at all** (device off, alarm never armed), must **not** silently
+become a miss. On the next app open the home surface offers a **gentle prompt** — **"[제목] 아직 안 했죠"**
+(it fired) / **"[제목] 놓쳤어요"** (it never did) — with **했어 / 미룸 / 나중에**. Unresolved past a window it
+is **auto-archived as a neutral miss** (never chased). A miss may carry an **optional** one-line reason
+(R17). Outcomes record their **source** (`execution-screen` / `catch-up` / `pre-skip`) so **S1 counts only what
+the moment itself produced** — a catch-up "했어" is a real win but not the lever's proof.
+- *Acceptance:* an unanswered/never-fired occurrence appears as a gentle prompt on the next open, never as an
+  immediate miss; resolving it records the outcome with `source = catch-up`; dismissing ("나중에") re-shows it on
+  a later open; nothing anywhere scolds. Constants (recorded, not guessed): catch-up window **7 days**,
+  never-fired reconstruction lookback **30 days**.
 
 ### 7.2 — Excluded (deliberately not built now)
 - **Google / social login** (id+password first; Google later, D12). **Quantitative evaluation dashboards / auto

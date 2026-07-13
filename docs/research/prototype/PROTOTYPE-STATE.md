@@ -1,3 +1,9 @@
+> **⚠ ARCHIVE (do not follow for current work).** This is the snapshot of the **completed trigger prototype**.
+> Much of it has since been superseded by the full app: the skin is **LOCKED to v5** (D39, not "provisional");
+> `Task`/`taskScheduler`/`add.tsx`/`execution.tsx` are **retired** (→ `TimeBlock`/`blockScheduler`/`add-block.tsx`;
+> the JS execution preview was deleted — the native `ExecutionActivity` is the only execution moment); recurrence
+> is gone (D37). **Current state = `docs/research/implementation-plan.md` → "Build progress (live)".**
+
 # Prototype State Snapshot (2026-07-10)
 
 > **Why this file exists.** The trigger prototype is **built, running, and founder-validated**; the project has

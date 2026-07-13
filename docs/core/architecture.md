@@ -102,7 +102,7 @@ API). 알림은 **온디바이스 로컬**(서버 푸시 없음).
 ## 4.1 v0.3 프로토타입 정합 (PRD R2·R3·R6·R8과 맞물리는 부분)
 > **⚠ 갱신 (2026-07-11, full-app).** **반복 없음(D37)** — full-app의 TimeBlock은 날짜별 단일 인스턴스라 알람은
 > 전부 **1회성**(발화 후 재예약 없음); "매일 헬스"는 추가 화면의 **여러 날짜 일괄 생성**으로 만든다.
-> **블록의 알림은 3단계 중 하나(D40)** — `none`/`soft`/`execution`. 소프트 경로(블록의 `soft` + 중요일정 R3)는
+> **블록의 알림은 2단계 중 하나(D40→D43)** — `soft`/`execution`(**기본 `execution`**). `none`은 폐지. 소프트 경로(블록의 `soft` + 중요일정 R3)는
 > 전용 채널(**IMPORTANCE_DEFAULT · 무음 · 잠금화면 PRIVATE**)로 격리해 "뚫지 않음"을 코드가 아니라 **채널이 보장**한다.
 > **"다른 앱 위에 표시"(D41)** — FSI만으로는 **잠긴 화면**에서만 즉시 전체화면이 뜨고, 폰을 쓰는 중이면 헤드업으로
 > 강등되며 리시버의 직접 `startActivity`는 백그라운드 실행 제한에 막힌다. 이 권한이 그 제한을 풀어 **상태와 무관하게**
@@ -118,6 +118,10 @@ API). 알림은 **온디바이스 로컬**(서버 푸시 없음).
   **프로토타입에서도 유지**(“RN 화면 직접 호스팅” 지름길은 콜드스타트로 게이트를 조용히 깰 수 있어 지양).
 
 ## 5. 코드 구조 (Feature-first + Repository)
+> **⚠ 실제 코드는 아래 트리를 쓰지 않는다 (2026-07-11).** 화면은 **expo-router 파일 라우팅**(`app/app/*.tsx`),
+> 로직은 `app/src/core/{data,schedule,notifications,logs}`, Kotlin은 `app/modules/lp-alarm/android/`에 있다.
+> **Repository 패턴이라는 핵심은 그대로**(features는 인터페이스만 호출; 저장소 구현만 F0에서 Firestore로 교체) —
+> 다만 `/src/features/...` 디렉터리는 만들지 않았다. 실제 배치는 `app/README.md`를 보라. 아래 트리는 *의도*의 기록.
 ```
 /src
   /app                # 내비게이션, 루트, providers(auth/theme)

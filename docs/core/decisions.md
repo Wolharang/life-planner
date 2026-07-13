@@ -12,6 +12,29 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Cleanups the docs owed the code
+
+### D49. The global 설정 → 소리 switch is a DEFAULT, not a gate
+- **Problem found in the doc audit:** after D43 made sound **per-block**, the native moment reads only the
+  block's own flag — so the global switch **did nothing at fire time**, while the settings screen still said
+  "실행 순간에 알림음". A future agent would "fix" this by re-wiring the global switch into the firing path
+  (breaking D43) or by deleting the switch (breaking D42's tone picker).
+- **Decision:** the global switch is **the default for NEW blocks** (and the gate for the **알림음** picker).
+  **What fires is always the block's own `alertSound`** — a global toggle may never silently override an alarm
+  the user set per block. Copy says so: "소리 (새 블록 기본값)".
+
+### D50. Rules the code must keep, that look like redundancies (recorded so they aren't "simplified" away)
+- **The `<id>#recheck` alarm is cancelled only when the block is no longer `planned`.** `scheduleBlock` also
+  runs on every app-open re-arm; cancelling it unconditionally would **silently delete the pending 5-min
+  "진짜 했어?"** whenever the user opened the app within those five minutes.
+- **`expo-notifications` is `require`d lazily and defensively.** A static import crashes the whole app when the
+  native module isn't linked yet (before a `prebuild` + rebuild) instead of degrading to "no soft alerts".
+- **The `recurrence` plumbing (JS type + native `EXTRA_RECURRENCE`) is vestigial but kept.** D37 retired
+  recurrence; every block schedules with `"none"`. It stays only so old native mirror rows still parse. Do not
+  build on it; do not resurrect it.
+- **The outcome/fire/miss/latency records still use the field name `taskId`** — the value is a **TimeBlock id**
+  (the migration preserved ids). Renaming it means migrating four stores for nothing.
+
 ## 2026-07-11 — Other apps' overlays
 
 ### D48. The moment renders as an OVERLAY window and re-claims the top — because an activity always loses

@@ -16,6 +16,7 @@ import { addBlocks, updateBlock, deleteBlock, listBlocks, type TimeBlock } from 
 import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
+import { alarm } from "@/core/notifications/alarm";
 import type { BlockAlert, BlockKind } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -99,6 +100,13 @@ export default function AddBlock() {
         setLeadCustom(String(d));
       } else {
         setLead(d);
+      }
+      // The global 설정 → 소리 switch is the DEFAULT for a new block (D49) — the block's own flag is what
+      // actually fires (D43), so the switch cannot silently govern alarms the user thinks he set per block.
+      try {
+        setAlertSound(alarm.getSound());
+      } catch {
+        // native not linked (dev skew) — keep the vibration-only default
       }
     })();
   }, [editId]);
