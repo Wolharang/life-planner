@@ -7,6 +7,33 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — F4: 하루 요약 (R10) — the day, linked but not merged
+
+The one place the two surfaces meet. Built exactly to the constraint the docs put on it: **integration is a
+day-level LINK, never a merged timeline** (D32) — so the screen shows **two distinct sections** and no
+interleaved list exists anywhere in the code.
+
+### What
+- **`DayAggregate`** (`types.ts`, data-model §2.6) + **`dayAggregate(date, blocks, expenses, meals)`**
+  (`logs/aggregate.ts`) — **derived on read, never stored** (zero writes, the §6-3 cost guard). Returns the
+  plan side (`blocksPlanned/Success/Fail/Skipped`, `workoutDone`, `runDone`) and the log side
+  (`expenseTotal`, `kcalTotal`, `kcalByMeal`) as **separate fields**, which is what makes "two sections, not
+  one timeline" structural rather than a rendering choice.
+- **`/summary?date=`** — 계획·실행 (tally + the day's blocks with done/miss/쉼) · a divider · 기록 (지출
+  총액 + category dots · 칼로리 합계 vs 목표 + per-meal). Reachable from the **calendar's day panel** and the
+  **day view's 요약 chip** — never embedded *in* a plan surface (D32 holds: home/day still show no spend/meal).
+- **D22 upheld and now centralized:** 운동/러닝 O·X is derived from success blocks in the aggregate; the
+  기록 tab's inlined copy of that derivation was removed and now reads the same function.
+- **No-guilt (R14):** done = one calm gold 해냄 · miss = **taupe, never red** · 쉼 = neutral · no streak, no
+  score, no "달성률".
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (28 — **new `dayAggregate` tests**: per-status counts scoped to the day ·
+workout flag derived from a *success* block of that kind (planned ≠ done) · plan-side and log-side totals stay
+separate and day-scoped). No native change → no prebuild. On-device pending.
+
+---
+
 ## 2026-07-11 — Internal audit against `docs/core/` — 12 deviations found and fixed
 
 A strict conformance audit of the whole build against the core docs (PRD R1–R17 · spec · data-model ·

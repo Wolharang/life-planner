@@ -1,8 +1,8 @@
 // The numbers the Logs surface shows must match the reference apps (reference-apps.md §A4/§B4).
 
-import { byDay, categoryDistribution, expenseTotal, inMonth, mealSummary, stampFor, won } from "./aggregate";
+import { byDay, categoryDistribution, dayAggregate, expenseTotal, inMonth, mealSummary, stampFor, won } from "./aggregate";
 import { DAILY_KCAL_TARGET } from "./constants";
-import type { Expense, MealEntry } from "@/core/data/types";
+import type { Expense, MealEntry, TimeBlock } from "@/core/data/types";
 
 const exp = (over: Partial<Expense>): Expense => ({
   id: "e1",
@@ -76,6 +76,58 @@ describe("meals", () => {
 
   it("derives the daily target from the per-meal targets (reference-apps §B1 asked us to reconcile)", () => {
     expect(DAILY_KCAL_TARGET).toBe(1500);
+  });
+});
+
+describe("dayAggregate (R10 · data-model §2.6)", () => {
+  const block = (over: Partial<TimeBlock>): TimeBlock => ({
+    id: "b1",
+    date: "2026-08-03",
+    start: "21:00",
+    title: "헬스",
+    kind: "normal",
+    executionAlarm: false,
+    alarmLeadMinutes: 0,
+    snapStart: "21:00",
+    snapTitle: "헬스",
+    plannedAt: 0,
+    status: "planned",
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  });
+
+  const blocks = [
+    block({ id: "a", kind: "workout", status: "success" }),
+    block({ id: "b", status: "fail" }),
+    block({ id: "c", status: "skipped" }),
+    block({ id: "d", status: "planned" }),
+    block({ id: "e", date: "2026-08-02", status: "success" }), // another day
+  ];
+  const expenses = [exp({ id: "x", amount: 8000 }), exp({ id: "y", date: "2026-08-02", amount: 50000 })];
+  const meals = [meal({ id: "m", mealType: "저녁", kcal: 700 })];
+
+  const agg = dayAggregate("2026-08-03", blocks, expenses, meals);
+
+  it("counts only that day's blocks, by status", () => {
+    expect([agg.blocksSuccess, agg.blocksFail, agg.blocksSkipped, agg.blocksPlanned]).toEqual([1, 1, 1, 1]);
+  });
+
+  it("derives the workout flag from a success block of that kind (D22 — no activity record)", () => {
+    expect(agg.workoutDone).toBe(true);
+    expect(agg.runDone).toBe(false);
+  });
+
+  it("keeps the plan side and the log side as SEPARATE totals (D32 — links, not merges)", () => {
+    expect(agg.expenseTotal).toBe(8000); // that day only
+    expect(agg.kcalTotal).toBe(700);
+    expect(agg.kcalByMeal["저녁"]).toBe(700);
+    expect(agg.kcalByMeal["아침"]).toBe(0);
+  });
+
+  it("a workout planned but not succeeded is not 'done'", () => {
+    const notDone = dayAggregate("2026-08-03", [block({ kind: "workout", status: "planned" })], [], []);
+    expect(notDone.workoutDone).toBe(false);
   });
 });
 

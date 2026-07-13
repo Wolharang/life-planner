@@ -163,7 +163,13 @@ tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
   total + category distribution, kcal vs target) + `/add-expense` · `/add-meal` (≤2 taps + a number). Ported
   per `reference-apps.md` §A/§B — no photos (D19), no activity records (D22: 운동/러닝 O·X is derived from
   blocks), separate surface (D32). **Remaining:** on-device check; sync (R2) with F0.
-- **F4 day summary · F5 evaluation:** ⬜. (F4's inputs — block status + `aggregate.ts` totals — now exist.)
+- **F4 day summary:** ✅ **built** (2026-07-11). `DayAggregate` **derived on read** (`logs/aggregate.ts`,
+  data-model §2.6 — no stored rollup) + **`/summary?date=`**: 계획·실행 and 기록 as **two distinct sections**
+  (D32 — links, never merges), reachable from the calendar day panel and the day view. 운동/러닝 O·X derived
+  from success blocks (D22).
+- **F5 evaluation (R17, Later):** ⬜ — the last phase. Needs: per-block success/fail **+ free-text
+  failReason** (D5; today's miss paths record no reason — that data is being lost as it accrues), and a month
+  rollup of executed-vs-planned against the **D-1 snapshot** (D23; `snap*`/`plannedAt` are already captured).
 
 **Loose ends / caveats to remember:**
 - **The native execution moment can't be compile-checked here** (Kotlin builds only at `npx expo run:android`).

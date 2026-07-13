@@ -106,6 +106,28 @@ export interface MealEntry {
   updatedAt: number;
 }
 
+/**
+ * DayAggregate — the day's rollup (data-model §2.6 · PRD R10). **Derived, never stored**: computed from
+ * that day's blocks + expenses + meals on read (zero writes — the cost guard in tech-feasibility §6-3).
+ *
+ * It is the concrete form of "integration = **linking**, not merging" (D32): it carries the plan side and
+ * the log side as **separate totals**, so a screen can show them as distinct sections and never as one
+ * interleaved timeline. `workoutDone`/`runDone` are **derived from success blocks** (D22) — there is no
+ * activity record anywhere.
+ */
+export interface DayAggregate {
+  date: string;
+  blocksPlanned: number;
+  blocksSuccess: number;
+  blocksFail: number;
+  blocksSkipped: number;
+  workoutDone: boolean;
+  runDone: boolean;
+  expenseTotal: number;
+  kcalTotal: number;
+  kcalByMeal: Record<MealType, number>;
+}
+
 export type BlockKind = "normal" | "workout" | "run";
 /**
  * data-model §2.3: `planned|success|fail`, **plus** `skipped` — the pre-fire, re-togglable "오늘은 쉼"

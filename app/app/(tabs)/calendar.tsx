@@ -223,6 +223,20 @@ export default function Calendar() {
               {selBlocks.length > 0 ? `${selBlocks.length}개 · 열기 ›` : "짜기 ›"}
             </Text>
           </Pressable>
+
+          {/* R10 — the day summary links the two surfaces (it does not merge them, D32) */}
+          <Pressable
+            onPress={() => router.push({ pathname: "/summary", params: { date: selected } })}
+            className="bg-group rounded-card flex-row items-center justify-between mb-2"
+            style={{ paddingHorizontal: 14, paddingVertical: 11 }}
+          >
+            <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+              하루 요약
+            </Text>
+            <Text className="text-grey" style={{ fontSize: 16, fontWeight: "700" }}>
+              ›
+            </Text>
+          </Pressable>
           {selBlocks.length === 0 ? (
             <Text className="text-grey" style={{ fontSize: 13 }}>
               이 날의 시간 계획은 아직 없어요.

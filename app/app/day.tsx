@@ -54,12 +54,22 @@ export default function DayPlan() {
         <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}>
           {headerLabel(date)}
         </Text>
-        <View className="flex-row" style={{ gap: 10 }}>
+        <View className="flex-row items-center" style={{ gap: 10 }}>
           <Pressable onPress={() => setDate((d) => shiftYmd(d, -1))} hitSlop={10}>
             <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
           </Pressable>
           <Pressable onPress={() => setDate((d) => shiftYmd(d, 1))} hitSlop={10}>
             <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
+          </Pressable>
+          {/* R10 lives on its own screen — this surface stays plan/execution only (D32) */}
+          <Pressable
+            onPress={() => router.push({ pathname: "/summary", params: { date } })}
+            className="bg-group rounded-full px-3 py-1.5"
+            hitSlop={8}
+          >
+            <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
+              요약
+            </Text>
           </Pressable>
         </View>
       </View>

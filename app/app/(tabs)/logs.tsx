@@ -13,7 +13,7 @@ import { listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
 import { todayYmd } from "@/core/schedule/blockScheduler";
-import { byDay, categoryDistribution, expenseTotal, inMonth, mealSummary, monthKey, won } from "@/core/logs/aggregate";
+import { byDay, categoryDistribution, dayAggregate, expenseTotal, inMonth, mealSummary, monthKey, won } from "@/core/logs/aggregate";
 import { CATEGORY_COLOR, CATEGORY_ICON, DAILY_KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -56,8 +56,8 @@ export default function Logs() {
   const summary = mealSummary(meals, today);
 
   // D22: "did I work out today" is DERIVED from workout/run blocks marked success — never logged here.
-  const doneToday = (kind: TimeBlock["kind"]) =>
-    blocks.some((b) => b.date === today && b.kind === kind && b.status === "success");
+  // The derivation lives in the shared aggregate (data-model §2.6), not inlined in this screen.
+  const todayAgg = dayAggregate(today, blocks, expenses, meals);
 
   const sections = (tab === "expense" ? byDay(monthExpenses) : byDay(monthMeals)).map((s) => ({
     title: s.date,
@@ -166,7 +166,7 @@ export default function Logs() {
                 })}
                 {/* derived from time-blocks (D22) — the workout is never logged here */}
                 <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 2 }}>
-                  🏃 운동 {doneToday("workout") ? "O" : "X"} · 👟 러닝 {doneToday("run") ? "O" : "X"}
+                  🏃 운동 {todayAgg.workoutDone ? "O" : "X"} · 👟 러닝 {todayAgg.runDone ? "O" : "X"}
                   <Text className="text-faint"> · 블록에서 자동</Text>
                 </Text>
               </View>
