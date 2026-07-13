@@ -143,10 +143,14 @@ tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
   Reused, not rebuilt (native alarm module + execution moment + Repository interfaces).
 - **Nav shell:** ✅ bottom tab bar (**홈 · 캘린더 · 기록**) — expo-router `(tabs)` group (`app/app/(tabs)/`). 기록
   (`logs.tsx`) = placeholder.
-- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started (the gate for sync/notif).
-- **F1 calendar:** 🟨 **UI built local-first** (2026-07-11) — R1 month calendar (square grid + event bars +
-  selected-day detail, `app/app/(tabs)/calendar.tsx`) + `ImportantEvent` + `eventRepository` (`lp.events.v1`) +
-  `add-event.tsx`. **Remaining:** R2 sync + R3 advance notification (need F0).
+- **F0 backend (Auth + Firestore repos + rules + storage cutover):** ⬜ not started. **Correction: F0 gates
+  only R2 (cross-device propagation)** — *not* R3. R3/D18 specify a **local** notification (no server push),
+  so it shipped without a backend (below).
+- **F1 calendar:** 🟨 **all but sync, built local-first** (2026-07-11) — R1 month calendar (square grid +
+  event bars + selected-day detail, `app/app/(tabs)/calendar.tsx`) + `ImportantEvent` + `eventRepository`
+  (`lp.events.v1`) + `add-event.tsx`; **R3 advance notification ✅** (soft local alert at
+  `time − notifyLeadMinutes`, default lead when unset; `plainReminders.ts` event path + re-arm on app-open
+  and after backup import). **Remaining: R2 sync only (needs F0).**
 - **F2 time-blocks + execution:** ⬜ NOT started — BUT the execution moment already got a **founder R7 flow change**
   (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** re-check → 응했어=DONE / 아직안했어=5·4·3·2·1→나가
   (pending). Implemented in `app/modules/lp-alarm/` (`EXTRA_MODE` + `ExecutionActivity.scheduleRecheck()`/recheck

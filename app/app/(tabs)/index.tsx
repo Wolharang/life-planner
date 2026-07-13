@@ -25,7 +25,8 @@ import { recordOutcome, removeOutcome, listOutcomes, type OutcomeRecord } from "
 import { listFires, setFires, appendFires, type FireRecord } from "@/core/data/firedRepository";
 import { listMisses, setMisses, appendMisses, type MissedRecord } from "@/core/data/missedRepository";
 import { appendLatencies } from "@/core/data/latencyRepository";
-import { scheduleReminders, cancelReminders } from "@/core/notifications/plainReminders";
+import { scheduleReminders, cancelReminders, rearmEventNotifications } from "@/core/notifications/plainReminders";
+import { listEvents } from "@/core/data/eventRepository";
 import { alarm } from "@/core/notifications/alarm";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -246,6 +247,7 @@ export default function Home() {
     await computeCatchUps();
     checkReadiness(); // §8 permission banner
     for (const t of await listTasks()) await scheduleReminders(t); // keep recurring plain reminders rolling
+    await rearmEventNotifications(await listEvents()); // R3 advance alerts survive reboot/reinstall
     load();
   }, [load, computeCatchUps, checkReadiness]);
 

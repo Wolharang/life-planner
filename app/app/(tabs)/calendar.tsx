@@ -196,6 +196,11 @@ export default function Calendar() {
                       {e.memo ?? ""}
                     </Text>
                   )}
+                  {e.time && e.notifyLeadMinutes != null && (
+                    <Text className="text-grey mt-1" style={{ fontSize: 12 }}>
+                      🔔 {leadLabel(e.notifyLeadMinutes)}
+                    </Text>
+                  )}
                 </View>
               </Pressable>
             ))
@@ -204,4 +209,12 @@ export default function Calendar() {
       </View>
     </SafeAreaView>
   );
+}
+
+/** The event's advance-alert lead (R3), read back in the user's words. */
+function leadLabel(min: number): string {
+  if (min === 0) return "정각 알림";
+  if (min % 1440 === 0) return `${min / 1440}일 전`;
+  if (min % 60 === 0) return `${min / 60}시간 전`;
+  return `${min}분 전`;
 }

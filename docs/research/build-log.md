@@ -7,6 +7,37 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — F1 완결분: important-event advance notification (R3, local · no backend)
+
+**Why now (a plan correction).** F1's advance notification was filed as "waits for F0 (backend)". A code
+audit showed that's wrong: **R3/D18 specify a *local* notification** (explicitly **not** paid server push),
+and `src/core/notifications/plainReminders.ts` (expo-notifications) already exists. So R3 needs **no
+backend** — **F0 gates only R2 (cross-device propagation)**. F1 is now complete except R2.
+
+### What
+- **`plainReminders.ts` (reframed as "the SOFT notification path", R15a)** — gained the event path next to
+  the task path: `scheduleEventNotification(event)` · `cancelEventNotification(id)` ·
+  `rearmEventNotifications(events)` · the pure `eventNotifyAt(event, lead, now)`. Alert time =
+  `date+time − lead`; **lead = `event.notifyLeadMinutes`, else the personal default** (R3 "default if
+  unset", R13/D28 — read lazily from `settingsRepository`, so the module's time math stays import-clean).
+  Identifiers `${eventId}-e` (task reminders are `${taskId}-r${offset}` — no collision).
+  **An untimed event gets no alert** — R3 is defined on `time − lead`, and inventing a time was rejected.
+- **`add-event.tsx`** — a **알림** lead section (정각 / 10분 / 30분 / 1시간 / 하루 전 + 직접), shown only when
+  시각 지정 is on; new events pre-fill the personal default. Save schedules (same id → replaces), delete
+  cancels. Copy states the R15 discipline plainly: **"조용한 알림이에요 — 잠금화면을 뚫지 않아요."**
+- **Re-arm** — home's app-open drain (`(tabs)/index.tsx`) and **backup import** (`backup.ts`) both call
+  `rearmEventNotifications`, which drops *all* event alerts (incl. ghosts of deleted events) then
+  reschedules the current set. Survives reboot / reinstall / restore.
+- **`(tabs)/calendar.tsx`** — the selected-day detail shows the set lead ("🔔 30분 전").
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (**new** `plainReminders.test.ts`: lead counted back from local
+date+time · 하루 전 · 정각 · untimed → none · past → none). **No native change → no prebuild** (JS only);
+Metro reload suffices. On-device check pending: set an event 30분 전 → the quiet alert arrives, and it does
+**not** pierce the lock screen.
+
+---
+
 ## 2026-07-11 — Execution moment: delayed "진짜 했어?" re-check (R7 flow change, native)
 
 Founder-directed change to the core lever (native `ExecutionActivity`). **New flow:** COMMIT ("…하기로 했잖아")

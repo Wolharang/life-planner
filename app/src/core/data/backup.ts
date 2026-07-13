@@ -12,8 +12,9 @@ import * as DocumentPicker from "expo-document-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
 import { listTasks } from "@/core/data/taskRepository";
+import { listEvents } from "@/core/data/eventRepository";
 import { scheduleTask, unscheduleTask } from "@/core/schedule/taskScheduler";
-import { scheduleReminders } from "@/core/notifications/plainReminders";
+import { scheduleReminders, rearmEventNotifications } from "@/core/notifications/plainReminders";
 
 export type ImportMode = "merge" | "overwrite";
 
@@ -152,6 +153,8 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
     scheduleTask(t);
     await scheduleReminders(t);
   }
+  // Events (R3): re-arm from scratch — drops ghosts of events the restore removed.
+  await rearmEventNotifications(await listEvents());
 
   return { imported: true, mode, tasks: afterTasks.length };
 }
