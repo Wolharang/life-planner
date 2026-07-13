@@ -7,11 +7,12 @@
 
 import { View, Text, Pressable, SectionList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { todayYmd } from "@/core/schedule/blockScheduler";
 import { byDay, categoryDistribution, dayAggregate, expenseTotal, inMonth, mealSummary, monthKey, won } from "@/core/logs/aggregate";
 import { CATEGORY_COLOR, CATEGORY_ICON, DAILY_KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
@@ -35,13 +36,15 @@ export default function Logs() {
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      listExpenses().then(setExpenses);
-      listMeals().then(setMeals);
-      listBlocks().then(setBlocks);
-    }, [])
-  );
+  const reload = useCallback(() => {
+    listExpenses().then(setExpenses);
+    listMeals().then(setMeals);
+    listBlocks().then(setBlocks);
+  }, []);
+  useFocusEffect(reload);
+  // R2: a change that arrived from the other phone must show up **without** navigating away and back.
+  useEffect(() => onSyncApplied(reload), [reload]);
+
 
   const month = monthKey(view.y, view.m);
   const shiftMonth = (delta: number) => {

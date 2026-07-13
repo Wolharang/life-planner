@@ -65,6 +65,19 @@ let hooks: ApplyHooks = {};
 let listeners: Array<() => void> = [];
 let syncingFor: string | null = null;
 
+/**
+ * The uid whose cloud this device's local rows have been reconciled against.
+ *
+ * **Signing out of A and into B used to upload A's data into B.** `disable()` keeps every local row (D20 —
+ * logout must not cost you your data), so B's first reconcile saw a phone full of rows the new cloud had never
+ * heard of, and dutifully **pushed them all up**. One person's plans landed in another person's account.
+ *
+ * So we remember the owner. When it changes, the cutover **does not push** — the new account adopts its own
+ * cloud, and the previous account's rows stay put locally (they are already safe in *its* cloud). Nothing is
+ * uploaded that the new owner never made, and nothing local is destroyed.
+ */
+const OWNER_KEY = "lp.sync.owner.v1";
+
 function col(uid: string, name: CollectionName) {
   return db()?.collection("users").doc(uid).collection(name);
 }
@@ -170,9 +183,30 @@ export function syncRemove(name: CollectionName, id: string): void {
 /** Collections (`uid:name`) whose local rows have been reconciled against real server state this session. */
 const reconciled = new Set<string>();
 
+/**
+ * Screens re-read only on focus, so a change that arrived from the other phone **sat in storage unseen** until
+ * you navigated away and back. R2 promises the event "appears on device B **within seconds**"; the data did,
+ * the screen didn't. Screens subscribe here and reload when the cloud actually changes something.
+ */
+const watchers = new Set<(name: CollectionName) => void>();
+
+export function onSyncApplied(fn: (name: CollectionName) => void): () => void {
+  watchers.add(fn);
+  return () => {
+    watchers.delete(fn);
+  };
+}
+
 async function writeLocal(name: CollectionName, rows: Syncable[]): Promise<void> {
   await AsyncStorage.setItem(KEYS[name], JSON.stringify(rows));
   await hooks[name]?.(); // e.g. a block that arrived from the other phone must now arm its alarm
+  for (const fn of watchers) {
+    try {
+      fn(name);
+    } catch {
+      // a screen that blew up on a refresh must not take the sync engine with it
+    }
+  }
 }
 
 /**
@@ -242,20 +276,30 @@ export function planReconcile<T extends Syncable>(
   return { merged: [...merged.values()], toPush, toBury };
 }
 
-async function reconcile(name: CollectionName, snap: any): Promise<void> {
+async function reconcile(name: CollectionName, snap: any, uid: string): Promise<void> {
   const cloudRows: CloudRow[] = [];
   snap.forEach((doc: any) => {
     const data = doc.data();
     if (data) cloudRows.push({ ...data, id: data.id ?? doc.id } as CloudRow);
   });
 
+  const previousOwner = await AsyncStorage.getItem(OWNER_KEY);
+  const sameOwner = previousOwner == null || previousOwner === uid;
+
   const { merged, toPush, toBury } = planReconcile(
     await readLocal(name),
     cloudRows,
     await deletedIds(name)
   );
-  for (const row of toPush) syncPut(name, row);
-  for (const id of toBury) syncRemove(name, id); // a deletion made while logged out finally reaches the cloud
+
+  if (sameOwner) {
+    for (const row of toPush) syncPut(name, row);
+    for (const id of toBury) syncRemove(name, id); // a logged-out deletion finally reaches the cloud
+  }
+  // Different owner → push NOTHING. These rows are the previous account's; they are already safe in its cloud,
+  // and they are not this account's to hold. The new owner adopts its own data and nothing leaks either way.
+
+  await AsyncStorage.setItem(OWNER_KEY, uid);
   await writeLocal(name, merged);
 }
 
@@ -283,7 +327,7 @@ async function applySnapshot(uid: string, name: CollectionName, snap: any): Prom
     if (snap.metadata?.fromCache !== false) return;
     reconciled.add(key);
   }
-  await reconcile(name, snap);
+  await reconcile(name, snap, uid);
 }
 
 /** Turn sync on for `uid`. Idempotent per uid, so the auth listener can call it freely. */

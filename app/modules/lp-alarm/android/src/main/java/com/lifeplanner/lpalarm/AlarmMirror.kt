@@ -23,16 +23,28 @@ object AlarmMirror {
     write(context, getAll(context).filter { it.id != id })
   }
 
+  /**
+   * Never throws. `JSONArray(raw)` and `getString("id")` throw `JSONException` on a malformed or older entry,
+   * and `getAll` sits under `AlarmScheduler.cancel` → `AlarmMirror.remove`, which JS calls with **no try/catch**
+   * from `scheduleBlock`/`unscheduleBlock`. One bad row in SharedPreferences would therefore blow up **every
+   * save, edit and delete in the app**. A derived cache must degrade, not detonate: an unreadable row is simply
+   * not there.
+   */
   fun getAll(context: Context): List<AlarmItem> {
     val raw = prefs(context).getString(KEY, "[]") ?: "[]"
-    val arr = JSONArray(raw)
+    val arr = try {
+      JSONArray(raw)
+    } catch (e: Exception) {
+      return emptyList()
+    }
     val out = ArrayList<AlarmItem>(arr.length())
     for (i in 0 until arr.length()) {
-      val o = arr.getJSONObject(i)
+      val o = arr.optJSONObject(i) ?: continue
+      if (!o.has("id") || !o.has("fireAt")) continue
       out.add(
         AlarmItem(
-          id = o.getString("id"),
-          fireAt = o.getLong("fireAt"),
+          id = o.optString("id"),
+          fireAt = o.optLong("fireAt"),
           title = o.optString("title", "실행"),
           recurrence = o.optString("recurrence", "none"),
           note = o.optString("note", ""),

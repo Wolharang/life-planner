@@ -132,7 +132,13 @@ export function pastUnfiredBlocks(
   return blocks.filter((b) => {
     if (!isExecution(b)) return false; // only the CUE can be "missed" — a soft alert just informed you
     const fireAt = blockFireAt(b);
-    return fireAt != null && fireAt <= now && fireAt > from && !stillArmed.has(b.id);
+    if (fireAt == null || fireAt > now || fireAt <= from || stillArmed.has(b.id)) return false;
+    // **A block created AFTER its own fire time never had a chance to fire, so it was never missed.**
+    // `scheduleBlock` refuses to arm a past time, so no marker can exist — and this function used to read
+    // that absence as "the alarm failed" and report 놓쳤어요 on the spot, then auto-archive it as a **miss the
+    // user never had the opportunity to avoid**. Back-dating a block (or the prototype migration, which lands
+    // every old task on *today* at its old clock time) manufactured false misses straight into S1.
+    return fireAt >= b.createdAt;
   });
 }
 

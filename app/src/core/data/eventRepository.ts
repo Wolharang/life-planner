@@ -12,7 +12,15 @@ export type { ImportantEvent } from "./types";
 
 export async function listEvents(): Promise<ImportantEvent[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as ImportantEvent[]) : [];
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? (rows as ImportantEvent[]) : [];
+  } catch {
+    // A corrupt store must degrade, not detonate. This is read by home, the tabs, the catch-up sweep and the
+    // app-open re-arm — an unguarded throw here took the whole app down with no recovery path.
+    return [];
+  }
 }
 
 export async function saveEvents(events: ImportantEvent[]): Promise<void> {

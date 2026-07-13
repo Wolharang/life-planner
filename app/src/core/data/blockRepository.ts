@@ -125,7 +125,15 @@ function normalize(raw: any): TimeBlock {
 export async function listBlocks(): Promise<TimeBlock[]> {
   await ensureMigrated();
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as any[]).map(normalize) : [];
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    if (!Array.isArray(rows)) return [];
+    return rows.filter((r) => r && typeof r === "object").map(normalize);
+  } catch {
+    // A corrupt block store must not take the app down — every screen and the app-open re-arm read this.
+    return [];
+  }
 }
 
 /** Raw write — callers must reconcile alarms themselves. Internal; the exported mutations below do it. */

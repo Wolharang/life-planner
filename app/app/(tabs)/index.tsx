@@ -20,6 +20,7 @@ import {
   rearmBlockAlarms,
   type TimeBlock,
 } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { blockFireAt, blockStartAt, isSkipped, pastUnfiredBlocks, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { recordOutcome, removeOutcome, listOutcomes, type OutcomeRecord } from "@/core/data/outcomeRepository";
 import { notificationPermissionGranted } from "@/core/notifications/plainReminders";
@@ -314,6 +315,9 @@ export default function Home() {
     });
     return () => s.remove();
   }, [sync]);
+
+  // R2: a remote change must appear without navigating away and back.
+  useEffect(() => onSyncApplied(() => { void load(); }), [load]);
 
   useFocusEffect(
     useCallback(() => {

@@ -5,9 +5,10 @@
 
 import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { listBlocks, blocksOn, addBlocks, type TimeBlock } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { newId } from "@/core/data/id";
 import { freeSlots, isExecution, isSkipped, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 
@@ -90,6 +91,9 @@ export default function DayPlan() {
       ]
     );
   };
+
+  // R2: a remote change must appear without navigating away and back.
+  useEffect(() => onSyncApplied(() => { void load(); }), [load]);
 
   useFocusEffect(
     useCallback(() => {

@@ -7,9 +7,10 @@
 
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
@@ -34,13 +35,15 @@ export default function Summary() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [meals, setMeals] = useState<MealEntry[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      listBlocks().then(setBlocks);
-      listExpenses().then(setExpenses);
-      listMeals().then(setMeals);
-    }, [])
-  );
+  const reload = useCallback(() => {
+    listBlocks().then(setBlocks);
+    listExpenses().then(setExpenses);
+    listMeals().then(setMeals);
+  }, []);
+  useFocusEffect(reload);
+  // R2: a change that arrived from the other phone must show up **without** navigating away and back.
+  useEffect(() => onSyncApplied(reload), [reload]);
+
 
   const agg = dayAggregate(date, blocks, expenses, meals);
   const dayBlocks = blocksOn(blocks, date);

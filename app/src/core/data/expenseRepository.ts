@@ -13,8 +13,16 @@ export type { Expense } from "./types";
 /** Newest first — the reference app sorted by timestamp descending on every load. */
 export async function listExpenses(): Promise<Expense[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  const all = raw ? (JSON.parse(raw) as Expense[]) : [];
-  return all.sort((a, b) => b.timestamp - a.timestamp);
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    const all = Array.isArray(rows) ? (rows as Expense[]) : [];
+    return all.sort((a, b) => b.timestamp - a.timestamp);
+  } catch {
+    // A corrupt store must degrade, not detonate — this read sits under home, the tabs, the catch-up sweep
+    // and the app-open re-arm, and an unguarded throw took the whole app down with no recovery path.
+    return [];
+  }
 }
 
 export async function saveExpenses(expenses: Expense[]): Promise<void> {

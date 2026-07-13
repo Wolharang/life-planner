@@ -20,7 +20,15 @@ export interface FireRecord {
 
 export async function listFires(): Promise<FireRecord[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as FireRecord[]) : [];
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? (rows as FireRecord[]) : [];
+  } catch {
+    // A corrupt store must degrade, not detonate. This is read by home, the tabs, the catch-up sweep and the
+    // app-open re-arm — an unguarded throw here took the whole app down with no recovery path.
+    return [];
+  }
 }
 
 export async function setFires(list: FireRecord[]): Promise<void> {

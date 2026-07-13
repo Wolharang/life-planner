@@ -12,8 +12,16 @@ export type { MealEntry } from "./types";
 
 export async function listMeals(): Promise<MealEntry[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  const all = raw ? (JSON.parse(raw) as MealEntry[]) : [];
-  return all.sort((a, b) => b.timestamp - a.timestamp);
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    const all = Array.isArray(rows) ? (rows as MealEntry[]) : [];
+    return all.sort((a, b) => b.timestamp - a.timestamp);
+  } catch {
+    // A corrupt store must degrade, not detonate — this read sits under home, the tabs, the catch-up sweep
+    // and the app-open re-arm, and an unguarded throw took the whole app down with no recovery path.
+    return [];
+  }
 }
 
 export async function saveMeals(meals: MealEntry[]): Promise<void> {

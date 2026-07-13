@@ -103,6 +103,7 @@ class ExecutionActivity : Activity() {
     private const val SOUND_MAX_MS = 60_000L
     // ~5 min after COMMIT, re-open at "진짜 했어?" (founder 2026-07-11). [TBD] — could become a setting.
     private const val RECHECK_DELAY_MS = 5 * 60_000L
+    private const val PREF_SAVED_VOLUME = "savedAlarmVolume"
     // Pulling an unanswered moment back after home/power. Bounded: insist, never trap (R14).
     private const val RESUMMON_MAX = 3
     private const val RESUMMON_DELAY_MS = 700L
@@ -145,6 +146,7 @@ class ExecutionActivity : Activity() {
   )
 
   private fun startItem(item: Item) {
+    restoreStrandedVolume() // a previous moment may have been killed mid-tone with the phone left at MAX
     // Already ANSWERED in this process → a stale notification / duplicate intent must not replay it
     // (the founder saw "진짜 했어?" a second time after answering; a stale *commit* would even arm a
     // second re-check). Note the guard is on *resolution*, not on start: an unanswered moment that got
@@ -393,6 +395,7 @@ class ExecutionActivity : Activity() {
     handler.removeCallbacksAndMessages(null)
     detachOverlay()
     stopSound()
+    unregisterBackGuard() // it was registered in onCreate and never removed
     super.onDestroy()
   }
 
@@ -414,13 +417,26 @@ class ExecutionActivity : Activity() {
   private fun canOverlay(): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
 
+  /** Held so it can be unregistered — a callback that outlives its activity is a leak the next moment pays for. */
+  private var backGuard: android.window.OnBackInvokedCallback? = null
+
   private fun registerBackGuard() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      onBackInvokedDispatcher.registerOnBackInvokedCallback(
-        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY
-      ) {
+      val cb = android.window.OnBackInvokedCallback {
         // consume: predictive back must not escape the moment either
       }
+      onBackInvokedDispatcher.registerOnBackInvokedCallback(
+        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+        cb
+      )
+      backGuard = cb
+    }
+  }
+
+  private fun unregisterBackGuard() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      backGuard?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+      backGuard = null
     }
   }
 
@@ -626,6 +642,21 @@ class ExecutionActivity : Activity() {
     return String.format("%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
   }
 
+  private fun volumePrefs() = getSharedPreferences("lp_alarm_volume", Context.MODE_PRIVATE)
+
+  /** If a previous moment was killed mid-tone, its saved level is still on disk — give it back. */
+  private fun restoreStrandedVolume() {
+    val stranded = volumePrefs().getInt(PREF_SAVED_VOLUME, -1)
+    if (stranded < 0) return
+    try {
+      (getSystemService(Context.AUDIO_SERVICE) as AudioManager)
+        .setStreamVolume(AudioManager.STREAM_ALARM, stranded, 0)
+    } catch (e: Exception) {
+      // policy refused — nothing else we can do, and it must not crash the moment
+    }
+    volumePrefs().edit().remove(PREF_SAVED_VOLUME).apply()
+  }
+
   private fun startSound() {
     // Hard cap — a tone must never outlive the moment (see onPause: it also dies with the screen).
     soundHandler.removeCallbacksAndMessages(null)
@@ -633,8 +664,16 @@ class ExecutionActivity : Activity() {
     try {
       // The execution moment should be loud regardless of a low/locked alarm slider — max the ALARM
       // stream during the moment and restore it on dismiss.
+      // **Save the user's level ONCE.** This used to overwrite `savedAlarmVolume` on every call — and
+      // `maybeStartSound()` calls it again whenever `player == null`, which is exactly what happens if the
+      // MediaPlayer below throws. So: volume goes to MAX, the player fails, the next render calls us again,
+      // and we "save" MAX as the original. The user's alarm volume was then **permanently maxed**, with no way
+      // back short of setting it by hand. A moment may be loud; it may not keep the phone loud forever.
       val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-      savedAlarmVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
+      if (savedAlarmVolume < 0) savedAlarmVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
+      // Persist it: `onDestroy` never runs if the OEM kills the process mid-tone, and then the phone is
+      // stranded at MAX with nothing left in memory that knows what it used to be. The next launch restores it.
+      volumePrefs().edit().putInt(PREF_SAVED_VOLUME, savedAlarmVolume).apply()
       am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
     } catch (e: Exception) {
       // couldn't adjust the alarm volume (policy) — proceed at the current level
@@ -677,6 +716,7 @@ class ExecutionActivity : Activity() {
       } catch (e: Exception) {
       }
       savedAlarmVolume = -1
+      volumePrefs().edit().remove(PREF_SAVED_VOLUME).apply()
     }
   }
 

@@ -5,10 +5,11 @@
 
 import { View, Text, Pressable, ScrollView, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { listEvents, groupByDate, type ImportantEvent } from "@/core/data/eventRepository";
 import { listBlocks, blocksOn, type TimeBlock } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { isExecution, todayYmd } from "@/core/schedule/blockScheduler";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -40,12 +41,14 @@ export default function Calendar() {
   const [events, setEvents] = useState<ImportantEvent[]>([]);
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      listEvents().then(setEvents);
-      listBlocks().then(setBlocks);
-    }, [])
-  );
+  const reload = useCallback(() => {
+    listEvents().then(setEvents);
+    listBlocks().then(setBlocks);
+  }, []);
+  useFocusEffect(reload);
+  // R2: a change that arrived from the other phone must show up **without** navigating away and back.
+  useEffect(() => onSyncApplied(reload), [reload]);
+
 
   const byDate = groupByDate(events);
   const cells = monthCells(view.y, view.m);

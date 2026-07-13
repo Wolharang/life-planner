@@ -74,7 +74,22 @@ object AlarmNotifications {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
+    // **The way back.** D47's design is "insist, never trap": the moment re-summons itself up to 3 times, and
+    // after that **the notification is how you return to it**. Except it wasn't — the builder set a
+    // fullScreenIntent but **no contentIntent**, so tapping the notification did **nothing at all**. Once the
+    // user had sent the moment away three times (or the overlay grant was missing, so the background start was
+    // refused), the unanswered occurrence was **unreachable**, and its notification sat in the shade as an
+    // inert, permanent row that only `dismiss()` could clear — and `dismiss()`, by definition, never ran.
+    // The safety net the whole re-summon design leans on did not exist.
+    val tapPending = PendingIntent.getActivity(
+      context,
+      item.id.hashCode() + 3,
+      fullScreenIntent,
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
     val notification = NotificationCompat.Builder(context, LpAlarmConstants.CHANNEL_ID)
+      .setContentIntent(tapPending)
       .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
       .setContentTitle("지금 — ${item.title}")
       .setContentText("실행할 시간이에요")

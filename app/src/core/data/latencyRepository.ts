@@ -18,7 +18,15 @@ export interface Latency {
 
 export async function listLatencies(): Promise<Latency[]> {
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? (JSON.parse(raw) as Latency[]) : [];
+  if (!raw) return [];
+  try {
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? (rows as Latency[]) : [];
+  } catch {
+    // A corrupt store must degrade, not detonate — this read sits under home, the tabs, the catch-up sweep
+    // and the app-open re-arm, and an unguarded throw took the whole app down with no recovery path.
+    return [];
+  }
 }
 
 export async function appendLatencies(list: Latency[]): Promise<void> {

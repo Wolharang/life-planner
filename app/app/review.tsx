@@ -11,9 +11,10 @@
 
 import { View, Text, Pressable, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { listBlocks, updateBlock, type TimeBlock } from "@/core/data/blockRepository";
+import { onSyncApplied } from "@/core/data/sync";
 import { recordOutcome } from "@/core/data/outcomeRepository";
 import { blockStartAt, todayYmd } from "@/core/schedule/blockScheduler";
 import { inMonth, monthKey } from "@/core/logs/aggregate";
@@ -37,6 +38,9 @@ export default function Review() {
   const [draft, setDraft] = useState("");
 
   const load = useCallback(async () => setBlocks(await listBlocks()), []);
+  // R2: a remote change must appear without navigating away and back.
+  useEffect(() => onSyncApplied(() => { void load(); }), [load]);
+
   useFocusEffect(
     useCallback(() => {
       load();
