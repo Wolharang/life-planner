@@ -158,7 +158,12 @@ tabs+calendar → docs-reflect → R7 re-check). Run `git push` only on request.
   **D38** (a block's only notification is the execution cue). The execution moment also carries the founder's
   **R7 re-check** (2026-07-11, native): COMMIT → ~5-min follow-up → **"진짜 했어?"** → 응했어=DONE /
   아직안했어=5·4·3·2·1→나가 (pending). **Remaining in F2:** on-device verification; evaluation UI is R17/F5.
-- **F3 logs · F4 day summary · F5 evaluation:** ⬜.
+- **F3 logs:** ✅ **built local-first** (2026-07-11). `Expense` (`lp.expenses.v1`) + `MealEntry`
+  (`lp.meals.v1`) + `src/core/logs/{constants,aggregate}.ts` + the real **기록 탭** (지출/식사 segmented, month
+  total + category distribution, kcal vs target) + `/add-expense` · `/add-meal` (≤2 taps + a number). Ported
+  per `reference-apps.md` §A/§B — no photos (D19), no activity records (D22: 운동/러닝 O·X is derived from
+  blocks), separate surface (D32). **Remaining:** on-device check; sync (R2) with F0.
+- **F4 day summary · F5 evaluation:** ⬜. (F4's inputs — block status + `aggregate.ts` totals — now exist.)
 
 **Loose ends / caveats to remember:**
 - **The native execution moment can't be compile-checked here** (Kotlin builds only at `npx expo run:android`).

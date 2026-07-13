@@ -47,6 +47,65 @@ export interface Settings {
 
 // ── Full-app entities ───────────────────────────────────────────────────────
 
+/** The 8 fixed budget categories (D16 — user-editable categories are deliberately not offered). */
+export type ExpenseCategory =
+  | "주식"
+  | "간식"
+  | "문화생활"
+  | "잡화소모"
+  | "이동통신"
+  | "대중교통비"
+  | "뷰티"
+  | "기타";
+
+export type MealType = "아침" | "점심" | "저녁" | "간식";
+
+/**
+ * Expense — logged **the moment money is spent** (D6), on the Logs surface, which is kept SEPARATE from
+ * the plan/execution surface (D32). Ported from `reference/calculator.js` (`@expense_list`), see
+ * docs/research/reference-apps.md §A2. KRW only (D25); `payment` is free text (D26); the icon is derived
+ * from the category, never stored.
+ */
+export interface Expense {
+  id: string;
+  /** YYYY-MM-DD (device local) — the day this spend belongs to */
+  date: string;
+  /** ms — the chosen date + the clock time at save (the reference apps' convention) */
+  timestamp: number;
+  /** 소비 이름 (required) */
+  name: string;
+  /** KRW (D25) */
+  amount: number;
+  category: ExpenseCategory;
+  /** 구매처 */
+  store?: string;
+  /** 결제수단 — free text (D26) */
+  payment?: string;
+  memo?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * MealEntry — logged **the moment you eat** (D6). Ported from `reference/kcal.js` (`@diet_list`), see
+ * reference-apps.md §B2, **minus photos** (D19) and **minus the 운동/러닝 activity records** — a workout is
+ * a TimeBlock marked success (D22), never a log entry.
+ */
+export interface MealEntry {
+  id: string;
+  date: string;
+  timestamp: number;
+  mealType: MealType;
+  /** 음식 이름 (required) */
+  foodName: string;
+  /** 상세 정보 */
+  detail?: string;
+  /** manual entry only — no barcode / calorie DB (D27) */
+  kcal: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type BlockKind = "normal" | "workout" | "run";
 /** `planned|success|fail` per data-model §2.3; `skipped` carries over the prototype's no-guilt pre-fire
  *  "오늘은 쉼" (§8.2) — it is NOT a fail and is excluded from the execution-rate denominator. */

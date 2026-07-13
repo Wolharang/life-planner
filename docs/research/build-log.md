@@ -7,6 +7,38 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-11 — F3: 기록 탭 real — expense + meal logging (reference apps ported)
+
+The **기록** tab stops being a stub. Both reference apps are ported per their migration spec
+(`reference-apps.md` §A/§B) — logic and field shapes, not the code: they were standalone single-file apps.
+
+### What
+- **Entities** — `Expense` (date, timestamp, name, amount **KRW** D25, category **8 fixed** D16, store,
+  payment **free text** D26) and `MealEntry` (date, timestamp, mealType 아침/점심/저녁/간식, foodName, detail,
+  **kcal manual only** D27). **No photo field** (D19). **No 운동/러닝 activity record** (D22) — see below.
+- **`src/core/logs/constants.ts`** — the 8 categories with the reference apps' identity **colors + emoji**,
+  the meal icons, and the per-meal kcal targets. **Reconciled a reference bug** the spec flagged (§B1): the
+  daily target is now **derived** (`sum = 1500`) instead of a hard-coded literal that could desync.
+- **`src/core/logs/aggregate.ts`** — pure: month filter · month total · **category distribution** ·
+  **day sections** · **today's kcal-vs-target summary** · `stampFor` (the reference convention: the chosen
+  date + the current clock time). Reused later by the day summary (R10).
+- **Repositories** `lp.expenses.v1` / `lp.meals.v1` (same Repository pattern → F0 swaps them to Firestore).
+  Both keys added to the JSON backup's merge map (R12).
+- **Screens** — `(tabs)/logs.tsx`: 지출 / 식사 segmented, month nav, the summary card (총 지출 + distribution
+  bar + top-3 legend / kcal vs target per meal), day-grouped list. `/add-expense` + `/add-meal`: **amount and
+  food name are focused first**, the category/meal type is one tap (meal type is pre-picked from the clock) —
+  the S4 bar is **≤2 taps + a number**.
+- **D22 upheld:** the 식사 summary's **운동/러닝 O·X is derived from that day's TimeBlocks** marked success
+  ("블록에서 자동"), not logged here. **D32 upheld:** nothing from this surface appears on home/My Day.
+
+### Verified
+`npm run typecheck` ✓ · `npm test` ✓ (24 — **new `aggregate.test.ts`**: month-scoped total, category split
++ ratio, day sections newest-first, KRW formatting, per-meal kcal vs target ignoring other days, derived
+1500 daily target, `stampFor`). **No native change → no prebuild.** On-device pending: log an expense and a
+meal in ≤2 taps; the month total / distribution / kcal summary read correctly.
+
+---
+
 ## 2026-07-11 — F2: TimeBlock + day plan + My Day (Task fully retired)
 
 The prototype's `Task` is **gone**; the app now runs on the full-app **`TimeBlock`** (data-model §2.3) — one

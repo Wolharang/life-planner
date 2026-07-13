@@ -31,6 +31,8 @@ const ARRAY_KEY_ID: Record<string, (item: any) => string> = {
   "lp.blocks.v1": (b) => String(b?.id),
   "lp.tasks.v1": (t) => String(t?.id), // legacy (prototype backups) — migrated to blocks on the next read
   "lp.events.v1": (e) => String(e?.id),
+  "lp.expenses.v1": (e) => String(e?.id),
+  "lp.meals.v1": (m) => String(m?.id),
   "lp.outcomes.v1": (o) => `${o?.taskId}|${o?.date}|${o?.source}`,
   "lp.fires.v1": (f) => `${f?.taskId}|${f?.date}`,
   "lp.missed.v1": (m) => `${m?.taskId}|${m?.date}`,
