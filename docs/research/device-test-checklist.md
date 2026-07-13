@@ -53,7 +53,9 @@ Make a block for **~2 minutes from now**: 홈 → ＋ 블록 추가 → 제목 "
 ### Alert tiers + sound (D40/D42/D43)
 - [ ] A new block defaults to **실행**. **(D43)**
 - [ ] A block set to **알림** → at its time you get **a notification only** — no full-screen, no lock-screen
-      takeover, nothing forced. With **횟수 3번** → it arrives **3 times, 5 minutes apart**.
+      takeover, nothing forced.
+- [ ] **＋ 알림 추가** → add **1시간 전 · 15분 전 · 정각** (max 3) → the notification arrives at **exactly those
+      three moments**, each labelled with which one it is. **(D45)**
 - [ ] Per-block **소리** OFF → **vibration only** (for BOTH tiers). ON → it rings — including an 알림-tier block.
 - [ ] 설정 → **알림음**: pick a tone (tap = preview); the execution moment plays **that** tone.
 

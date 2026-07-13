@@ -175,8 +175,13 @@ export interface TimeBlock {
   /** sound on this block's alert? `false` (default) = **vibration only**. Applies to BOTH tiers (D43) —
    *  the execution moment can be silent, and a soft alert can be audible. The tone itself is a setting. */
   alertSound?: boolean;
-  /** `soft` only: how many times the notification repeats (5-min spacing), so it isn't missed. 1 = once. */
-  alertRepeat?: number;
+  /**
+   * `soft` only — **when** its notifications arrive: minutes before `start`, **one entry per notification**,
+   * **max 3** (D45). e.g. `[60, 15, 0]` = an hour before, 15 minutes before, and on the dot. The user picks
+   * each one; a fixed repeat interval was wrong (you don't want "every 5 minutes", you want *your* moments).
+   * Sorted earliest-first (largest lead first). Defaults to one entry: `[alarmLeadMinutes]`.
+   */
+  alertLeads?: number[];
   /** the 5-second first move (A2) — shown on the execution moment's commit card */
   microStartNote?: string;
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes

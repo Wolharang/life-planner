@@ -71,7 +71,7 @@
 | — 실행 — | | | | |
 | `alert` | enum `soft\|execution` (**기본 `execution`**) | ✓ | D-1 | 이 블록이 갖는 **단 하나의** 알림(D40/D43). `execution`=핵심 레버(기본값). **발화는 live `start − alarmLeadMinutes` — 스냅샷 아님** |
 | `alertSound` | boolean (기본 false) | ○ | D-1 | **진동만 vs 소리+진동**. 단계와 **독립**(D43): 실행도 무음일 수 있고, 알림도 울릴 수 있다. 톤 자체는 전역 설정 |
-| `alertRepeat` | number (기본 1, ≤5) | ○ | D-1 | **`soft` 전용** — 5분 간격 반복 횟수(D43). 한 번 놓치면 그만인 알림은 무용지물이 되므로 |
+| `alertLeads` | number[] (**최대 3**) | ○ | D-1 | **`soft` 전용(D45)** — 알림이 오는 **시점들**(시작 전 분). 예: `[60,15,0]` = 1시간 전·15분 전·정각. **고정 간격 반복이 아니라 사용자가 고른 순간들**. 기본은 1개 |
 | `alarmLeadMinutes` | number | ○ | D-1 | 리드타임(D28) |
 | `microStartNote` | string | ○ | D-1 | "지금 신발 신기" |
 | — D-1 스냅샷(평가 기준, D23) — | | | | |

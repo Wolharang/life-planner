@@ -26,8 +26,10 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 ### Alert model, round 2 (D43)
 1. **`없음` removed** — a block you'd never be told about isn't worth adding. Two tiers: **알림 / 실행**.
 2. **`실행` is now the DEFAULT** for a new block — the lever is the product; you should have to opt *out*.
-3. **A soft alert can REPEAT** — 1 / 2 / 3 / 5 times, 5 minutes apart. One missable buzz is how a soft alert
-   quietly becomes useless.
+3. **A soft alert can arrive more than once** — *(revised same day by **D45**: the moments are **chosen**,
+   not repeated on a 5-minute interval. `alertLeads: number[]`, max 3 — "＋ 알림 추가" → 정각 / 5분 / 15분 /
+   30분 / 1시간 전 / 직접. Nobody wants "every 5 minutes"; they want "an hour before, 15 before, and on the
+   dot".)*
 4. **Sound is per-block and independent of the tier** — the **execution moment can be vibration-only**, and a
    **soft alert can ring**. (Two questions — *how hard does it push* vs *how loud is it* — had been fused.)
    Threaded natively (`AlarmItem.sound` → intent → mirror), because the moment reads it at fire time.

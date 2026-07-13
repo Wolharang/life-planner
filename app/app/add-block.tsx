@@ -38,8 +38,16 @@ const ALERTS: { label: string; v: BlockAlert }[] = [
   { label: "알림", v: "soft" },
   { label: "실행", v: "execution" },
 ];
-// A soft alert may repeat so it isn't missed (D43) — 5-min spacing.
-const REPEATS = [1, 2, 3, 5];
+// A soft alert arrives at the moments the USER picks (D45) — not on a fixed interval. Max 3.
+const SOFT_LEAD_PRESETS = [
+  { label: "정각", v: 0 },
+  { label: "5분 전", v: 5 },
+  { label: "15분 전", v: 15 },
+  { label: "30분 전", v: 30 },
+  { label: "1시간 전", v: 60 },
+];
+const MAX_ALERTS = 3;
+const leadText = (v: number) => (v === 0 ? "정각" : v % 60 === 0 ? `${v / 60}시간 전` : `${v}분 전`);
 const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -72,7 +80,9 @@ export default function AddBlock() {
   const [location, setLocation] = useState("");
   const [alert, setAlert] = useState<BlockAlert>("execution"); // the lever is the default (D43)
   const [alertSound, setAlertSound] = useState(false); // false = vibration only (both tiers, D43)
-  const [alertRepeat, setAlertRepeat] = useState(1); // soft only
+  const [leads, setLeads] = useState<number[]>([0]); // soft only: the moments the user picked (D45)
+  const [addingLead, setAddingLead] = useState(false);
+  const [leadInput, setLeadInput] = useState("");
   const [lead, setLead] = useState(0);
   const [leadCustomOn, setLeadCustomOn] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
@@ -115,7 +125,7 @@ export default function AddBlock() {
       setLocation(b.location ?? "");
       setAlert(b.alert);
       setAlertSound(!!b.alertSound);
-      setAlertRepeat(b.alertRepeat ?? 1);
+      setLeads(b.alertLeads?.length ? b.alertLeads : [b.alarmLeadMinutes]);
       setLead(b.alarmLeadMinutes);
       if (!LEAD_PRESET_VALUES.includes(b.alarmLeadMinutes)) {
         setLeadCustomOn(true);
@@ -137,7 +147,27 @@ export default function AddBlock() {
   const end = endOn && endValid ? `${pad(eh)}:${pad(em)}` : undefined;
   const orderValid = !end || end > start;
   const targetDates = editId ? [dateStr] : dates;
-  const canSave = title.trim().length > 0 && startValid && endValid && orderValid && targetDates.length > 0;
+  const canSave =
+    title.trim().length > 0 &&
+    startValid &&
+    endValid &&
+    orderValid &&
+    targetDates.length > 0 &&
+    (alert !== "soft" || leads.length > 0);
+
+  // Earliest first; the block's own lead mirrors the first moment so the rest of the app can show it.
+  const sortedLeads = [...new Set(leads)].sort((a, b) => b - a).slice(0, MAX_ALERTS);
+  const addLead = (v: number) => {
+    if (leads.length >= MAX_ALERTS || leads.includes(v)) return;
+    setLeads((prev) => [...prev, v]);
+    setAddingLead(false);
+    setLeadInput("");
+  };
+  const addLeadCustom = () => {
+    const v = parseInt(leadInput || "", 10);
+    if (isNaN(v) || v < 0) return;
+    addLead(v);
+  };
 
   const toggleDate = (d: string) =>
     setDates((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
@@ -147,6 +177,7 @@ export default function AddBlock() {
       if (!startValid || !endValid) setError("시각이 올바르지 않아요.");
       else if (!orderValid) setError("끝나는 시각이 시작보다 빨라요.");
       else if (targetDates.length === 0) setError("날짜를 하나 이상 골라주세요.");
+      else if (alert === "soft" && leads.length === 0) setError("알림 시점을 하나 이상 골라주세요.");
       return;
     }
     const now = Date.now();
@@ -158,8 +189,8 @@ export default function AddBlock() {
       location: location.trim() || undefined,
       alert,
       alertSound,
-      alertRepeat: alert === "soft" ? alertRepeat : undefined,
-      alarmLeadMinutes: effectiveLead,
+      alertLeads: alert === "soft" ? sortedLeads : undefined,
+      alarmLeadMinutes: alert === "soft" ? (sortedLeads[0] ?? 0) : effectiveLead,
       microStartNote: note.trim() || undefined,
     };
 
@@ -383,27 +414,66 @@ export default function AddBlock() {
           />
         </View>
 
-        {/* 알림 횟수 — a soft alert that's missed once is useless; let it repeat (D43). */}
+        {/* 알림 시점 (D45) — the user picks WHEN, up to 3 moments. Not a fixed repeat interval: nobody
+            wants "every 5 minutes"; they want "an hour before, 15 minutes before, and on the dot". */}
         {alert === "soft" && (
           <>
-            <SectionLabel>알림 횟수</SectionLabel>
+            <SectionLabel>알림 시점</SectionLabel>
             <ChipRow>
-              {REPEATS.map((n) => (
+              {sortedLeads.map((v) => (
                 <Chip
-                  key={n}
-                  label={n === 1 ? "1번" : `${n}번`}
-                  on={alertRepeat === n}
-                  onPress={() => setAlertRepeat(n)}
+                  key={v}
+                  label={`${leadText(v)} ✕`}
+                  on
+                  onPress={() => setLeads((prev) => prev.filter((x) => x !== v))}
                 />
               ))}
+              {leads.length < MAX_ALERTS && !addingLead && (
+                <Chip label="＋ 알림 추가" on={false} onPress={() => setAddingLead(true)} />
+              )}
             </ChipRow>
+
+            {addingLead && (
+              <View style={{ marginTop: 10 }}>
+                <ChipRow>
+                  {SOFT_LEAD_PRESETS.filter((o) => !leads.includes(o.v)).map((o) => (
+                    <Chip key={o.v} label={o.label} on={false} onPress={() => addLead(o.v)} />
+                  ))}
+                </ChipRow>
+                <View className="flex-row items-center mt-2" style={{ gap: 8 }}>
+                  <TextInput
+                    value={leadInput}
+                    onChangeText={(t) => setLeadInput(t.replace(/[^0-9]/g, "").slice(0, 4))}
+                    keyboardType="number-pad"
+                    placeholder="직접(분)"
+                    placeholderTextColor="#B0B8C1"
+                    className="bg-group text-ink text-center"
+                    style={{ fontSize: 15, width: 96, paddingVertical: 10, borderRadius: 10 }}
+                  />
+                  <Pressable onPress={addLeadCustom} className="bg-brand rounded-full px-4 py-2.5">
+                    <Text className="text-white" style={{ fontSize: 13, fontWeight: "700" }}>
+                      추가
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => setAddingLead(false)} className="px-3 py-2.5">
+                    <Text className="text-grey" style={{ fontSize: 13 }}>
+                      취소
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             <Text className="text-grey mt-2" style={{ fontSize: 12.5 }}>
-              {alertRepeat > 1 ? `5분 간격으로 ${alertRepeat}번 알려줘요.` : "한 번만 알려줘요."}
+              {leads.length === 0
+                ? "알림 시점을 하나 이상 골라주세요."
+                : `${sortedLeads.map(leadText).join(" · ")}에 알려줘요. (최대 ${MAX_ALERTS}개)`}
             </Text>
           </>
         )}
 
-        {(
+        {/* 실행 알림의 시점 — the soft tier has its own 알림 시점 list above */}
+        {alert === "execution" && (
           <>
             <SectionLabel>언제</SectionLabel>
             <ChipRow>

@@ -238,8 +238,8 @@ in enables sync** from that point (D20). Auth = **id + password** (D12; Google l
 
 **R5 — D-1 time-block planning.** **[P0]** Tapping a date opens that day's **time-block schedule**; blocks are
 **free-form start–end intervals** (D14) with title, optional location, `kind = normal|workout|run`, and **one
-alert, one of two (D40/D43)**: **알림** (a plain notification at `start − lead` — it tells you and forces
-nothing; **repeatable**, 5-min spacing) · **실행 알림** (the lock-screen execution cue + micro-start note).
+alert, one of two (D40/D43)**: **알림** (a plain notification — it tells you and forces nothing; it arrives at up to
+**3 moments the user chooses** (e.g. 1시간 전 · 15분 전 · 정각), D45) · **실행 알림** (the lock-screen execution cue + micro-start note).
 **Default = 실행 알림** (the lever is the product — you opt *out*). **Sound is an independent per-block
 choice** (default off = **vibration only**): the moment may be silent, an alert may ring. Plans are **editable on the day**, but a **D-1 snapshot** is frozen for evaluation; the alarm always
 follows the **live** `start − lead` (D23). A block belongs to **one date and does not repeat**; to cover a

@@ -139,14 +139,14 @@ export async function scheduleReminders(task: Task): Promise<void> {
 // Identifiers `${blockId}-b` (task reminders `-r*`, events `-e`).
 
 const BLOCK_SUFFIX = "-b";
-/** A soft alert may repeat so it isn't missed (D43). Spacing between repeats, and the ceiling we cancel to. */
-export const SOFT_REPEAT_GAP_MS = 5 * 60_000;
-export const SOFT_REPEAT_MAX = 5;
+/** A soft alert can arrive at up to 3 moments the USER picks (D45) — not on a fixed repeat interval. */
+export const SOFT_LEADS_MAX = 3;
 
 export async function cancelBlockSoftAlert(blockId: string): Promise<void> {
   const N = getNotifications();
   if (!N) return;
-  for (let i = 0; i < SOFT_REPEAT_MAX; i++) {
+  // Cancel generously (5 > the 3 we allow) so alerts left by an older, more permissive build still die.
+  for (let i = 0; i < 5; i++) {
     try {
       await N.cancelScheduledNotificationAsync(`${blockId}${BLOCK_SUFFIX}${i}`);
     } catch {
@@ -155,10 +155,14 @@ export async function cancelBlockSoftAlert(blockId: string): Promise<void> {
   }
 }
 
+/** "1시간 전 · 09:00" — the user asked for THIS moment, so say which one it is. */
+const leadLabel = (lead: number) =>
+  lead === 0 ? "지금" : lead % 60 === 0 ? `${lead / 60}시간 전` : `${lead}분 전`;
+
 /**
- * The soft tier (D40/D43): a plain notification that **tells** you. It may **repeat** N times, 5 minutes
- * apart, because one easily-missed buzz is how a soft alert quietly becomes useless — but it still never
- * takes the screen, so it can never turn into a second execution cue (R15).
+ * The soft tier (D40/D43/D45): a plain notification that **tells** you — at up to **3 moments the user
+ * chose** (`alertLeads`, minutes before start; e.g. an hour before, 15 min before, and on the dot). It
+ * never takes the screen, so it can never become a second execution cue (R15).
  */
 export async function scheduleBlockSoftAlert(
   block: {
@@ -168,32 +172,31 @@ export async function scheduleBlockSoftAlert(
     end?: string;
     alarmLeadMinutes: number;
     alertSound?: boolean;
-    alertRepeat?: number;
+    alertLeads?: number[];
   },
-  fireAt: number
+  startAt: number
 ): Promise<void> {
   const N = getNotifications();
   if (!N) return;
   try {
     await cancelBlockSoftAlert(block.id);
     const channelId = await ensureSoftChannel(N, !!block.alertSound);
-    const lead = block.alarmLeadMinutes;
-    const times = Math.min(Math.max(block.alertRepeat ?? 1, 1), SOFT_REPEAT_MAX);
     const now = Date.now();
 
-    for (let i = 0; i < times; i++) {
-      const at = fireAt + i * SOFT_REPEAT_GAP_MS;
-      if (at <= now) continue; // a repeat whose moment already passed is simply skipped
+    const leads = (block.alertLeads?.length ? block.alertLeads : [block.alarmLeadMinutes])
+      .map((l) => Math.max(0, Math.round(l)))
+      .filter((l, i, a) => a.indexOf(l) === i) // the same moment twice is just noise
+      .sort((a, b) => b - a) // earliest notification first
+      .slice(0, SOFT_LEADS_MAX);
+
+    for (let i = 0; i < leads.length; i++) {
+      const at = startAt - leads[i] * 60_000;
+      if (at <= now) continue; // a moment that has already passed is simply skipped
       await N.scheduleNotificationAsync({
         identifier: `${block.id}${BLOCK_SUFFIX}${i}`,
         content: {
           title: block.title,
-          body:
-            i > 0
-              ? `아직이에요 · ${block.start}`
-              : lead > 0
-                ? `${lead}분 후 · ${block.start}${block.end ? `–${block.end}` : ""}`
-                : `지금 · ${block.start}`,
+          body: `${leadLabel(leads[i])} · ${block.start}${block.end ? `–${block.end}` : ""}`,
         },
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
       });

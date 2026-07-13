@@ -41,6 +41,13 @@ describe("blockFireAt (R7)", () => {
     expect(blockFireAt(block({ alert: "soft" }))).toBe(at(2026, 8, 1, 21, 0));
   });
 
+  it("a soft block with several chosen moments is 'next' at its EARLIEST one (D45)", () => {
+    // 1시간 전 · 15분 전 · 정각 → the block first announces itself an hour before 21:00
+    expect(blockFireAt(block({ alert: "soft", alertLeads: [0, 15, 60], alarmLeadMinutes: 60 }))).toBe(
+      at(2026, 8, 1, 20, 0)
+    );
+  });
+
   it("does not fire on a pre-skipped block (오늘은 쉼)", () => {
     expect(blockFireAt(block({ status: "skipped" }))).toBe(null);
   });

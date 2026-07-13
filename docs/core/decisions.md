@@ -12,6 +12,19 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-11 — Alert model, round 3
+
+### D45. A soft alert's moments are CHOSEN, not repeated on an interval (revises D43-3)
+- **Problem with D43's fixed 5-minute repeat (founder):** nobody wants "every 5 minutes". They want
+  **their own moments** — *"an hour before, 15 minutes before, and on the dot."* A repeat interval is the
+  app deciding when to nag; a list of leads is the user deciding when to be told.
+- **Decision:** `soft` blocks carry **`alertLeads: number[]`** — minutes before `start`, **one entry per
+  notification, max 3**. Default = **one** notification (as today). The add screen offers **＋ 알림 추가** →
+  pick **정각 / 5분 / 15분 / 30분 / 1시간 전 / 직접(분)**; each added moment shows as a removable chip.
+  Duplicates collapse; the block's "next fire" is its **earliest** chosen moment.
+- **`alertRepeat` (the interval) is dropped.** Old rows read forward to a single lead.
+- **Unchanged:** max 3 keeps a soft alert from turning into spam (C1) — it informs, it never forces.
+
 ## 2026-07-11 — Alert model, round 2 (from the second device pass)
 
 ### D43. Two tiers, not three · 실행 is the DEFAULT · repeat · sound is per-block (revises D40)

@@ -36,10 +36,17 @@ export const isSkipped = (block: TimeBlock) => block.status === "skipped";
 /** Does this block get the lock-screen execution moment (as opposed to a soft alert / silence)? D40. */
 export const isExecution = (block: TimeBlock) => block.alert === "execution" && !isSkipped(block);
 
-/** When a block should fire: `start − lead`. Null only when it is pre-skipped ("오늘은 쉼", R7). */
+/**
+ * When a block **first** announces itself: `start − lead`. For a soft block with several chosen moments
+ * (D45) that's its **earliest** one. Null only when the block is pre-skipped ("오늘은 쉼", R7).
+ */
 export function blockFireAt(block: TimeBlock): number | null {
   if (isSkipped(block)) return null;
-  return blockStartAt(block) - block.alarmLeadMinutes * 60_000;
+  const lead =
+    block.alert === "soft" && block.alertLeads?.length
+      ? Math.max(...block.alertLeads)
+      : block.alarmLeadMinutes;
+  return blockStartAt(block) - lead * 60_000;
 }
 
 /**
@@ -73,7 +80,8 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
       sound: !!block.alertSound, // D43: the moment itself can be vibration-only
     });
   } else {
-    await scheduleBlockSoftAlert(block, fireAt);
+    // The soft tier owns its own moments (alertLeads), so it needs the block's START, not one fire time.
+    await scheduleBlockSoftAlert(block, blockStartAt(block));
   }
 }
 
