@@ -85,7 +85,7 @@ type HistoryEntry = {
   title?: string;
   date: string;
   at: number;
-  status: OutcomeRecord["status"] | "pending";
+  status: OutcomeRecord["status"] | "pending" | "passed";
 };
 
 // A gentle catch-up prompt (R6). `kind` decides the copy: a block whose intervention NEVER fired
@@ -445,6 +445,12 @@ export default function Home() {
     ...fires
       .filter((f) => !settledKeys.has(`${f.taskId}|${f.date}`))
       .map((f) => ({ taskId: f.taskId, title: f.title, date: f.date, at: f.firedAt, status: "pending" as const })),
+    // A `none` block passes on its own (D68). It is **derived, never recorded**: writing an outcome for it
+    // would put context into the evidence store the self-experiment reads (S1/S5), and a 강의 that happened
+    // exactly as planned is not a datum about the lever. It shows, and it costs nothing.
+    ...blocks
+      .filter((b) => b.alert === "none" && blockStartAt(b) <= now && !settledKeys.has(`${b.id}|${b.date}`))
+      .map((b) => ({ taskId: b.id, title: b.title, date: b.date, at: blockStartAt(b), status: "passed" as const })),
   ].sort((a, b) => b.at - a.at);
   const historyRows: HomeRow[] = history.slice(0, 12).map((entry) => ({ kind: "history", entry }));
   const rows: HomeRow[] = [
@@ -767,7 +773,19 @@ export default function Home() {
                     </Text>
                   )}
                 </View>
-                {settled ? (
+                {b.alert === "none" ? (
+                  // **A `none` block is context, not a commitment (D67/D68).** It holds an hour so the day is
+                  // honest — 강의, 이동 — and it *happens to you*. Asking "did you do it?" would be absurd, and
+                  // demanding a tap to clear it would turn the honest day into a chore list. So it answers
+                  // itself: once its time passes it simply flows into 지난 기록 as 지남, and nothing is owed.
+                  item.started ? (
+                    <View className="bg-group rounded-full px-3 py-1">
+                      <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
+                        지남
+                      </Text>
+                    </View>
+                  ) : null
+                ) : settled ? (
                   <OutcomeBadge status={b.status === "success" ? "done" : "miss"} />
                 ) : item.started ? (
                   // The moment has passed → OFFER to record it, never nag. This must not be mistaken for a
@@ -834,7 +852,18 @@ const iconOf = (title: string): IconKind => {
   return "normal";
 };
 
-function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" }) {
+function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" | "passed" }) {
+  // 지남 — a `none` block whose hour has gone by. Not a verdict: nobody passed or failed anything. It is the
+  // day, recorded. Neutral grey, never taupe (which means "miss") and certainly never gold.
+  if (status === "passed") {
+    return (
+      <View className="bg-group rounded-full px-3 py-1">
+        <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
+          지남
+        </Text>
+      </View>
+    );
+  }
   // "아직" = the moment appeared and you said not yet. It is an ANSWER, not a failure: neutral, taupe-on-soft,
   // never red, and it is not a miss (R7/R14). It stays until you resolve it — or until the catch-up window
   // quietly archives it.

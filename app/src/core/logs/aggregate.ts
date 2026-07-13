@@ -69,7 +69,10 @@ export function dayAggregate(
   expenses: Expense[],
   meals: MealEntry[]
 ): DayAggregate {
-  const day = blocks.filter((b) => b.date === date);
+  // **`없음` blocks are not counted** (D67/D68). They hold an hour so the day is honest — 강의, 이동 — and they
+  // happen *to* you. Counting them as "planned" would make every honest day look like a day of unfinished
+  // business, and the summary's whole job is to be readable without accusing anyone.
+  const day = blocks.filter((b) => b.date === date && b.alert !== "none");
   const done = (kind: TimeBlock["kind"]) => day.some((b) => b.kind === kind && b.status === "success");
   const meal = mealSummary(meals, date);
   const kcalByMeal = {} as Record<MealType, number>;

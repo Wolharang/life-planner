@@ -14,6 +14,20 @@
 
 ## 2026-07-13 (late) — the two-device test, and what it exposed
 
+### D68. A `없음` block answers itself — it is never asked, and it is never counted
+- **The founder:** *"이렇게 추가되는 알림 없는 일정은 굳이 '해냄'을 누르는 등 체크하게 할 필요가 없다."* Correct, and it
+  matters more than it looks.
+- **A `없음` block is context, not a commitment** (D67). It holds an hour so the day is honest — 강의, 이동, 알바 —
+  and it **happens to you**. Asking *"did you do it?"* is absurd; demanding a tap to clear it turns the honest
+  day into a **chore list**, which is exactly the maintenance death (C2) the product is built to avoid. The
+  moment you must *tend* your calendar, you stop keeping one.
+- **Decision.** Once its time passes, a `없음` block simply flows into 지난 기록 as **지남** — neutral grey, no
+  verdict, nobody passed or failed anything. It is **derived, never recorded**: no outcome row is written, so
+  it cannot enter the evidence store the self-experiment reads (S1/S5). *A 강의 that happened exactly as planned
+  is not a datum about the lever.*
+- Nor is it counted in the day summary or in 돌아보기: counting it would make **every honest day look like a day
+  of unfinished business**. No 해냄 button, no 쉼 switch — there is nothing to skip.
+
 ### D67. ONE unit. The alert tier *is* what the thing is. (`ImportantEvent` is retired)
 - **The founder's report.** He added a block with 알림 없음 — and **it did not appear on the calendar**. The
   month showed a free afternoon that was not free. Meanwhile a calendar "일정" had no effect on the day plan.
