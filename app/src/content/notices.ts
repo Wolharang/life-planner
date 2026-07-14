@@ -1,11 +1,14 @@
-// 공지사항 — and it is not decoration.
+// 공지사항.
 //
-// The terms promise it: 제3조 2항 says a change to the terms is announced **in the app's 공지사항**, 7 days
-// ahead (30 for anything that disadvantages the user). Without this screen the app could not keep its own
-// terms. A policy edit therefore lands here as a notice, not only as a version bump.
+// The terms oblige it (제3조 ③): a change to the terms is announced **in the app's 공지사항**, 7 days ahead —
+// 30 if it disadvantages the user. Without this screen the app could not keep its own terms.
 //
-// Static and in-bundle on purpose. Fetching notices would mean a server, and a notice nobody can read offline
-// is worse than one shipped in the binary.
+// **What does NOT belong here:** an announcement that the policies exist. The founder cut it, and he was right
+// — a user who is reading 공지사항 already agreed to them at signup, and the shelf at the bottom of 계정 is one
+// tap away. A notice board that opens with an announcement about itself teaches people to stop reading it.
+//
+// So it carries what actually changed in the app, drawn from `docs/research/build-log.md`. Static and
+// in-bundle on purpose: a notice nobody can read offline is worse than one shipped in the binary.
 
 import type { Block } from "./legal";
 
@@ -15,36 +18,12 @@ export interface Notice {
   date: string;
   title: string;
   body: Block[];
-  /** Pinned to the top — used for policy changes, which the terms require us to announce in advance. */
+  /** Pinned to the top. Reserved for policy changes — the thing the terms require us to announce in advance. */
   pinned?: boolean;
 }
 
 /** Newest first. */
 export const NOTICES: Notice[] = [
-  {
-    id: "n-2026-07-14-legal",
-    date: "2026-07-14",
-    title: "이용약관 · 개인정보 처리방침 · 위치기반서비스 약관 시행",
-    pinned: true,
-    body: [
-      {
-        t: "p",
-        text: "2026년 7월 14일부터 세 문서가 시행됩니다. 가입할 때 동의하게 되며, 언제든 설정 → 계정 맨 아래에서 다시 볼 수 있어요.",
-      },
-      {
-        t: "list",
-        items: ["서비스 이용약관", "개인정보 처리방침", "위치기반서비스 이용약관"],
-      },
-      {
-        t: "note",
-        text: "이 앱은 지금 위치 정보를 전혀 수집하지 않습니다. 위치기반서비스 약관은 앞으로 “운동 일정을 만든 뒤 실제로 그 장소에 갔는지” 확인해 주는 기능을 위한 것이며, 그 기능을 켜는 시점에 기기 권한과 함께 다시 확인합니다.",
-      },
-      {
-        t: "p",
-        text: "앞으로 약관이 바뀌면 시행 7일 전(이용자에게 불리한 변경은 30일 전)부터 이 공지사항으로 먼저 알려드립니다.",
-      },
-    ],
-  },
   {
     id: "n-2026-07-14-devices",
     date: "2026-07-14",
@@ -61,6 +40,69 @@ export const NOTICES: Notice[] = [
       {
         t: "p",
         text: "고르지 않은 기기에서는 진동과 알림으로 그 시각이 왔다는 것만 알려줘요. 기기 선택은 블록을 만들거나 고칠 때 ‘실행’ 알림을 켜면 나타나요.",
+      },
+    ],
+  },
+  {
+    id: "n-2026-07-14-one-unit",
+    date: "2026-07-14",
+    title: "일정과 블록이 하나로 합쳐졌어요",
+    body: [
+      {
+        t: "p",
+        text: "전에는 캘린더의 ‘일정’과 홈의 ‘블록’이 따로였어요. 그래서 블록으로 넣은 수업이 캘린더에 보이지 않았고, 달력은 비어 있지 않은 오후를 비어 있다고 말했어요.",
+      },
+      { t: "p", text: "이제 하나예요. 알림을 어떻게 설정하느냐가 그 일정이 무엇인지를 말해 줘요." },
+      {
+        t: "list",
+        items: [
+          "없음 : 시간만 차지해요. 강의·이동처럼 확인할 필요가 없는 것. 그 시각이 지나면 알아서 지난 기록으로 넘어가요.",
+          "알림 : 잊지 않게 알려만 줘요.",
+          "실행 : 그 시각에 화면을 가져가서 시작하게 만들어요.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "n-2026-07-14-silent",
+    date: "2026-07-14",
+    title: "무음 알림이 생겼어요",
+    body: [
+      {
+        t: "p",
+        text: "알림의 세기를 무음·진동·소리 중에서 고를 수 있어요. 실행 알람도 무음으로 둘 수 있어요.",
+      },
+      { t: "p", text: "화면을 가져가는 것이 실행을 만드는 것이고, 소리는 거기 따라붙는 것일 뿐이니까요." },
+    ],
+  },
+  {
+    id: "n-2026-07-13-sync",
+    date: "2026-07-13",
+    title: "로그인하면 기기 간에 자동으로 맞춰져요",
+    body: [
+      {
+        t: "p",
+        text: "설정 → 계정에서 로그인하면 일정·지출·식사가 다른 기기와 자동으로 맞춰져요. 로그인하지 않아도 앱의 모든 기능은 그대로 동작해요.",
+      },
+      {
+        t: "p",
+        text: "오프라인에서 바꾼 것도 그대로 저장되고, 연결되면 알아서 올라가요. 아직 올라가지 못한 기록이 있으면 계정 화면이 그 개수를 알려줘요. 기다리지 않게 만든 것이지, 모른 척하려는 게 아니니까요.",
+      },
+    ],
+  },
+  {
+    id: "n-2026-07-13-records",
+    date: "2026-07-13",
+    title: "지난 기록을 고치고 지울 수 있어요",
+    body: [
+      {
+        t: "list",
+        items: [
+          "답하지 않고 지나간 일은 ‘아직’으로 남아요. 없던 일처럼 사라지지 않아요.",
+          "지난 기록을 길게 누르면 지울 수 있어요.",
+          "미뤄 둔 일의 시각을 옮기면 그 일이 다시 열려요. 15시에 놓쳤어도 17시에 하면 되니까요.",
+          "설정 → 자가실험 → 기록 초기화로 실행 기록만 비울 수 있어요. 계획은 그대로 남아요.",
+        ],
       },
     ],
   },

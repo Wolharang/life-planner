@@ -24,6 +24,11 @@
 //     not safer for being broad; it is simply **wrong**. If the database is ever moved to another region, 제6조
 //     changes in the same commit and `LEGAL_VERSION` bumps — the user consented to *where their data goes*.
 //
+// **Adults only (founder, 2026-07-14).** 이용약관 제5조: the service is for adults, and **만 18세 이하** cannot
+// sign up. That one rule collapses a whole clause elsewhere — the location terms' **8세 이하의 아동 등의 보호**
+// article is gone, because an 8-year-old cannot hold an account in the first place. *A protection for someone
+// the service refuses to serve is not protection; it is padding, and padding is what makes a document unread.*
+//
 // **On 위치정보 (founder, 2026-07-14):** 위치정보법 제9조's 신고 duty binds those who provide such a service
 // **사업으로 영위** — as a business. This service is free and is not one, so it **cannot** file, and the
 // document must not pretend to the obligations or the remedies of a 사업자. The location terms therefore bind
@@ -75,8 +80,8 @@ const TERMS: LegalDoc = {
   key: "terms",
   title: "서비스 이용약관",
   effectiveDate: EFFECTIVE,
-  consent: "[필수] 만 14세 이상이며, 서비스 이용약관에 동의합니다",
-  summary: "서비스를 어떤 조건으로 제공하고, 알림에 대해 무엇을 책임지는지",
+  consent: "[필수] 만 19세 이상이며, 서비스 이용약관에 동의합니다",
+  summary: "성인 대상 서비스예요. 어떤 조건으로 제공하고, 알림에 대해 무엇을 책임지는지",
   blocks: [
     { t: "chapter", text: "제1장 총칙" },
 
@@ -129,18 +134,25 @@ const TERMS: LegalDoc = {
       text: "③ 계정은 동기화 기능의 제공을 위한 것입니다. 회원이 아닌 이용자도 동기화 기능을 제외한 서비스의 모든 기능을 이용할 수 있습니다.",
     },
 
-    { t: "article", text: "제5조 (가입의 제한)" },
-    { t: "p", text: "① 기관은 다음 각 호에 해당하는 경우 가입 신청을 승낙하지 아니할 수 있습니다." },
+    { t: "article", text: "제5조 (성인 대상 서비스 및 가입의 제한)" },
+    {
+      t: "p",
+      text: "① 서비스는 성인을 대상으로 제공됩니다. 기관은 만 18세 이하인 자의 가입을 받지 아니하며, 만 18세 이하인 자의 개인정보를 처리하지 아니합니다.",
+    },
+    { t: "p", text: "② 기관은 다음 각 호에 해당하는 경우 가입 신청을 승낙하지 아니할 수 있습니다." },
     {
       t: "list",
       items: [
-        "1. 가입신청자가 만 14세 미만인 경우",
+        "1. 가입신청자가 만 18세 이하인 경우",
         "2. 타인의 명의를 도용하거나 허위의 정보를 기재한 경우",
         "3. 이 약관을 위반하여 이용계약이 해지된 사실이 있는 경우",
         "4. 서비스의 기술적 사정으로 승낙이 곤란한 경우",
       ],
     },
-    { t: "p", text: "② 기관은 만 14세 미만 아동의 가입을 받지 아니합니다." },
+    {
+      t: "p",
+      text: "③ 가입 후 회원이 만 18세 이하임이 확인된 경우 기관은 이용계약을 해지하고 해당 회원의 개인정보를 지체 없이 파기합니다.",
+    },
 
     { t: "article", text: "제6조 (탈퇴 및 이용계약의 해지)" },
     { t: "p", text: "① 회원은 언제든지 애플리케이션 내에서 탈퇴를 신청하여 이용계약을 해지할 수 있습니다." },
@@ -448,8 +460,11 @@ const PRIVACY: LegalDoc = {
       ],
     },
 
-    { t: "article", text: "제13조 (만 14세 미만 아동의 개인정보)" },
-    { t: "p", text: "기관은 만 14세 미만 아동의 가입을 받지 아니하며, 아동의 개인정보를 처리하지 아니합니다." },
+    { t: "article", text: "제13조 (아동 및 청소년의 개인정보)" },
+    {
+      t: "p",
+      text: "서비스는 성인을 대상으로 제공됩니다. 기관은 만 18세 이하인 자의 가입을 받지 아니하며, 만 18세 이하인 자의 개인정보를 처리하지 아니합니다.",
+    },
 
     { t: "article", text: "제14조 (개인정보 처리방침의 변경)" },
     {
@@ -549,36 +564,25 @@ const LOCATION: LegalDoc = {
     },
     { t: "p", text: "⑤ 회원은 기기의 설정에서 위치 접근 권한을 철회함으로써 언제든지 위치정보의 수집을 중단시킬 수 있습니다." },
 
-    { t: "article", text: "제8조 (8세 이하의 아동 등의 보호)" },
-    {
-      t: "p",
-      text: "① 8세 이하의 아동, 피성년후견인 또는 「장애인복지법」에 따른 장애인 중 일정한 자(이하 “8세 이하의 아동등”)의 보호의무자가 8세 이하의 아동등의 생명·신체의 보호를 위하여 위치정보의 이용에 동의하는 경우에는 본인의 동의가 있는 것으로 봅니다.",
-    },
-    {
-      t: "p",
-      text: "② 제1항에 따른 동의를 하려는 보호의무자는 서면 또는 전자우편으로 그 관계를 증명하는 서류를 첨부하여 기관에 제출하여야 합니다.",
-    },
-    { t: "p", text: "③ 보호의무자는 8세 이하의 아동등을 대신하여 제7조의 권리를 모두 행사할 수 있습니다." },
-
-    { t: "article", text: "제9조 (면책)" },
+    { t: "article", text: "제8조 (면책)" },
     {
       t: "p",
       text: "기관은 천재지변, 정전, 위성신호의 오류, 기기의 위치 기능의 장애 등 기관의 귀책사유 없는 사정으로 위치기반서비스가 제공되지 아니하거나 위치정보가 부정확한 경우 그로 인한 손해에 대하여 책임을 지지 아니합니다.",
     },
 
-    { t: "article", text: "제10조 (손해배상)" },
+    { t: "article", text: "제9조 (손해배상)" },
     {
       t: "p",
       text: "기관이 이 약관에서 정한 보호 조치를 위반하여 회원에게 손해가 발생한 경우, 기관은 그 손해를 배상할 책임을 부담합니다.",
     },
 
-    { t: "article", text: "제11조 (분쟁의 조정)" },
+    { t: "article", text: "제10조 (분쟁의 조정)" },
     {
       t: "p",
       text: "위치정보와 관련된 분쟁에 대하여 당사자 간 협의가 이루어지지 아니한 경우, 회원은 「개인정보 보호법」 제43조에 따라 개인정보분쟁조정위원회에 조정을 신청할 수 있습니다.",
     },
 
-    { t: "article", text: "제12조 (기관의 표시)" },
+    { t: "article", text: "제11조 (기관의 표시)" },
     ...OPERATOR,
 
     { t: "article", text: "부칙" },

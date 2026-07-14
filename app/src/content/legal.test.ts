@@ -111,6 +111,21 @@ describe("the policy documents", () => {
     expect(location.includes("스스로 부담합니다")).toBe(true);
   });
 
+  it("is an adults-only service, and says so everywhere it must", () => {
+    // 이용약관 제5조: 만 18세 이하 cannot sign up. That single rule deleted a whole article elsewhere — the
+    // location terms' 8세 이하의 아동 등의 보호 clause, whose subject cannot hold an account at all.
+    // **A protection for someone the service refuses to serve is padding, and padding is what makes a document
+    // go unread.**
+    expect(LEGAL_DOCS.terms.consent.includes("만 19세 이상")).toBe(true);
+    expect(flatten("terms").includes("만 18세 이하인 자의 가입을 받지 아니하며")).toBe(true);
+    expect(flatten("privacy").includes("만 18세 이하인 자의 개인정보를 처리하지 아니합니다")).toBe(true);
+
+    for (const key of LEGAL_ORDER) {
+      expect(flatten(key).includes("8세 이하의 아동")).toBe(false);
+      expect(flatten(key).includes("만 14세")).toBe(false);
+    }
+  });
+
   it("names the country the data actually goes to — 미국, not a hedge", () => {
     // The Firestore database is `locationId: nam5` — a United States multi-region. "미국 등 Google LLC가
     // 데이터센터를 운영하는 국가" named dozens of countries the data never reaches. **A 국외 이전 notice is not
