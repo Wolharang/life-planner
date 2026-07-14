@@ -116,6 +116,11 @@ export default function AddBlock() {
   const [selfId, setSelfId] = useState<string | null>(null);
   const [executeOn, setExecuteOn] = useState<string[]>([]);
 
+  // Manual verdict override (workout/run 실행 blocks). The GPS auto-verdict is a *default* — the user can flip
+  // it here and, on 미스, write the reason. Only shown for a settled workout/run 실행 block.
+  const [verdict, setVerdict] = useState<"success" | "fail" | null>(null);
+  const [failText, setFailText] = useState("");
+
   useEffect(() => {
     (async () => {
       const me = await selfDeviceId();
@@ -183,6 +188,8 @@ export default function AddBlock() {
         setLeadCustom(String(b.alarmLeadMinutes));
       }
       setNote(b.microStartNote ?? "");
+      setVerdict(b.status === "success" || b.status === "fail" ? b.status : null);
+      setFailText(b.failReason ?? "");
     })();
   }, [editId]);
 
@@ -198,6 +205,13 @@ export default function AddBlock() {
   const end = endOn && endValid ? `${pad(eh)}:${pad(em)}` : undefined;
   const orderValid = !end || end > start;
   const targetDates = editId ? [dateStr] : dates;
+  // The manual-verdict section: only for a settled workout/run 실행 block (the ones auto-eval judges).
+  const showVerdict =
+    !!editId &&
+    !!orig &&
+    (orig.kind === "workout" || orig.kind === "run") &&
+    orig.alert === "execution" &&
+    (orig.status === "success" || orig.status === "fail");
   const canSave =
     title.trim().length > 0 &&
     startValid &&
@@ -252,11 +266,26 @@ export default function AddBlock() {
 
     if (editId && orig) {
       const live = { date: dateStr, start, end, title: common.title };
+      // Manual verdict override, when this is a settled workout/run 실행 block. A flip (or an edited reason) marks
+      // the verdict `manual` so auto-eval never overwrites the user's own call; leaving it untouched changes
+      // nothing. On 성공 the reason is cleared — a reason is only meaningful for a miss.
+      const verdictChanged =
+        !!verdict &&
+        (verdict !== orig.status || (verdict === "fail" && failText.trim() !== (orig.failReason ?? "").trim()));
+      const verdictFields =
+        showVerdict && verdict
+          ? {
+              status: verdict,
+              failReason: verdict === "fail" ? failText.trim() || undefined : undefined,
+              evalSource: verdictChanged ? ("manual" as const) : orig.evalSource,
+            }
+          : {};
       const updated: TimeBlock = {
         ...orig,
         ...common,
         date: dateStr,
         ...snapshotFor(live, orig, now), // a same-day edit moves the alarm, never the plan of record (D23)
+        ...verdictFields,
         updatedAt: now,
       };
       await updateBlock(updated); // the repository re-arms / cancels the alarm (architecture §9-2)
@@ -570,6 +599,71 @@ export default function AddBlock() {
             thumbColor="#FFFFFF"
           />
         </Pressable>
+
+        {/* 실행 결과 — the manual verdict for a settled workout/run 실행 block. The GPS auto-verdict is a default;
+            this is where the user overrides it. Words per D78: 성공 · **미스** (never 실패); a miss is taupe
+            (#8B7E74), never red, and its reason is asked without judgement (R14 — the app does not scold). */}
+        {showVerdict && (
+          <View style={{ marginTop: 18 }}>
+            <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700" }}>
+              실행 결과
+            </Text>
+            <Text className="text-grey mt-0.5 mb-2" style={{ fontSize: 12.5 }}>
+              {orig?.evalSource === "location" ? "위치로 자동 판정됐어요. 직접 바꿀 수 있어요." : "직접 바꿀 수 있어요."}
+            </Text>
+            <View className="flex-row" style={{ gap: 8 }}>
+              <Pressable
+                onPress={() => setVerdict("success")}
+                className={verdict === "success" ? "bg-brand" : "bg-group"}
+                style={{ flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}
+              >
+                <Text
+                  className={verdict === "success" ? "" : "text-ink"}
+                  style={{ fontSize: 14, fontWeight: "700", color: verdict === "success" ? "#FFFFFF" : undefined }}
+                >
+                  성공
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setVerdict("fail")}
+                className={verdict === "fail" ? "" : "bg-group"}
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  backgroundColor: verdict === "fail" ? "#8B7E74" : undefined, // taupe, never red (D78)
+                }}
+              >
+                <Text
+                  className={verdict === "fail" ? "" : "text-ink"}
+                  style={{ fontSize: 14, fontWeight: "700", color: verdict === "fail" ? "#FFFFFF" : undefined }}
+                >
+                  미스
+                </Text>
+              </Pressable>
+            </View>
+            {verdict === "fail" && (
+              <TextInput
+                value={failText}
+                onChangeText={setFailText}
+                placeholder="무슨 일이 있었는지 남겨둘 수 있어요 (선택)"
+                placeholderTextColor="#B0B8C1"
+                multiline
+                className="bg-group text-ink"
+                style={{
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 15,
+                  marginTop: 10,
+                  minHeight: 60,
+                  textAlignVertical: "top",
+                }}
+              />
+            )}
+          </View>
+        )}
 
         {/* 무음 / 진동 / 소리 (D65) — independent of the tier (D43): the moment can be silent, an alert can ring.
             무음 exists because a buzz is not free: a block added only so the day is honest (강의, 이동) must be
