@@ -14,6 +14,29 @@
 
 ## 2026-07-14 (later) — the security review, and account recovery
 
+### D80. File upload/storage review — there is no storage, and the one local file path is hardened
+- **The app has no remote file storage at all.** No Firebase Storage (package uninstalled, no `storage.rules`, no
+  storage target in `firebase.json`), because **D19 dropped meal photos to stay on the free plan.** So the
+  checklist's first two items have **no attack surface**: there is no bucket for "only the uploader can access" to
+  apply to, and no storage-file/DB-record split to keep in sync (deletion is already exact — D75/D76). Confirmed
+  by grep, not assumed.
+- **The only file path is LOCAL backup** (`backup.ts`, D2/D24): export writes JSON to the OS cache dir and hands
+  it to the share sheet; import reads a user-picked JSON with `FileSystem` + `JSON.parse` into AsyncStorage. **No
+  network, no account, no server file.**
+- **"JSON-disguised malware" cannot execute — this is structural, and it was checked.** There is **no `eval`, no
+  `new Function`, no dynamic `import()`** anywhere in the source, and **no `fetch`/XHR/WebSocket/sendBeacon** — the
+  only network is the Firebase SDK talking to the user's own rules-guarded Firestore. `JSON.parse` yields inert
+  data, never code; a `"url"` inside a backup has nothing to load it and no channel to exfiltrate to. The residual
+  risk is **data injection, not code execution**: a crafted file could only write odd values into *local* storage,
+  on a device whose owner chose the file.
+- **Two guards added, both in a leaf module `backupGuards.ts` so they test without the native chain:**
+  - **Size cap `MAX_BACKUP_BYTES = 100 MB`** — checked from the reported size **before a byte is read**, so a
+    pathological/giant file cannot OOM the app during `readAsStringAsync`+`JSON.parse`. **Deliberately generous**
+    (years of daily rows are only a few MB) so it never blocks a real backup; unknown size → not blocked.
+  - **Namespace guard `isImportableKey` (`lp.` only)** — import used to write *any* key the file named; now a file
+    can only touch the app's own keys, so a crafted backup cannot plant values under another library's storage key.
+  - Pinned by `backupGuards.test.ts`. No native change, no prebuild.
+
 ### D79. 준회원/정회원 — email verification and password reset, by LINK (the constraint chose the mechanism)
 - **The gap a security review found.** The app exposed email/password signup but had **no password reset** —
   forget the password and the account is lost forever. The checklist item "비밀번호 리셋 발송 제한" was moot because

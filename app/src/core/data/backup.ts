@@ -17,6 +17,7 @@ import { listMeals, saveMeals } from "@/core/data/mealRepository";
 import { detectReference, parseReference } from "@/core/data/referenceImport";
 import { syncPutMany } from "@/core/data/sync";
 import { scheduleBlock, unscheduleBlock } from "@/core/schedule/blockScheduler";
+import { isBackupTooLarge, isImportableKey } from "@/core/data/backupGuards";
 
 export type ImportMode = "merge" | "overwrite";
 
@@ -139,6 +140,18 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
   const asset = res.assets?.[0];
   if (res.canceled || !asset) return { imported: false, mode, blocks: 0 };
 
+  // **Refuse an oversized file before reading a byte of it.** The picker reports the size; if it is missing
+  // (some providers omit it) fall back to the filesystem, and only if we still cannot tell do we proceed and
+  // trust the cap below. See MAX_BACKUP_BYTES — the point is OOM safety, not thrift.
+  let bytes: number | undefined = typeof asset.size === "number" ? asset.size : undefined;
+  if (bytes === undefined) {
+    const info = await FileSystem.getInfoAsync(asset.uri);
+    if (info.exists && typeof info.size === "number") bytes = info.size;
+  }
+  if (isBackupTooLarge(bytes)) {
+    throw new Error("백업 파일이 너무 커요. 이 앱에서 내보낸 백업 파일이 맞는지 확인해 주세요.");
+  }
+
   const raw = await FileSystem.readAsStringAsync(asset.uri);
   let parsed: unknown;
   try {
@@ -174,6 +187,12 @@ export async function importBackup(mode: ImportMode): Promise<ImportResult> {
 
   for (const [key, incomingRaw] of Object.entries(backup.data)) {
     if (typeof incomingRaw !== "string") continue;
+    // **Stay inside our own namespace.** A genuine export only ever contains `lp.*` keys (exportBackup filters on
+    // exactly that), so a file carrying anything else is not one of ours — and writing a foreign key would let a
+    // crafted "backup" plant values under storage keys that belong to other libraries. The imported data is inert
+    // either way (nothing here executes it — there is no eval/Function/network path), but it has no business
+    // touching a key the app does not own.
+    if (!isImportableKey(key)) continue;
     const idOf = ARRAY_KEY_ID[key];
     if (idOf) {
       if (mode === "overwrite") {

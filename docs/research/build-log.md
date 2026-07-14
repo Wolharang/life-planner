@@ -52,6 +52,16 @@ the email is real, recover a lost password — for free: **준회원/정회원 b
 
 No native change, no prebuild. Typecheck clean; **13 suites / 116 tests** (was 11/107).
 
+**Third security pass — file upload/storage.** The category barely applies: the app has **no remote file storage**
+(D19 dropped photos to stay free), so "only the uploader can read" and "delete DB + file together" have no
+surface. The founder's sharper question was whether a JSON-disguised payload could exfiltrate data — and the
+answer is **structural**: grep confirms **no eval / Function / dynamic import** and **no fetch/XHR/WebSocket**
+anywhere, so `JSON.parse` output is inert data with nothing to run it and nowhere to send it. The residual is
+local data injection, and I hardened the one local file path (`backup.ts`): a **generous 100 MB size cap** checked
+*before* the file is read (OOM safety, never blocks a real multi-year backup), and a **`lp.`-namespace guard** so
+an imported file can only write the app's own keys — it used to accept any key. Both live in a leaf
+`backupGuards.ts` and are pinned by `backupGuards.test.ts`. Typecheck clean; **14 suites / 119 tests**. (D80)
+
 ---
 
 ## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find
