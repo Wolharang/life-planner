@@ -26,7 +26,22 @@ function googleWebClientId() {
   return "";
 }
 
+// The Kakao **native app key** for the map SDK. Like the Google id above it is a public identifier (protected by
+// the console's package-name + key-hash registration, not a secret), but it is a project identifier, so it lives
+// in the **gitignored** `kakao.json` rather than tracked source. Absent → the app falls back to the OSM map.
+function kakaoNativeAppKey() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "kakao.json"), "utf8")).nativeAppKey || "";
+  } catch {
+    return "";
+  }
+}
+
 module.exports = ({ config }) => ({
   ...config,
-  extra: { ...config.extra, googleWebClientId: googleWebClientId() },
+  extra: {
+    ...config.extra,
+    googleWebClientId: googleWebClientId(),
+    kakaoNativeAppKey: kakaoNativeAppKey(),
+  },
 });

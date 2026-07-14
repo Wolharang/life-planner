@@ -37,7 +37,16 @@
       "expo-font",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/repository/kakaomap-releases/"
+            ]
+          }
+        }
+      ],
       "@react-native-google-signin/google-signin",
       [
         "expo-location",
