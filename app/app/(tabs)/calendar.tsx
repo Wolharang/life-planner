@@ -248,7 +248,7 @@ export default function Calendar() {
                     {b.end ? `–${b.end}` : ""}
                     {/* The tier is the label — it says what this thing IS, not merely how it rings. */}
                     {isSkipped(b)
-                      ? " · 오늘은 쉼"
+                      ? " · 오늘은 휴식"
                       : b.alert === "execution"
                         ? " · 실행"
                         : b.alert === "soft"

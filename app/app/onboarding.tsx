@@ -65,36 +65,10 @@ export default function Onboarding() {
           권한이 필요해요.
         </Text>
 
-        {/* The four mechanics that are UNFAMILIAR in this app (information-architecture §5/§8) — not the
-            four the prototype happened to have. ① described the OLD flow ("5·4·3·2·1 뒤 딱 첫 동작"), which
-            was revised on 2026-07-11: the countdown no longer runs at the cue, it runs on "아직 안 했어" at
-            the re-check. The very first thing the app said about its own core lever was wrong. And the D-1
-            snapshot — the thing that makes 돌아보기 legible — was never explained anywhere at all. */}
-        <View className="mt-6" style={{ gap: 10 }}>
-          <Mechanic
-            n="①"
-            t="실행의 순간"
-            d="정한 시각에 잠금화면 위로 떠서 '지금 할게'만 받아요. 5분 뒤 다시 떠서 '진짜 했어?' 하고 물어요 — 아직이면 5·4·3·2·1 세고 내보내요."
-          />
-          <Mechanic
-            n="②"
-            t="어제의 내가 정한 계획"
-            d="전날 짜둔 계획이 '기준'으로 얼어붙어요. 당일에 고쳐도 알람만 따라 움직이고, 평가는 어제의 약속으로 해요."
-          />
-          <Mechanic
-            n="③"
-            t="계획 대 실제"
-            d="해냄·안 함만 남겨요. 점수도, 스트릭도, 벌점도 없어요. 못 한 이유는 남겨도 되고 안 남겨도 돼요."
-          />
-          <Mechanic
-            n="④"
-            t="그 순간에 남기는 기록"
-            d="지출·식사는 쓰는 그 순간 몇 번의 탭으로. 계획 화면에는 안 섞여요 — 하루 요약에서만 만나요."
-          />
-        </View>
-
-        <Text className="text-ink-soft mt-8 mb-2" style={{ fontSize: 13 }}>
-          권한 (지금 다 켜지 않아도 돼요)
+        {/* **The permissions come first.** They are the only thing on this screen that decides whether the
+            alarm can do its job — the explanation below is worth nothing if these are off. */}
+        <Text className="text-ink-soft mt-6 mb-2" style={{ fontSize: 13 }}>
+          지금 다 켜지 않아도 되지만, 하나라도 꺼져 있으면 알람이 안 뜰 수 있어요
         </Text>
         <PermRow
           label="알림 허용"
@@ -119,10 +93,36 @@ export default function Onboarding() {
         />
         <PermRow
           label="다른 앱 위에 표시 허용"
-          hint="폰을 쓰는 중에도 그 시각에 바로 실행 화면이 떠요 (없으면 알림만 오고, 눌러야 떠요)"
+          hint="폰을 쓰는 중에도 그 시각에 화면이 바로 떠요. 꺼두면 알림만 오고, 눌러야 떠요"
           done={overlay}
           onPress={() => alarm.openOverlaySettings()}
         />
+
+        <Text className="text-ink-soft mt-9 mb-2" style={{ fontSize: 13 }}>
+          이 앱이 어떻게 도와주나요
+        </Text>
+        <View className="mt-1" style={{ gap: 10 }}>
+          <Mechanic
+            n="①"
+            t="실행의 순간"
+            d="정한 시각에 잠금화면 위로 떠서 '지금 할게'만 받아요. 5분 뒤 다시 떠서 '진짜 했어?' 하고 물어요 — 아직이면 5·4·3·2·1 세고 내보내요."
+          />
+          <Mechanic
+            n="②"
+            t="어제의 내가 정한 계획"
+            d="전날 짜둔 계획이 '기준'으로 얼어붙어요. 당일에 고쳐도 알람만 따라 움직이고, 평가는 어제의 약속으로 해요."
+          />
+          <Mechanic
+            n="③"
+            t="계획 대 실제"
+            d="성공·안 함만 남겨요. 점수도, 스트릭도, 벌점도 없어요. 못 한 이유는 남겨도 되고 안 남겨도 돼요."
+          />
+          <Mechanic
+            n="④"
+            t="그 순간에 남기는 기록"
+            d="지출·식사는 쓰는 그 순간 몇 번의 탭으로. 계획 화면에는 안 섞여요 — 하루 요약에서만 만나요."
+          />
+        </View>
 
         <Pressable
           onPress={finish}
@@ -130,7 +130,7 @@ export default function Onboarding() {
           style={{ backgroundColor: "#3182F6", paddingVertical: 16 }}
         >
           <Text className="text-white font-semibold" style={{ fontSize: 17 }}>
-            시작하기
+            돌아가기
           </Text>
         </Pressable>
         <Text className="text-faint text-center mt-3" style={{ fontSize: 12 }}>

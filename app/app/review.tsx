@@ -139,15 +139,21 @@ export default function Review() {
           <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
             이 달의 계획 대 실제
           </Text>
-          <View className="flex-row mt-3" style={{ gap: 20 }}>
-            <Tally label="해냄" value={success.length} color="#B0862A" />
-            <Tally label="미스" value={fail.length} color="#8B7E74" />
-            <Tally label="쉼" value={skipped.length} color="#B0B8C1" />
+          {/* Spread across the width: four numbers crammed to the left read as a list, not as a summary. */}
+          <View className="flex-row mt-3">
+            <Tally label="성공" value={success.length} color="#B0862A" />
+            <Tally label="실패" value={fail.length} color="#8B7E74" />
+            <Tally label="휴식" value={skipped.length} color="#B0B8C1" />
             <Tally label="계획" value={monthBlocks.length} color="#191F28" />
           </View>
-          <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 12, lineHeight: 18 }}>
+          {/* Sentences, not shorthand. "(평가 기준 = 그때의 계획, D-1)" was a note to ourselves. */}
+          <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 14, lineHeight: 19 }}>
             그중 <Text style={{ fontWeight: "700" }}>{preCommitted.length}개</Text>는 전날 미리 정해둔
-            것이었어요 (평가 기준 = 그때의 계획, D-1).
+            것이었어요.
+          </Text>
+          <Text className="text-grey" style={{ fontSize: 12, marginTop: 6, lineHeight: 18 }}>
+            성공인지 실패인지는 <Text style={{ fontWeight: "700" }}>전날 세운 계획</Text>을 기준으로 봐요. 당일에
+            시간을 바꿨더라도, 원래 하기로 했던 그 계획과 견줘요.
           </Text>
         </View>
 
@@ -197,7 +203,7 @@ export default function Review() {
         <SectionTitle>못 한 이유들</SectionTitle>
         {fail.length === 0 ? (
           <Text className="text-grey" style={{ fontSize: 13.5, paddingVertical: 10 }}>
-            이 달엔 미스가 없어요.
+            이 달엔 실패가 없어요.
           </Text>
         ) : (
           fail.map((b) => (
@@ -285,7 +291,8 @@ function SectionTitle({ children }: { children: string }) {
 
 function Tally({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <View>
+    // flex-1: four equal columns. `justify-between` alone would hug the edges and leave a hole in the middle.
+    <View style={{ flex: 1 }}>
       <Text style={{ fontSize: 21, fontWeight: "700", color, letterSpacing: -0.4 }}>{value}</Text>
       <Text className="text-grey" style={{ fontSize: 11.5, marginTop: 1 }}>
         {label}

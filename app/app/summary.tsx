@@ -86,9 +86,9 @@ export default function Summary() {
           <>
             <View className="bg-group rounded-card" style={{ padding: 16 }}>
               <View className="flex-row" style={{ gap: 18 }}>
-                <Tally label="해냄" value={agg.blocksSuccess} tone="gold" />
-                <Tally label="미스" value={agg.blocksFail} tone="miss" />
-                <Tally label="쉼" value={agg.blocksSkipped} tone="faint" />
+                <Tally label="성공" value={agg.blocksSuccess} tone="gold" />
+                <Tally label="실패" value={agg.blocksFail} tone="miss" />
+                <Tally label="휴식" value={agg.blocksSkipped} tone="faint" />
                 <Tally label="남음" value={agg.blocksPlanned} tone="ink" />
               </View>
               {/* D22 — the workout record IS a success block of that kind */}
@@ -205,13 +205,13 @@ function Tally({ label, value, tone }: { label: string; value: number; tone: "go
   );
 }
 
-/** done = one calm gold mark · miss = taupe, NEVER red · 쉼 = neutral (R14). */
+/** done = one calm gold mark · miss = taupe, NEVER red · 휴식 = neutral (R14). */
 function StatusBadge({ status }: { status: TimeBlock["status"] }) {
   if (status === "success") {
     return (
       <View className="bg-gold-soft rounded-full px-2.5 py-1">
         <Text className="text-gold" style={{ fontSize: 11, fontWeight: "700" }}>
-          해냄
+          성공
         </Text>
       </View>
     );
@@ -220,7 +220,7 @@ function StatusBadge({ status }: { status: TimeBlock["status"] }) {
     return (
       <View className="bg-miss-soft rounded-full px-2.5 py-1">
         <Text className="text-miss" style={{ fontSize: 11, fontWeight: "700" }}>
-          미스
+          실패
         </Text>
       </View>
     );
@@ -229,7 +229,7 @@ function StatusBadge({ status }: { status: TimeBlock["status"] }) {
     return (
       <View className="bg-group rounded-full px-2.5 py-1">
         <Text className="text-faint" style={{ fontSize: 11, fontWeight: "600" }}>
-          쉼
+          휴식
         </Text>
       </View>
     );

@@ -3,7 +3,7 @@
 // The R6 catch-up net, the §8 permission banner and the no-guilt outcome model carry over unchanged
 // from the prototype; only the unit changed (Task → TimeBlock, per-date, no recurrence).
 //
-// The switch on a card IS the R7 "오늘은 쉼" pre-fire toggle (ON = armed, OFF = 쉼) — never an
+// The switch on a card IS the R7 "오늘은 휴식" pre-fire toggle (ON = armed, OFF = 휴식) — never an
 // alarm on/off switch, and it disappears once the moment has passed (no in-flow escape).
 
 import { View, Text, Pressable, FlatList, Alert, AppState, Switch, TextInput } from "react-native";
@@ -160,7 +160,7 @@ export default function Home() {
       const all = await listBlocks();
       const b = all.find((x) => x.id === blockId);
       if (b) {
-        // `status` is the single field (a settled block can't also read as 쉼), and updateBlock
+        // `status` is the single field (a settled block can't also read as 휴식), and updateBlock
         // reconciles the alarm, so a settled block never keeps a live cue.
         await updateBlock({
           ...b,
@@ -339,7 +339,7 @@ export default function Home() {
   // Occurrences whose answer is mid-flight — see resolveCatchUp.
   const resolving = useRef(new Set<string>());
 
-  // "오늘은 쉼" (R7): the pre-fire, re-togglable skip — the ONLY intentional skip. A `skipped` outcome
+  // "오늘은 휴식" (R7): the pre-fire, re-togglable skip — the ONLY intentional skip. A `skipped` outcome
   // (source `pre-skip`) makes it visible in history and keeps it out of the catch-up net; un-toggling
   // removes that record and re-arms the block, so nothing stale is left behind.
   const toggleSkip = async (block: TimeBlock) => {
@@ -412,7 +412,7 @@ export default function Home() {
   const now = Date.now();
   const todayBlocks = blocksOn(blocks, today);
   // `started` = **the moment has been cued**, not "the clock reached the block's start". It gates the card's
-  // affordance: before the cue you may pre-skip ("오늘은 쉼"); after it, the only thing on offer is 했어요.
+  // affordance: before the cue you may pre-skip ("오늘은 휴식"); after it, the only thing on offer is 했어요.
   //
   // It used to compare against `blockStartAt`, but the moment fires at **`start − lead`**. With a 1-hour lead
   // a 21:00 block's moment appeared at 20:00 — and at 20:02 the card still showed the **skip switch**, because
@@ -435,7 +435,7 @@ export default function Home() {
 
   // Blocks whose moment fired and got no answer ("아직" at the re-check). The card must be able to SAY so:
   // its state is neither "done" nor "missed" but **still open**, and the app owes the user that word — the
-  // alternative is a card that shows nothing and lets the user guess (which is how "해냄" got read as a
+  // alternative is a card that shows nothing and lets the user guess (which is how "성공" got read as a
   // verdict). It is stated in taupe, never red: an unanswered block is neutral data (R14).
   const awaiting = new Set(catchUps.map((c) => `${c.taskId}|${c.date}`));
 
@@ -759,7 +759,7 @@ export default function Home() {
                     {b.start}
                     {b.end ? `–${b.end}` : ""}
                     {skipped
-                      ? " · 오늘은 쉼"
+                      ? " · 오늘은 휴식"
                       : b.alert === "execution"
                         ? " · 실행 알림"
                         : b.alert === "soft"
@@ -789,8 +789,8 @@ export default function Home() {
                   <OutcomeBadge status={b.status === "success" ? "done" : "miss"} />
                 ) : item.started ? (
                   // The moment has passed → OFFER to record it, never nag. This must not be mistaken for a
-                  // *state*: it used to be a filled pill reading "해냄" (a noun) sitting exactly where the
-                  // settled badges 됨/미스 sit, so an unanswered block looked like the app had decided you
+                  // *state*: it used to be a filled pill reading "성공" (a noun) sitting exactly where the
+                  // settled badges 됨/실패 sit, so an unanswered block looked like the app had decided you
                   // did it. That silently corrupts S1 — the founder read it as "the app says I did it" and
                   // moved on. It is now an outlined button in the first person ("했어요"), which reads as an
                   // answer you give, not a verdict you receive.
@@ -805,7 +805,7 @@ export default function Home() {
                     </Text>
                   </Pressable>
                 ) : (
-                  // before the moment → the "오늘은 쉼" toggle (the only intentional skip, R7)
+                  // before the moment → the "오늘은 휴식" toggle (the only intentional skip, R7)
                   <Switch
                     value={!skipped}
 
@@ -880,7 +880,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" 
     return (
       <View className="bg-gold-soft rounded-full px-3 py-1">
         <Text className="text-gold" style={{ fontSize: 12, fontWeight: "700" }}>
-          해냄
+          성공
         </Text>
       </View>
     );
@@ -889,7 +889,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" 
     return (
       <View className="bg-group rounded-full px-3 py-1">
         <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
-          쉼
+          휴식
         </Text>
       </View>
     );
@@ -897,7 +897,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" 
   return (
     <View className="bg-miss-soft rounded-full px-3 py-1">
       <Text className="text-miss" style={{ fontSize: 12, fontWeight: "700" }}>
-        미스
+        실패
       </Text>
     </View>
   );

@@ -57,7 +57,7 @@ export default function Metrics() {
   //
   // **The denominator is the LEVER's universe, not every outcome.** It used to be every outcome in the
   // store — so a 강의 or 점심 block carrying a plain `알림` (soft) alert, which the execution moment never
-  // touched, could be ticked 해냄/미스 from home or 돌아보기 and land in S1. Blocks the lever never
+  // touched, could be ticked 성공/실패 from home or 돌아보기 and land in S1. Blocks the lever never
   // intervened on were grading the lever. Worse, they drag it DOWN (a soft block can never produce an
   // `execution-screen` done), and PRD §4's falsification condition is "if S1 is no better than a plain
   // reminder, the lever has failed → stop and redesign". A working lever could have been thrown away on a
@@ -133,46 +133,48 @@ export default function Metrics() {
           </Pressable>
         </View>
 
+        {/* These were written for us, not for him: "S1 · 실행률", "what-the-hell 붕괴", "대용값", "발화".
+            A number nobody can read is not a measurement — it is a decoration. */}
         <Stat
-          title="S1 · 실행률 (핵심)"
+          title="알람이 울렸을 때, 바로 한 비율"
           value={resolved === 0 ? "—" : `${s1}%`}
-          desc={`그 순간 실행 ${execDone} · 캐치업 완료 ${catchDone} · 안 함 ${miss}. 실행 알림 블록만 셉니다 (단순 알림 블록은 레버가 개입하지 않으므로 제외). S1 = 그 순간 실행 ÷ 처리된 발생 (캐치업 완료는 별도 집계 — 레버의 증거가 아니에요).${
-            lastMinute > 0 ? ` 임박 생성(1시간 이내) ${lastMinute}건 — 제외 시 ${s1Excl}%.` : ""
+          desc={`알람이 울린 그 자리에서 바로 한 것 ${execDone}번, 나중에 몰아서 한 것 ${catchDone}번, 결국 안 한 것 ${miss}번이에요.\n전체화면이 뜨는 ‘실행’ 일정만 세요. 그냥 알림만 오는 일정은 앱이 밀어붙이지 않으니 빼요.${
+            lastMinute > 0 ? `\n시작 1시간 안에 급히 만든 일정이 ${lastMinute}번 있어요. 그걸 빼면 ${s1Excl}%예요.` : ""
           }`}
         />
 
         <Stat
-          title="S2 · 알람 신뢰성"
+          title="알람이 제시간에 울렸는지"
           value={s2n === 0 ? "—" : `${s2within}/${s2n}`}
-          desc={`발화 ${s2n}회 중 ${s2within}회가 ±1분 내. 최대 오차 ${s2maxSec}초. (킬드/잠금/재부팅 포함)`}
+          desc={`알람이 ${s2n}번 울렸고, 그중 ${s2within}번은 정한 시각에서 1분 이내였어요. 가장 많이 어긋난 때가 ${s2maxSec}초예요.\n앱을 끄거나, 화면이 잠겼거나, 폰을 껐다 켠 경우까지 다 포함해서 센 값이에요.`}
         />
 
         <Stat
-          title="S3 · 전날 계획 (최대 리스크)"
+          title="전날 미리 계획한 날"
           value={`${s3}일`}
-          desc={`하루 전(또는 그 이전)에 계획한 날 ${s3}일 / 계획이 있는 날 ${plannedDays.size}일. 이 습관이 안 붙으면(≈0) 나머지가 아무리 좋아도 흐름 전체가 안 돌아요.`}
+          desc={`계획이 있던 날 ${plannedDays.size}일 중 ${s3}일은 하루 전에 미리 정해뒀어요.\n이 습관이 안 붙으면 알람이 아무리 정확해도 소용이 없어요. 겨눌 대상이 없으니까요.`}
         />
 
         <Stat
-          title="S4 · 기록 마찰"
+          title="그날 바로 기록한 비율"
           value={logStamps.length === 0 ? "—" : `${s4}%`}
-          desc={`지출·식사 ${logStamps.length}건 중 ${sameDay}건은 그 날 바로 기록. (몰아서 넣지 않았다는 신호 — '수 분 내'의 대용값)`}
+          desc={`지출·식사 기록 ${logStamps.length}건 중 ${sameDay}건은 그날 바로 적었어요.\n나중에 몰아서 적지 않았다는 뜻이에요. 기억에 기대면 기록은 틀어져요.`}
         />
 
         <Stat
-          title="S5 · 무죄책 복귀"
+          title="못 한 뒤에 다시 돌아온 비율"
           value={missOcc.length === 0 ? "—" : `${s5}%`}
-          desc={`안 한 ${missOcc.length}건 중 ${returned}건은 이후 같은 일을 다시 해냄 (what-the-hell 붕괴 없이 복귀). 같은 '일'인지는 제목으로 봅니다. 스트릭은 쓰지 않아요.`}
+          desc={`못 한 일 ${missOcc.length}건 중 ${returned}건은 나중에 같은 일을 다시 해냈어요.\n한 번 어겼다고 다 놓아버리지 않았다는 뜻이에요. 같은 일인지는 제목으로 봐요.\n연속 성공 일수(스트릭)는 세지 않아요. 하루 어긋났다고 벌주지 않으려고요.`}
         />
 
         <Stat
-          title="참고 · 기준선 대비"
+          title="앱을 쓴 뒤 실제로 해낸 횟수"
           value={`${totalDone}회`}
-          desc="앱으로 실제 해낸 총 횟수. 앱 없이 같은 기간에 했던 횟수(기준선)를 적어 비교하세요."
+          desc="앱 없이 지내던 같은 기간에 몇 번이나 했는지 아래에 적어 두면, 앱이 정말 도움이 됐는지 견줘볼 수 있어요."
         >
           <View className="flex-row items-center mt-2" style={{ gap: 8 }}>
             <Text className="text-ink-soft" style={{ fontSize: 13 }}>
-              기준선:
+              앱 없이 했던 횟수:
             </Text>
             <TextInput
               value={baseline}
@@ -201,7 +203,7 @@ export default function Metrics() {
             <View key={i} className="flex-row justify-between py-1.5 border-b border-line">
               <Text className="text-ink" style={{ fontSize: 13 }}>
                 {o.title || "실행"} · {o.date} ·{" "}
-                {o.source === "catch-up" ? "캐치업" : o.source === "pre-skip" ? "사전 쉼" : "실행화면"}
+                {o.source === "catch-up" ? "캐치업" : o.source === "pre-skip" ? "사전 휴식" : "실행화면"}
               </Text>
               <Text
                 className={
@@ -213,7 +215,7 @@ export default function Metrics() {
                 }
                 style={{ fontSize: 12, fontWeight: "600" }}
               >
-                {o.status === "done" ? "해냄" : o.status === "skipped" ? "쉼" : "미스"}
+                {o.status === "done" ? "성공" : o.status === "skipped" ? "휴식" : "실패"}
               </Text>
             </View>
           ))

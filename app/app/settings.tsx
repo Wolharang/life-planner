@@ -5,7 +5,7 @@
 //   • 화면 테마 (deferred: full-app/later, design-system §1.4; app stays light) → 배터리 최적화 제외 row.
 // Real features: 소리 (native), 기본 리드 시간 (R8 optional/local), 백업 내보내기/가져오기 (local JSON, D2/D24).
 
-import { View, Text, Pressable, Switch, TextInput, Alert, ScrollView, BackHandler } from "react-native";
+import { View, Text, Pressable, Switch, TextInput, ScrollView, BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, Stack, useRouter, useFocusEffect } from "expo-router";
@@ -101,7 +101,7 @@ export default function Settings() {
     try {
       await exportBackup();
     } catch (e) {
-      Alert.alert("내보내기 실패", String((e as Error)?.message ?? e));
+      setNotice({ msg: `내보내지 못했어요. ${String((e as Error)?.message ?? e)}`, exit: false });
     } finally {
       setBusy(false);
     }
@@ -124,27 +124,30 @@ export default function Settings() {
               expenses ? `지출 ${expenses}건` : "",
               meals ? `식사 ${meals}건` : "",
             ].filter(Boolean).join(" · ");
-            Alert.alert(
-              "가져오기 완료",
-              `${parts || "가져올 항목이 없었어요"}.${
+            setNotice({
+              msg: `${parts || "가져올 항목이 없었어요"}.${
                 droppedActivities
-                  ? `\n\n운동·러닝 기록 ${droppedActivities}건은 식사로 넣지 않았어요 — 여기서 운동은 '해냄'으로 표시한 블록이에요.`
+                  ? `\n\n운동·러닝 기록 ${droppedActivities}건은 식사로 넣지 않았어요. 여기서 운동은 일정에서 ‘성공’으로 표시하는 것이라, 먹지도 않은 칼로리를 지어낼 수는 없어요.`
                   : ""
-              }`
-            );
+              }`,
+              exit: false,
+            });
           } else {
-            Alert.alert("가져오기 완료", `${mode === "merge" ? "병합" : "덮어쓰기"} 완료 · 블록 ${r.blocks}개.`);
+            setNotice({
+              msg: `${mode === "merge" ? "지금 기록에 더했어요" : "전부 바꿨어요"} · 일정 ${r.blocks}개`,
+              exit: false,
+            });
           }
         }
       } catch (e) {
-        Alert.alert("가져오기 실패", String((e as Error)?.message ?? e));
+        setNotice({ msg: `불러오지 못했어요. ${String((e as Error)?.message ?? e)}`, exit: false });
       } finally {
         setBusy(false);
       }
     })();
   };
   // ── 기록 삭제 ──────────────────────────────────────────────────────────────────────────────────────
-  // **Two different acts, one door.** 기록 초기화 wipes the *evidence* (해냄·미스·발화) and leaves the plan —
+  // **Two different acts, one door.** 기록 초기화 wipes the *evidence* (성공·실패·발화) and leaves the plan —
   // it is how day zero is made, and a false record is worse than none because we would reason from it.
   // 모든 기록 삭제 wipes everything you ever wrote, and on the server too.
   //
@@ -191,13 +194,9 @@ export default function Settings() {
     }
   };
 
-  const promptImport = () => {
-    Alert.alert("가져오기", "기존 데이터와 어떻게 합칠까요?", [
-      { text: "병합 (새 항목만 추가)", onPress: () => doImport("merge") },
-      { text: "덮어쓰기 (전체 교체)", style: "destructive", onPress: () => doImport("overwrite") },
-      { text: "취소", style: "cancel" },
-    ]);
-  };
+  // The OS dialog again: two one-word buttons for a choice where one of them **throws away everything you have
+  // now**. Each option must say what happens to the records already on this phone.
+  const [importOpen, setImportOpen] = useState(false);
 
   const readyN =
     (ready.exact ? 1 : 0) + (ready.fsi ? 1 : 0) + (ready.notif ? 1 : 0) + (ready.overlay ? 1 : 0);
@@ -453,7 +452,7 @@ export default function Settings() {
             </Row>
           </Pressable>
           <Divider />
-          <Pressable onPress={promptImport} disabled={busy}>
+          <Pressable onPress={() => setImportOpen(true)} disabled={busy}>
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
@@ -528,7 +527,7 @@ export default function Settings() {
                   기록 삭제
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  해냄·미스 기록만 지우거나, 모든 기록을 지울 수 있어요. 로그인했다면 다른 기기의 기록도 함께 지워져요
+                  성공·실패 기록만 지우거나, 모든 기록을 지울 수 있어요. 로그인했다면 다른 기기의 기록도 함께 지워져요
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -541,6 +540,32 @@ export default function Settings() {
 
       {/* Each option says **what survives** — that is the only thing that keeps these two apart in a hurry. */}
       <Sheet
+        visible={importOpen}
+        title="파일에서 불러오기"
+        message="내보낸 파일을 읽어와요. 지금 이 기기에 있는 기록은 어떻게 할까요?"
+        onClose={() => setImportOpen(false)}
+        actions={[
+          {
+            label: "지금 기록에 더하기",
+            desc: "지금 있는 기록은 그대로 두고, 파일에만 있는 것을 새로 넣어요.",
+            onPress: () => {
+              setImportOpen(false);
+              doImport("merge");
+            },
+          },
+          {
+            label: "전부 바꾸기",
+            desc: "지금 이 기기의 일정·지출·식사 기록을 모두 지우고, 파일의 내용으로 채워요.",
+            danger: true,
+            onPress: () => {
+              setImportOpen(false);
+              doImport("overwrite");
+            },
+          },
+        ]}
+      />
+
+      <Sheet
         visible={eraseOpen}
         title="기록 삭제"
         message="무엇을 지울까요? 되돌릴 수 없어요."
@@ -551,7 +576,7 @@ export default function Settings() {
             desc:
               evidenceN === 0
                 ? "지울 실행 기록이 없어요. 이미 0일차예요."
-                : `해냄·미스·발화 ${evidenceN}건을 지우고 0일차부터 다시 세요. 일정·지출·식사는 그대로 남아요.`,
+                : `성공·실패·발화 ${evidenceN}건을 지우고 0일차부터 다시 세요. 일정·지출·식사는 그대로 남아요.`,
             disabled: evidenceN === 0,
             onPress: () => {
               setEraseOpen(false);
@@ -580,7 +605,7 @@ export default function Settings() {
             ? account
               ? "일정·지출·식사·실행 기록이 모두 지워져요. 같은 계정으로 로그인한 다른 기기에서도, 인터넷에 연결되는 순간 함께 지워져요. 계정 자체는 남아요. 되돌릴 수 없어요."
               : "이 기기에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 되돌릴 수 없어요."
-            : "해냄·미스·발화 기록이 지워지고 0일차부터 다시 세요. 계획은 그대로 남아요. 되돌릴 수 없어요."
+            : "성공·실패·발화 기록이 지워지고 0일차부터 다시 세요. 계획은 그대로 남아요. 되돌릴 수 없어요."
         }
         confirmLabel={busy ? "지우는 중…" : confirmErase === "all" ? "모두 지우기" : "초기화하기"}
         busy={busy}
