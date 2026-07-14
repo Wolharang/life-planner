@@ -81,6 +81,24 @@ export async function purgeFirestoreCache(): Promise<void> {
  * the other phone is free to push the whole account back the moment it reconnects. So it is awaited, and if it
  * fails, 탈퇴 fails — better to tell the user "다시 시도해 주세요" than to destroy an account we cannot keep shut.
  */
+/**
+ * **Why this is not 개인정보, and why the 처리방침 says nothing about it** (founder, 2026-07-14).
+ *
+ * 개인정보보호법 제2조 제1호 나목: information that cannot identify a person on its own is still 개인정보 if it
+ * can be **easily combined** with other information to identify them. So the question is not "is a uid personal?"
+ * — it is **"does any mapping from this uid to a person survive?"**
+ *
+ * At the moment this record starts to exist, none does, and it was checked rather than assumed:
+ *   · the Firestore documents (blocks · devices · expenses · meals · consents) are **already deleted** — and no
+ *     document in this app has ever carried an email, on any collection, alive or not;
+ *   · the **Firebase Auth user is deleted**, and that is the only place the email ever lived;
+ *   · **nothing is sent anywhere but Firebase** — no analytics, no third party, no `fetch` in the codebase.
+ *
+ * So what remains is `{uid, closedAt, wipeDevices}` with **no path back to a person**: not identifying, not
+ * combinable, not 개인정보. **Declaring it in the 처리방침 as retained data would not be caution — it would be
+ * telling the user we kept something about them, which is exactly what we did not do.** The 처리방침 therefore
+ * says what is true: **모든 개인정보는 탈퇴 시 파기됩니다.**
+ */
 export async function closeAccount(uid: string, wipeDevices: boolean): Promise<void> {
   const database = db();
   if (!database) return;

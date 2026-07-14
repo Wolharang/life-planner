@@ -48,6 +48,11 @@ service cloud.firestore {
       // records were wiped. The document holds **no name, no email, nothing that identifies a person** — and
       // `list` stays denied, so the collection cannot be enumerated to go fishing for uids.
       //
+      // And it is **not 개인정보** (개인정보보호법 제2조 제1호 나목 turns on 결합 용이성): by the time this document
+      // exists, the Auth user is deleted — the only place an email ever lived — every Firestore document of that
+      // account is gone, and this app sends data nowhere but Firebase. **No mapping from this uid back to a
+      // person survives anywhere**, so there is nothing to combine it with.
+      //
       // It can never be edited away or deleted: if a client could remove it, the resurrection it exists to
       // prevent would simply resume, because the rules would see an ordinary, living account again.
       allow get: if true;
