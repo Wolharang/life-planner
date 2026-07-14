@@ -16,10 +16,12 @@ export interface GeoPoint {
   lng: number;
 }
 
-/** A place the user marked as a gym. Standing still here counts as 성공. */
+/** A place the user marked as a gym. Standing still here counts as 성공. `updatedAt` makes it Syncable — a gym
+ *  is a static reference the member saves, and it syncs across their devices like any other input (§sync). */
 export interface Gym extends GeoPoint {
   id: string;
   label: string;
+  updatedAt: number;
 }
 
 /** How close two fixes must be to count as "the same place". Generous enough to absorb urban GPS jitter

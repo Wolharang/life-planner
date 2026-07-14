@@ -52,6 +52,10 @@ const KEYS = {
   devices: "lp.devices.v1", // which phones this account has (D70) — a block names the one that takes the screen
   expenses: "lp.expenses.v1",
   meals: "lp.meals.v1",
+  // Saved gyms (auto-eval). A gym is a **static place the member chose**, not their live location — like the
+  // block's 장소명 that already syncs — so it rides the same machinery. The real-time evaluation fixes are NOT
+  // here: they stay on the device and are discarded (위치 약관 / 처리방침).
+  gyms: "lp.gyms.v1",
 } as const;
 
 export type CollectionName = keyof typeof KEYS;

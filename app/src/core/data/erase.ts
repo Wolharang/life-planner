@@ -40,12 +40,13 @@ const DATA_KEYS = [
   "lp.latencies.v1",
   "lp.tombstones.v1",
   "lp.devices.v1",
+  "lp.gyms.v1", // saved gyms (auto-eval) — location data, so a wipe must not leave it behind
   "lp.consent.v1",
   "lp.sync.owner.v1",
 ] as const;
 
 /** The Firestore collections that carry user data. `consents` is here too — 파기 means 파기. */
-const CLOUD_COLLECTIONS = ["blocks", "devices", "expenses", "meals", "consents"] as const;
+const CLOUD_COLLECTIONS = ["blocks", "devices", "expenses", "meals", "gyms", "consents"] as const;
 
 /** Silence the OS before touching storage: an alarm outlives the row that created it. */
 export async function cancelAllAlarms(): Promise<void> {
