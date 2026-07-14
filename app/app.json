@@ -33,6 +33,7 @@
       "expo-router",
       "expo-asset",
       "./plugins/withExecutionLockScreen",
+      "./plugins/withReleaseHeap",
       "expo-font",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
