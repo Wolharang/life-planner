@@ -241,7 +241,7 @@ export default function Settings() {
 
           {!account && (
             <Text className="text-grey" style={{ fontSize: 13, lineHeight: 19, marginTop: 10 }}>
-              로그인하지 않아도 모든 기능은 그대로 동작해요.
+              로그인하지 않아도 앱은 그대로 다 쓸 수 있어요. 로그인은 다른 기기와 기록을 맞추는 용도예요.
             </Text>
           )}
 
@@ -270,7 +270,7 @@ export default function Settings() {
         </Pressable>
 
         {/* 실행 준비 상태 — the permissions that gate the LEVER. Sync is optional; this is not. */}
-        <GroupLabel>실행</GroupLabel>
+        <GroupLabel>알람이 제때 울리게</GroupLabel>
         <Pressable onPress={() => router.push("/onboarding" as never)} className="bg-surface flex-row items-center" style={{ borderRadius: 18, padding: 16 }}>
           <View
             className="items-center justify-center"
@@ -280,10 +280,12 @@ export default function Settings() {
           </View>
           <View className="flex-1" style={{ marginLeft: 14 }}>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700" }}>
-              실행 준비 상태
+              알람 권한 4가지
             </Text>
             <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-              {allReady ? "정확한 알람·잠금화면·알림·화면 위 표시 모두 켜짐" : `${readyN}/4 준비됨 · 탭해서 마저 켜기`}
+              {allReady
+                  ? "모두 허용됨 — 알람이 정확한 시각에 화면을 띄울 수 있어요"
+                  : `4개 중 ${readyN}개만 허용됨 — 눌러서 나머지를 켜 주세요. 안 켜면 알람이 안 뜰 수 있어요`}
             </Text>
           </View>
           <Text className="text-faint" style={{ fontSize: 20 }}>
@@ -292,15 +294,17 @@ export default function Settings() {
         </Pressable>
 
         {/* 일반 */}
-        <GroupLabel>일반</GroupLabel>
+        <GroupLabel>알림 방식</GroupLabel>
         <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
           <Row>
             <View className="flex-1 pr-3">
               <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                소리 (새 블록 기본값)
+                소리로 알리기
               </Text>
               <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                {sound ? "새 블록은 소리 + 진동으로 시작해요" : "새 블록은 진동만 (블록마다 바꿀 수 있어요)"}
+                {sound
+                  ? "새로 만드는 일정은 소리와 진동으로 알려요. 일정마다 따로 바꿀 수 있어요"
+                  : "새로 만드는 일정은 진동으로만 알려요. 일정마다 따로 바꿀 수 있어요"}
               </Text>
             </View>
             <Switch
@@ -319,7 +323,7 @@ export default function Settings() {
               <Pressable onPress={() => setToneOpen((v) => !v)}>
                 <Row>
                   <Text className="text-ink flex-1" style={{ fontSize: 16, fontWeight: "700" }}>
-                    알림음
+                    알람 소리
                   </Text>
                   <Text className="text-brand" style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
                     {tones.find((t) => t.uri === tone)?.title ?? "기기 기본"}
@@ -332,7 +336,7 @@ export default function Settings() {
               {toneOpen && (
                 <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
                   <Text className="text-grey" style={{ fontSize: 12, marginBottom: 8 }}>
-                    누르면 미리 들어볼 수 있어요.
+                    눌러서 미리 들어볼 수 있어요
                   </Text>
                   <ToneRow
                     title="기기 기본 알람음"
@@ -362,9 +366,14 @@ export default function Settings() {
           <Divider />
           <Pressable onPress={() => setLeadOpen((v) => !v)}>
             <Row>
-              <Text className="text-ink flex-1" style={{ fontSize: 16, fontWeight: "700" }}>
-                기본 리드 시간
-              </Text>
+              <View className="flex-1 pr-3">
+                <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                  미리 알림 시간
+                </Text>
+                <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                  새 일정을 시작 시각보다 몇 분 먼저 알릴지 정해요. ‘정각’은 시작 시각에 딱 맞춰 알려요
+                </Text>
+              </View>
               <Text className="text-brand" style={{ fontSize: 14, fontWeight: "600" }}>
                 {leadLabel(lead)}
               </Text>
@@ -407,10 +416,10 @@ export default function Settings() {
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  배터리 최적화 제외
+                  절전 모드에서 제외
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  꺼두면 절전에 알람이 지연·차단될 수 있어요
+                  켜 두지 않으면 절전 기능이 알람을 늦추거나 막을 수 있어요
                 </Text>
               </View>
               <Text className={battery ? "text-brand" : "text-warn"} style={{ fontSize: 14, fontWeight: "600" }}>
@@ -426,16 +435,16 @@ export default function Settings() {
         </View>
 
         {/* 데이터 */}
-        <GroupLabel>데이터</GroupLabel>
+        <GroupLabel>내 기록 백업</GroupLabel>
         <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
           <Pressable onPress={doExport} disabled={busy}>
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  백업 내보내기
+                  파일로 내보내기
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  모든 할 일·기록을 JSON 파일로 저장·공유
+                  일정·지출·식사 기록을 파일 하나로 저장해요. 기기를 바꿀 때 쓰세요
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -448,10 +457,10 @@ export default function Settings() {
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  가져오기
+                  파일에서 불러오기
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  백업 파일에서 병합 또는 덮어쓰기로 복원
+                  내보낸 파일을 다시 읽어와요. 지금 기록에 더하거나, 전부 바꿀 수 있어요
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -469,10 +478,10 @@ export default function Settings() {
               <Row>
                 <View className="flex-1 pr-3">
                   <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                    계획 대 실제
+                    이 달 돌아보기
                   </Text>
                   <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                    이 달의 해냄·미스와, 못 한 이유들
+                    이번 달에 무엇을 해냈고 무엇을 못 했는지, 그 이유까지
                   </Text>
                 </View>
                 <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -487,17 +496,17 @@ export default function Settings() {
             It was behind `__DEV__`, which meant the RELEASE build the self-experiment actually runs on
             shipped **without the instrument** — two weeks of honest use and nothing to read at the end.
             The falsification condition (§4) cannot fire on a number nobody can see. */}
-        <GroupLabel>자가실험</GroupLabel>
+        <GroupLabel>기록 관리</GroupLabel>
         <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
           <Link href="/metrics" asChild>
             <Pressable>
               <Row>
                 <View className="flex-1 pr-3">
                   <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                    측정 (S1–S5)
+                    나의 실행 기록
                   </Text>
                   <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                    실행률 · 알람 신뢰성 · 전날 계획 · 기록 마찰 · 무죄책 복귀
+                    알람이 울렸을 때 실제로 몇 번 했는지, 알람은 제때 울렸는지
                   </Text>
                 </View>
                 <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -519,7 +528,7 @@ export default function Settings() {
                   기록 삭제
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  실행 기록만 초기화하거나, 모든 기록을 지울 수 있어요.
+                  해냄·미스 기록만 지우거나, 모든 기록을 지울 수 있어요
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
