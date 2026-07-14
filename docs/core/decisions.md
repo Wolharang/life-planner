@@ -14,6 +14,29 @@
 
 ## 2026-07-14 — the app becomes a service someone else could use
 
+### D73. Consent gates SIGNUP, never LOGIN — and an account we refuse must leave nothing behind
+- **The founder:** pressing **Google로 계속하기 on the 로그인 tab** bounced an existing account to 가입 and demanded
+  the tick boxes. ***Asking again for a consent the user already gave is not caution — it is a wall in front of
+  a door they own.***
+- **The knot: one button, two acts.** Google is a **login** for someone who has an account and a **signup** for
+  someone who does not — and Firebase only says which **afterwards** (`isNewUser`). The first version resolved
+  that by refusing everyone: *punishing the majority to catch the minority.*
+- **Decision.** 가입 tab → ticks up front. **로그인 tab → no ticks.** If the sign-in turns out to have *created*
+  an account, it is **deleted** (`deleteCurrentUser`) and the user is sent to 가입. **An account we refused must
+  not be left standing on the server** — the next login would find it and treat it as long-consented.
+- **`holdSync()` / `releaseSync()` — the part that was nearly a data leak.** Sync starts the *instant* auth
+  reports a user. Without a hold, those milliseconds are enough to push every local row to the uid we are about
+  to delete — and **deleting an auth user does NOT delete its documents.** We would have taken the account back
+  and **left the data on the server**: precisely what the consent gate exists to prevent. Sync is now held
+  across the decision; only a login that survives it turns sync on.
+- **Both failure modes are silent, so they are pinned by test** (`syncGate.test.ts`, verified to fail on an
+  injected regression): a hold never released = **sync off forever with the app saying nothing** (this is how
+  180 imported expenses once sat undelivered while the app reported everything synced); a hold released anyway
+  = the rejected account gets the data.
+- **Consent asks 4 things, in one short line each** (D72 cut the subtitles): **만 19세 이상** — a *statement*, no
+  보기 link — plus the three documents. The age tick is how 이용약관 제5조's discretion is actually exercised: *a
+  discretion with no way to exercise it is a discretion in name only.*
+
 ### D72. A 약관 is an instrument, not a message
 - **The founder, reading the shipped text:** *"「서비스는 의료·안전 목적의 도구가 아닙니다」 같은 건 '약관'이 아니라
   전달하는 메시지이다. 「최소한만 모읍니다. 기기 고유번호는 수집하지 않습니다」 같은 건 방침이 아니다."* He was right.

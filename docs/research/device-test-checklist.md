@@ -1,5 +1,26 @@
 # On-device verification — full app
 
+## ⚠ FIRST, WHEN A PHONE IS NEXT ATTACHED (2026-07-14) — the consent gate (D71–D73)
+
+v0.5.0 is **built but never installed**: the phone was disconnected mid-session. **A56 is currently LOGGED
+OUT** (it was logged out to see the signup screen, then never logged back in — ticking "만 19세 이상" is the
+user's own statement to make, not mine).
+
+The consent gate is new code on the login path, and **its failures are silent**. Run these first:
+
+- [ ] **로그인 tab → Google로 계속하기 → signs straight in. No tick boxes.** (This is the founder's bug: an
+      existing account was being bounced to 가입 and asked to consent again.) A56 is logged out, so this is
+      exactly the case.
+- [ ] **After that login, sync actually turns on** — the account card shows the email, and a block added here
+      reaches Firestore. **`holdSync()`/`releaseSync()` is brand-new: a hold that never releases leaves sync
+      off with the app saying nothing.** Watch 아직 올라가지 못한 기록 N건 — it must not sit above zero.
+- [ ] **가입 tab, nothing ticked → 가입하고 동기화 켜기** → one short **black** line: "필수 항목에 모두 체크해 주세요."
+      (It used to be grey — indistinguishable from the placeholder text, so the button looked broken.)
+- [ ] **전체 동의 ticks all four**, including 만 19세 이상. Each 약관 row's **보기** opens the document.
+- [ ] 계정 → the four quiet links at the bottom; after consenting, **약관 및 개인정보 처리 동의 내역** shows today's
+      date on each row.
+- [ ] The three documents render as 조·항·호 with a **26. 07. 14. 시행** chip — no `##`, no `(초안)`.
+
 ## ⚠ WHAT IS STILL UNVERIFIED (2026-07-14) — needs BOTH phones at once
 
 Everything else has passed on a real device. These three need two phones connected and logged into the same
