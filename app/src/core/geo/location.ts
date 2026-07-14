@@ -69,16 +69,32 @@ export async function backgroundLocationGranted(): Promise<boolean> {
 /**
  * One foreground fix, or null. Balanced accuracy — a gym is a building, not a doorstep, so we do not pay the
  * battery/time cost of the highest accuracy for a coordinate the 150 m radius will absorb anyway.
+ *
+ * **Reliable enough to centre a map on:** a fresh fix, bounded to a few seconds (it can hang indoors), and if
+ * that does not land, the OS's **last-known** position (instant, cached). Either gives the map a place to open on
+ * / move to — so "go to my location" does not silently do nothing when GPS is slow.
  */
 export async function getCurrentFix(): Promise<GeoPoint | null> {
   const L = load();
   if (!L) return null;
+  const toPoint = (c: any): GeoPoint | null =>
+    c && typeof c.latitude === "number" && typeof c.longitude === "number"
+      ? { lat: c.latitude, lng: c.longitude }
+      : null;
   try {
     if (!(await requestLocationPermission())) return null;
-    const pos = await L.getCurrentPositionAsync({ accuracy: L.Accuracy.Balanced });
-    const { latitude, longitude } = pos?.coords ?? {};
-    if (typeof latitude !== "number" || typeof longitude !== "number") return null;
-    return { lat: latitude, lng: longitude };
+    try {
+      const fresh = await Promise.race([
+        L.getCurrentPositionAsync({ accuracy: L.Accuracy.Balanced }).then((p: any) => p?.coords),
+        new Promise<null>((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      const p = toPoint(fresh);
+      if (p) return p;
+    } catch {
+      // fall through to last-known
+    }
+    const last = await L.getLastKnownPositionAsync();
+    return toPoint(last?.coords);
   } catch {
     return null;
   }

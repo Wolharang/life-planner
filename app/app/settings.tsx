@@ -17,9 +17,8 @@ import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup"
 import { onAccountChanged, type Account } from "@/core/data/firebase";
 import { evidenceCount, resetEvidence } from "@/core/data/evidence";
 import { eraseAllRecords } from "@/core/data/erase";
-import { listGyms, addGym, removeGym } from "@/core/data/gymRepository";
-import { newId } from "@/core/data/id";
-import { getCurrentFix, requestBackgroundLocationPermission, backgroundLocationGranted } from "@/core/geo/location";
+import { listGyms, removeGym } from "@/core/data/gymRepository";
+import { requestBackgroundLocationPermission, backgroundLocationGranted } from "@/core/geo/location";
 import type { Gym } from "@/core/schedule/autoEval";
 import { Sheet, ConfirmSheet } from "@/ui/Sheet";
 
@@ -52,34 +51,10 @@ export default function Settings() {
   // discarded, so only the derived 성공/미스 leaves the phone.
   const [gyms, setGyms] = useState<Gym[]>([]);
   const [bgGranted, setBgGranted] = useState(true);
-  const [gymBusy, setGymBusy] = useState(false);
-  const [gymNote, setGymNote] = useState("");
   useEffect(() => {
     listGyms().then(setGyms);
     backgroundLocationGranted().then(setBgGranted);
   }, []);
-  const addHereAsGym = async () => {
-    if (gymBusy) return;
-    setGymBusy(true);
-    setGymNote("");
-    try {
-      const fix = await getCurrentFix();
-      if (!fix) {
-        setGymNote("현재 위치를 가져오지 못했어요. 위치 권한과 GPS를 확인해 주세요.");
-        return;
-      }
-      const next = await addGym({ id: newId("gym"), label: `헬스장 ${gyms.length + 1}`, ...fix });
-      setGyms(next);
-      // Setting up auto-eval → nudge the "항상 허용" the t=15 sample needs, but only if not already granted.
-      if (!(await backgroundLocationGranted())) {
-        setBgGranted(await requestBackgroundLocationPermission());
-      } else {
-        setBgGranted(true);
-      }
-    } finally {
-      setGymBusy(false);
-    }
-  };
   const dropGym = async (id: string) => {
     setGyms(await removeGym(id));
   };
@@ -567,22 +542,6 @@ export default function Settings() {
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>›</Text>
-            </Row>
-          </Pressable>
-
-          <Divider />
-          <Pressable onPress={addHereAsGym} disabled={gymBusy}>
-            <Row>
-              <View className="flex-1 pr-3">
-                <Text className="text-brand" style={{ fontSize: 15, fontWeight: "700" }}>
-                  {gymBusy ? "현재 위치를 확인하는 중…" : "현재 위치를 헬스장으로 추가"}
-                </Text>
-                {gymNote ? (
-                  <Text className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 18 }}>
-                    {gymNote}
-                  </Text>
-                ) : null}
-              </View>
             </Row>
           </Pressable>
 
