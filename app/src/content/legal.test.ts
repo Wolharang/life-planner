@@ -69,6 +69,48 @@ describe("the policy documents", () => {
     expect(location.includes("수집되지 아니합니다")).toBe(true);
   });
 
+  it("names the party as 기관 — never 운영자, never a person", () => {
+    for (const key of LEGAL_ORDER) {
+      const text = flatten(key);
+      expect(text.includes("기관")).toBe(true);
+      // "운영자(개인)" was a regression: it renamed the party and then signed it with an individual's name.
+      // **A document that binds an individual by name binds the wrong thing.**
+      expect(text.includes("운영자")).toBe(false);
+      expect(text.includes("이상현")).toBe(false);
+      expect(text.includes("(개인)")).toBe(false);
+    }
+    // The contact is an office.
+    expect(flatten("privacy").includes("LifePlanner 담당자")).toBe(true);
+  });
+
+  it("keeps sentences out of parentheses", () => {
+    // Founder's rule: parentheses are for a **heading** — 제1조 (목적) — a **single-word marker** — (필수)
+    // (선택) (TLS) — or the definitional `(이하 “…”)`. Never a clause. **A qualification that matters belongs
+    // in its own 항; one hidden in brackets is one nobody reads.**
+    for (const key of LEGAL_ORDER) {
+      for (const block of LEGAL_DOCS[key].blocks) {
+        if (block.t === "article") continue; // headings are exactly where parentheses belong
+        const text = block.t === "list" ? block.items.join("\n") : block.text;
+        for (const [, inner] of text.matchAll(/\(([^)]*)\)/g)) {
+          const ok = inner.startsWith("이하") || !inner.includes(" ");
+          expect(ok).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("does not claim a 위치정보사업자's status, duties, or remedies", () => {
+    // 위치정보법 제9조's 신고 duty binds those who provide the service **사업으로 영위**. This service is free
+    // and is not a business, so it CANNOT file — and a document that borrows a 사업자's obligations (or its
+    // remedies, e.g. 방송통신위원회 재정) would be claiming a status the 기관 does not hold.
+    const location = flatten("location");
+    expect(location.includes("사업으로 영위하지 아니합니다")).toBe(true);
+    expect(location.includes("위치정보사업자 또는 위치기반서비스사업자에 해당하지 아니합니다")).toBe(true);
+    expect(location.includes("방송통신위원회")).toBe(false);
+    // What it does instead: bind itself by contract.
+    expect(location.includes("스스로 부담합니다")).toBe(true);
+  });
+
   it("numbers each 조 exactly once — the old privacy policy had two 제8조", () => {
     for (const key of LEGAL_ORDER) {
       const articles = LEGAL_DOCS[key].blocks

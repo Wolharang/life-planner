@@ -25,7 +25,19 @@
   면책)**, citing 「의료기기법」. "최소한만 모읍니다" → **처리방침 제2조**'s exhaustive item list + **제10조 (자동 수집
   장치를 설치·운영하지 아니합니다)**. "지금은 위치를 수집하지 않습니다" → **위치약관 제3조 ②**: collection is
   *conditioned* on the permission and the feature being on — which is the same fact, stated as a rule.
-- The three documents now follow **개인정보보호법 제30조** (방침) and **위치정보법 제18·19조** (위치약관) item order.
+- The 처리방침 follows **개인정보보호법 제30조** item order.
+- **The party is 기관, and the contact is an office.** I had renamed it to **"운영자(개인)"** and signed it with
+  the founder's personal name. Restored to **LifePlanner(이하 “기관”)**, contact **LifePlanner 담당자**.
+  ***A document that binds an individual by name binds the wrong thing.***
+- **No sentences in parentheses** (founder's rule). Parentheses are for a **heading** — 제1조 (목적) — a
+  **single-word marker** — (필수) (선택) (TLS) — or the definitional `(이하 “…”)`. *"기기 식별값 (실행 알람을
+  표시할 기기의 지정에 한하여 이용합니다)"* became **제2조 ③**, its own 항. **A qualification that matters belongs
+  in a clause; one hidden in brackets is one nobody reads.**
+- **The 기관 is NOT a 위치정보사업자, and the document says so** (founder): 위치정보법 제9조's 신고 duty binds those
+  who provide the service **사업으로 영위** — as a business. This one is free, so it **cannot file**, and I was
+  wrong to say it must. The location terms therefore **disclaim the status** (제2조 ①), drop the remedies that
+  presuppose it (방송통신위원회 재정), and instead **bind the 기관 by contract** to the same protections (제2조 ②).
+  *Claiming a status you do not hold is not extra caution; it is a false statement about who you are.*
 - **The messages did not disappear — they moved to where messages belong:** the one-line summary under each
   consent row, and 공지사항. `legal.test.ts` now fails the build if a legal document contains a highlighted
   aside (the `note` block) or the app's friendly 해요체. *A clause that needs a highlight to be believed is not
