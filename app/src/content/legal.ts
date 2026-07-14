@@ -18,6 +18,11 @@
 //     its own 항; a qualification hidden in brackets is one nobody reads.
 //   · Every item in 개인정보 처리방침 제2조 is checked against the code that collects it (`sync.ts` KEYS ·
 //     `deviceRepository` · Firebase Auth). A field that leaves the phone belongs in 제2조 in the same commit.
+//   · **제6조's 국외 이전 country is a fact, not a hedge.** The Firestore database is `locationId: nam5` — a
+//     **United States** multi-region — so the country is **미국**, full stop. It once read "미국 등 Google LLC가
+//     데이터센터를 운영하는 국가", which names dozens of countries the data never reaches. A 국외 이전 notice is
+//     not safer for being broad; it is simply **wrong**. If the database is ever moved to another region, 제6조
+//     changes in the same commit and `LEGAL_VERSION` bumps — the user consented to *where their data goes*.
 //
 // **On 위치정보 (founder, 2026-07-14):** 위치정보법 제9조's 신고 duty binds those who provide such a service
 // **사업으로 영위** — as a business. This service is free and is not one, so it **cannot** file, and the
@@ -367,7 +372,7 @@ const PRIVACY: LegalDoc = {
       t: "list",
       items: [
         "이전받는 자 : Google LLC",
-        "이전되는 국가 : 미국 등 Google LLC가 데이터센터를 운영하는 국가",
+        "이전되는 국가 : 미국",
         "이전 일시 및 방법 : 서비스 이용 시 정보통신망을 통하여 수시로 전송",
         "이전 항목 : 제2조 제1항, 제2항, 제4항 및 제5항의 정보",
         "이전받는 자의 이용 목적 : 제1조 각 호의 목적",

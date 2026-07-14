@@ -111,6 +111,15 @@ describe("the policy documents", () => {
     expect(location.includes("스스로 부담합니다")).toBe(true);
   });
 
+  it("names the country the data actually goes to — 미국, not a hedge", () => {
+    // The Firestore database is `locationId: nam5` — a United States multi-region. "미국 등 Google LLC가
+    // 데이터센터를 운영하는 국가" named dozens of countries the data never reaches. **A 국외 이전 notice is not
+    // safer for being broad; it is wrong.** Move the database and this line moves with it, in the same commit.
+    const privacy = flatten("privacy");
+    expect(privacy.includes("이전되는 국가 : 미국")).toBe(true);
+    expect(privacy.includes("데이터센터를 운영하는 국가")).toBe(false);
+  });
+
   it("numbers each 조 exactly once — the old privacy policy had two 제8조", () => {
     for (const key of LEGAL_ORDER) {
       const articles = LEGAL_DOCS[key].blocks
