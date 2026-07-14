@@ -144,6 +144,12 @@ export function unscheduleBlock(id: string): void {
   alarm.cancel(id);
   alarm.cancel(`${id}#recheck`);
   void cancelBlockSoftAlert(id);
+  // A deleted block must not leave its auto-eval flag behind — the registry would otherwise grow without bound.
+  try {
+    alarm.setAutoEval(id, false);
+  } catch {
+    /* native a step behind — nothing to clear */
+  }
 }
 
 /**

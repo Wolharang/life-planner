@@ -9,6 +9,7 @@
 import { alarm, type GeoSampleGroup } from "@/core/notifications/alarm";
 import { listGyms } from "@/core/data/gymRepository";
 import { listBlocks, updateBlock } from "@/core/data/blockRepository";
+import { recordOutcome } from "@/core/data/outcomeRepository";
 import { evaluateByLocation } from "@/core/schedule/autoEval";
 
 /** Don't decide from a half-collected set: wait for all three fixes, or ~16 min past the first (the +15m sample
@@ -48,11 +49,24 @@ export async function applyGeoEval(now: number = Date.now()): Promise<void> {
     if (!verdict) continue; // too few usable fixes — leave it for the user to judge
     if (block.status === verdict && block.evalSource === "location") continue; // already applied
 
+    // **Record the outcome, not just the block status** — otherwise the occurrence has a fire marker but no
+    // outcome, so the R6 catch-up net reads it as unresolved: it nags every open and, after the 7-day window,
+    // auto-archives it as a **miss**, silently overwriting a GPS 성공. `recordOutcome` upserts by taskId|date, so
+    // this also supersedes a self-report the user gave at the re-check (source "location" overrides it, and a
+    // later catch-up can no longer touch it). Mirrors `settle` (home).
+    await recordOutcome({
+      taskId: block.id,
+      title: block.title,
+      date: g.date,
+      status: verdict === "success" ? "done" : "miss",
+      source: "location",
+      at: now,
+    });
     await updateBlock({
       ...block,
       status: verdict,
       evalSource: "location",
-      completedAt: block.completedAt ?? now,
+      completedAt: verdict === "success" ? now : undefined,
       updatedAt: now,
     });
   }

@@ -9,7 +9,9 @@ const KEY = "lp.outcomes.v1";
 // `skipped` (source `pre-skip`) = the R1 "오늘은 쉼" pre-fire toggle — guilt-free, NOT a miss, and
 // excluded from the S2 initiation denominator (PRD §7.1.0 / §4).
 export type OutcomeStatus = "done" | "miss" | "skipped";
-export type OutcomeSource = "execution-screen" | "catch-up" | "pre-skip";
+// `location` = the GPS auto-evaluation verdict (workout/run 실행 blocks). It is the truth of whether the workout
+// happened, so it may overwrite a self-report — but a later `catch-up` must never overwrite IT.
+export type OutcomeSource = "execution-screen" | "catch-up" | "pre-skip" | "location";
 
 export interface OutcomeRecord {
   taskId: string;
@@ -46,8 +48,12 @@ export async function recordOutcome(record: OutcomeRecord): Promise<void> {
   const i = all.findIndex((o) => o.taskId === record.taskId && o.date === record.date);
   if (i < 0) {
     all.push(record);
-  } else if (all[i].source === "execution-screen" && record.source === "catch-up") {
-    return; // the moment already spoke for this occurrence — a later catch-up may not rewrite it
+  } else if (
+    (all[i].source === "execution-screen" || all[i].source === "location") &&
+    record.source === "catch-up"
+  ) {
+    // The moment (or its GPS verdict) already spoke for this occurrence — a later catch-up may not rewrite it.
+    return;
   } else {
     all[i] = record;
   }

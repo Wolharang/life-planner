@@ -18,6 +18,7 @@ import { onAccountChanged, type Account } from "@/core/data/firebase";
 import { evidenceCount, resetEvidence } from "@/core/data/evidence";
 import { eraseAllRecords } from "@/core/data/erase";
 import { listGyms, addGym, removeGym } from "@/core/data/gymRepository";
+import { newId } from "@/core/data/id";
 import { getCurrentFix, requestBackgroundLocationPermission, backgroundLocationGranted } from "@/core/geo/location";
 import type { Gym } from "@/core/schedule/autoEval";
 import { Sheet, ConfirmSheet } from "@/ui/Sheet";
@@ -67,7 +68,7 @@ export default function Settings() {
         setGymNote("현재 위치를 가져오지 못했어요. 위치 권한과 GPS를 확인해 주세요.");
         return;
       }
-      const next = await addGym({ id: String(Date.now()), label: `헬스장 ${gyms.length + 1}`, ...fix });
+      const next = await addGym({ id: newId("gym"), label: `헬스장 ${gyms.length + 1}`, ...fix });
       setGyms(next);
       // Setting up auto-eval → nudge the "항상 허용" the t=15 sample needs, but only if not already granted.
       if (!(await backgroundLocationGranted())) {
@@ -116,9 +117,12 @@ export default function Settings() {
   };
 
   // Re-read on focus so returning from onboarding / a system settings screen shows fresh status.
+  // Gyms are re-read too: one added on another device syncs in the background, and the list would otherwise
+  // stay stale until the screen remounted.
   useFocusEffect(
     useCallback(() => {
       refresh();
+      listGyms().then(setGyms);
     }, [refresh])
   );
 
