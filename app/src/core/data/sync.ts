@@ -441,6 +441,20 @@ export function holdSync(): void {
   held = true;
 }
 
+/**
+ * **Stop syncing, now, and do not start again.** Used before an erase: while sync is live, every local write
+ * is still being handed to Firestore, and a row uploaded a moment after we deleted it is a row we did not
+ * delete. (This is not hypothetical — 134 meals came back this way, orphaned under a deleted account.)
+ *
+ * This only stops *our* writes. Whatever Firestore has already queued is beyond our reach; that queue is
+ * discarded separately, by `purgeFirestoreCache()`.
+ */
+export function stopSync(): void {
+  held = true;
+  pendingUid = null;
+  disable();
+}
+
 /** @param enableIfPending false when the login was undone — the uid must never be synced to. */
 export function releaseSync(enableIfPending = true): void {
   held = false;

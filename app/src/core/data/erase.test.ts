@@ -16,7 +16,7 @@ const cloud: Record<string, string[]> = {
   blocks: ["b1", "b2"],
   devices: ["d1"],
   expenses: ["e1"],
-  meals: [],
+  meals: ["m1"],
   consents: ["2026-07-14"],
 };
 
@@ -44,10 +44,17 @@ jest.mock("@/core/notifications/alarm", () => ({
   },
 }));
 
+jest.mock("./sync", () => ({
+  stopSync: () => events.push("stop-sync"),
+}));
+
 jest.mock("./firebase", () => ({
   currentAccount: () => ({ uid: "uid-1", email: "a@b.c" }),
   deleteCurrentUser: async () => {
     events.push("delete-account");
+  },
+  purgeFirestoreCache: async () => {
+    events.push("purge-outbox");
   },
   db: () => ({
     collection: () => ({
@@ -93,6 +100,26 @@ describe("leaving", () => {
     expect(events.includes("cloud-delete:expenses/e1")).toBe(true);
     expect(events.includes("cloud-delete:consents/2026-07-14")).toBe(true);
     expect(events.includes("delete-account")).toBe(false); // the account stays: this is not 탈퇴
+  });
+
+  it("stops this phone's uploads BEFORE deleting, and discards the queued ones AFTER", async () => {
+    // The bug this exists for: 회원 탈퇴 deleted the account's documents, Firestore's outbox then flushed the
+    // rows it still had queued — **re-creating 134 meals** — and the account was destroyed on top of them.
+    // Nobody could read them; nobody could delete them. "We deleted your data" must not be a race we lose.
+    reset();
+    await deleteAccount(false);
+
+    expect(events.indexOf("stop-sync") < events.indexOf("cloud-delete:meals/m1")).toBe(true);
+    expect(events.indexOf("cloud-delete:meals/m1") < events.indexOf("purge-outbox")).toBe(true);
+    expect(events.indexOf("purge-outbox") < events.indexOf("delete-account")).toBe(true);
+  });
+
+  it("모든 기록 삭제 while logged in does the same — a queued row would resurrect what was just destroyed", async () => {
+    reset();
+    await eraseAllRecords();
+    expect(events.indexOf("stop-sync") < events.indexOf("cloud-delete:meals/m1")).toBe(true);
+    expect(events.indexOf("cloud-delete:meals/m1") < events.indexOf("purge-outbox")).toBe(true);
+    expect(events.includes("delete-account")).toBe(false);
   });
 
   it("회원 탈퇴 deletes the DATA FIRST and the ACCOUNT SECOND", async () => {

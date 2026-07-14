@@ -5,7 +5,7 @@
 //   • 화면 테마 (deferred: full-app/later, design-system §1.4; app stays light) → 배터리 최적화 제외 row.
 // Real features: 소리 (native), 기본 리드 시간 (R8 optional/local), 백업 내보내기/가져오기 (local JSON, D2/D24).
 
-import { View, Text, Pressable, Switch, TextInput, Alert, ScrollView } from "react-native";
+import { View, Text, Pressable, Switch, TextInput, Alert, ScrollView, BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, Stack, useRouter, useFocusEffect } from "expo-router";
@@ -154,7 +154,7 @@ export default function Settings() {
   const [eraseOpen, setEraseOpen] = useState(false);
   const [confirmErase, setConfirmErase] = useState<null | "evidence" | "all">(null);
   const [evidenceN, setEvidenceN] = useState(0);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<null | { msg: string; exit: boolean }>(null);
 
   const openErase = async () => {
     if (busy) return;
@@ -168,18 +168,24 @@ export default function Settings() {
       if (what === "evidence") {
         await resetEvidence();
         setConfirmErase(null);
-        setNotice("실행 기록을 초기화했어요. 0일차부터 다시 셉니다.");
+        setNotice({ msg: "실행 기록을 초기화했어요. 0일차부터 다시 셉니다.", exit: false });
+        await refresh();
       } else {
+        const wasSynced = !!account;
         const { failed } = await eraseAllRecords();
         setConfirmErase(null);
-        setNotice(
-          failed > 0 ? `기록을 지웠어요. ${failed}건은 서버에서 지우지 못했어요.` : "모든 기록을 지웠어요."
-        );
+        setNotice({
+          msg: failed > 0 ? `기록을 지웠어요. ${failed}건은 서버에서 지우지 못했어요.` : "모든 기록을 지웠어요.",
+          // Wiping the cloud copy also discards Firestore's pending uploads, which terminates the instance —
+          // otherwise a row queued a moment before the delete would land a moment after it, and the record the
+          // user just destroyed would be back. A terminated instance cannot be reused, so the app restarts.
+          exit: wasSynced,
+        });
+        if (!wasSynced) await refresh();
       }
-      await refresh();
     } catch {
       setConfirmErase(null);
-      setNotice("지우지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+      setNotice({ msg: "지우지 못했어요. 연결을 확인하고 다시 시도해 주세요.", exit: false });
     } finally {
       setBusy(false);
     }
@@ -573,7 +579,14 @@ export default function Settings() {
         onClose={() => setConfirmErase(null)}
       />
 
-      <Sheet visible={!!notice} title={notice} onClose={() => setNotice("")} actions={[]} cancelLabel="확인" />
+      <Sheet
+        visible={!!notice}
+        title={notice?.msg ?? ""}
+        message={notice?.exit ? "앱을 종료해요. 다시 열면 처음 상태로 시작해요." : undefined}
+        onClose={() => (notice?.exit ? BackHandler.exitApp() : setNotice(null))}
+        actions={notice?.exit ? [{ label: "앱 종료", onPress: () => BackHandler.exitApp() }] : []}
+        cancelLabel={notice?.exit ? "앱 종료" : "확인"}
+      />
     </SafeAreaView>
   );
 }

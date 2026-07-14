@@ -6,7 +6,7 @@
 //
 // Sync is not a feature of the lever. Losing it costs you the other phone; it must never cost you the moment.
 
-import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator, BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -204,23 +204,32 @@ export default function AccountScreen() {
   // 설정, merged with 기록 초기화 — where the records are.
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState<null | { keepLocal: boolean }>(null);
-  const [done, setDone] = useState("");
+  // After 탈퇴 the app MUST restart: `purgeFirestoreCache()` terminates the Firestore instance to throw away
+  // any upload it still had queued, and a terminated instance cannot be used again in this process.
+  //
+  // Which is what we owe the user anyway. The screen used to stay exactly where it was — a login form, with
+  // their email still sitting in it, under a message saying the account was gone. **Telling someone they have
+  // been erased while still showing them their own name is not a confirmation; it is a contradiction.**
+  const [done, setDone] = useState<null | { msg: string; exit: boolean }>(null);
 
   const withdraw = async (keepLocal: boolean) => {
     setBusy(true);
     try {
       const { failed } = await deleteAccount(keepLocal);
       setConfirmLeave(null);
-      setDone(
-        failed > 0
-          ? `탈퇴했어요. ${failed}건은 서버에서 지우지 못했어요.`
-          : "탈퇴했어요. 계정과 서버의 기록을 지웠어요."
-      );
+      setDone({
+        msg:
+          failed > 0
+            ? `탈퇴했어요. ${failed}건은 서버에서 지우지 못했어요.`
+            : "탈퇴했어요. 계정과 서버의 기록을 지웠어요.",
+        exit: true, // the account is gone; there is nothing here to come back to
+      });
     } catch {
       // Firebase refuses `user.delete()` on a stale credential — it wants a recent login. Say so, rather than
       // report a 탈퇴 that did not happen.
       setConfirmLeave(null);
-      setDone("탈퇴하지 못했어요. 다시 로그인한 뒤 바로 시도해 주세요.");
+      // Not gone. Do NOT close the app on them — they need to be able to log in again and retry.
+      setDone({ msg: "탈퇴하지 못했어요. 다시 로그인한 뒤 바로 시도해 주세요.", exit: false });
     } finally {
       setBusy(false);
     }
@@ -548,10 +557,11 @@ export default function AccountScreen() {
 
       <Sheet
         visible={!!done}
-        title={done}
-        onClose={() => setDone("")}
-        actions={[]}
-        cancelLabel="확인"
+        title={done?.msg ?? ""}
+        message={done?.exit ? "앱을 종료해요. 다시 열면 처음 상태로 시작해요." : undefined}
+        onClose={() => (done?.exit ? BackHandler.exitApp() : setDone(null))}
+        actions={done?.exit ? [{ label: "앱 종료", onPress: () => BackHandler.exitApp() }] : []}
+        cancelLabel={done?.exit ? "앱 종료" : "확인"}
       />
     </SafeAreaView>
   );

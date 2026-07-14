@@ -18,7 +18,8 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
-import { db, deleteCurrentUser, currentAccount } from "./firebase";
+import { db, deleteCurrentUser, currentAccount, purgeFirestoreCache } from "./firebase";
+import { stopSync } from "./sync";
 
 /** Every store the app owns. `lp.device.self.v1` is deliberately absent — see below. */
 const DATA_KEYS = [
@@ -105,7 +106,16 @@ export async function eraseCloud(uid: string): Promise<{ deleted: number; failed
  */
 export async function eraseAllRecords(): Promise<{ deleted: number; failed: number }> {
   const uid = currentAccount()?.uid;
-  const stats = uid ? await eraseCloud(uid) : { deleted: 0, failed: 0 };
+  if (!uid) {
+    await eraseLocal();
+    return { deleted: 0, failed: 0 };
+  }
+
+  // **Stop the uploads before deleting, and discard the ones already in flight afterwards.** A row Firestore
+  // sends a moment after we deleted it is a row we did not delete — see `purgeFirestoreCache`.
+  stopSync();
+  const stats = await eraseCloud(uid);
+  await purgeFirestoreCache();
   await eraseLocal();
   return stats;
 }
@@ -122,7 +132,18 @@ export async function eraseAllRecords(): Promise<{ deleted: number; failed: numb
  */
 export async function deleteAccount(keepLocal: boolean): Promise<{ deleted: number; failed: number }> {
   const uid = currentAccount()?.uid;
+
+  // **Silence this phone's uploads first.** Otherwise sync keeps handing rows to Firestore while we delete —
+  // and the ones already queued flush *after* the wipe. That is not a theory: 134 meals came back exactly this
+  // way, left orphaned under a uid whose user we had just destroyed. Nobody could ever read them, and nobody
+  // could ever delete them.
+  stopSync();
+
   const stats = uid ? await eraseCloud(uid) : { deleted: 0, failed: 0 };
+
+  // Now throw away whatever Firestore is still holding. A write already handed to the SDK cannot be recalled —
+  // only the SDK's entire local state can be discarded. This is why the app restarts after 탈퇴.
+  await purgeFirestoreCache();
 
   await deleteCurrentUser(); // the account itself — Firebase Auth
 

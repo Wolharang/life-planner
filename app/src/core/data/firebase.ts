@@ -50,6 +50,30 @@ export function db(): any | null {
   return load() ? firestoreMod() : null;
 }
 
+/**
+ * **Throw away everything Firestore is still holding for us — including writes it has not sent yet.**
+ *
+ * This exists because of a real, verified data leak. 회원 탈퇴 deleted the account's documents and then the
+ * account, and **134 meal rows reappeared on the server anyway** — orphaned under a uid with no user behind it.
+ * The cause was not the delete: it was Firestore's **outbox**. Rows this phone had queued for upload flushed
+ * *after* the wipe, re-creating what we had just destroyed, and then the account vanished out from under them.
+ *
+ * A write we already told Firestore to make cannot be recalled — the queue is inside the SDK, not ours. The
+ * only way to stop it is to discard the SDK's whole local state: `terminate()` the instance, then
+ * `clearPersistence()`. Both are irreversible for this process, which is why the app **restarts** afterwards.
+ *
+ * *"We deleted your data" must not be a race we sometimes lose.*
+ */
+export async function purgeFirestoreCache(): Promise<void> {
+  if (!load()) return;
+  try {
+    await firestoreMod().terminate();
+    await firestoreMod().clearPersistence();
+  } catch {
+    // Already terminated, or persistence not enabled — nothing queued that could resurface.
+  }
+}
+
 /** The signed-in user, or `null` (logged out **or** no Firebase). Sync is off in both cases. */
 export function currentAccount(): Account | null {
   if (!load()) return null;
