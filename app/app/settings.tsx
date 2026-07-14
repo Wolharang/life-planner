@@ -298,8 +298,8 @@ export default function Settings() {
             </Text>
             <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
               {allReady
-                  ? "모두 허용됨 — 알람이 정확한 시각에 화면을 띄울 수 있어요"
-                  : `4개 중 ${readyN}개만 허용됨 — 눌러서 나머지를 켜 주세요. 안 켜면 알람이 안 뜰 수 있어요`}
+                  ? "모두 허용됨"
+                  : `4개 중 ${readyN}개만 허용됨 — 눌러서 마저 켜기`}
             </Text>
           </View>
           <Text className="text-faint" style={{ fontSize: 20 }}>
@@ -316,9 +316,7 @@ export default function Settings() {
                 소리로 알리기
               </Text>
               <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                {sound
-                  ? "새로 만드는 일정은 소리와 진동으로 알려요. 일정마다 따로 바꿀 수 있어요"
-                  : "새로 만드는 일정은 진동으로만 알려요. 일정마다 따로 바꿀 수 있어요"}
+{sound ? "새 일정을 소리+진동으로 알려요" : "새 일정을 진동으로만 알려요"}
               </Text>
             </View>
             <Switch
@@ -385,7 +383,7 @@ export default function Settings() {
                   미리 알림 시간
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  새 일정을 시작 시각보다 몇 분 먼저 알릴지 정해요. ‘정각’은 시작 시각에 딱 맞춰 알려요
+                  새 일정을 시작 몇 분 전에 알릴지 정해요
                 </Text>
               </View>
               <Text className="text-brand" style={{ fontSize: 14, fontWeight: "600" }}>
@@ -426,6 +424,50 @@ export default function Settings() {
             </View>
           )}
           <Divider />
+          {/* **아침 요약** — one silent notification a day, listing what the day holds. A briefing, not a cue:
+              no sound, no vibration, never the lock screen. Every needless buzz spends the budget that keeps the
+              one loud thing loud (C1/D30). */}
+          <View style={{ paddingVertical: 12 }}>
+            <View className="flex-row items-center">
+              <View className="flex-1 pr-3">
+                <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                  아침 요약
+                </Text>
+                <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                  아침에 그날 일정을 한 번에 조용히 알려줘요
+                </Text>
+              </View>
+              <Switch
+                value={briefOn}
+                onValueChange={(v) => saveBrief({ morningBriefOn: v })}
+                trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            {briefOn && (
+              <View className="flex-row items-center" style={{ marginTop: 10, gap: 10 }}>
+                <Text className="text-grey" style={{ fontSize: 13 }}>
+                  보내는 시각
+                </Text>
+                <TextInput
+                  value={briefTime}
+                  onChangeText={setBriefTime}
+                  onEndEditing={() => {
+                    const ok = /^([01]?\d|2[0-3]):[0-5]\d$/.test(briefTime.trim());
+                    if (ok) void saveBrief({ morningBriefTime: briefTime.trim() });
+                    else setBriefTime("07:00");
+                  }}
+                  placeholder="07:00"
+                  placeholderTextColor="#B0B8C1"
+                  className="bg-group text-ink text-center"
+                  style={{ borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, minWidth: 84 }}
+                />
+              </View>
+            )}
+          </View>
+
+          <Divider />
           <Pressable onPress={requestBattery}>
             <Row>
               <View className="flex-1 pr-3">
@@ -433,7 +475,7 @@ export default function Settings() {
                   절전 모드에서 제외
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  켜 두지 않으면 절전 기능이 알람을 늦추거나 막을 수 있어요
+                  꺼두면 절전이 알람을 늦추거나 막을 수 있어요
                 </Text>
               </View>
               <Text className={battery ? "text-brand" : "text-warn"} style={{ fontSize: 14, fontWeight: "600" }}>

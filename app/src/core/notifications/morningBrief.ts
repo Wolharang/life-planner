@@ -77,6 +77,48 @@ export function briefTitle(blocks: TimeBlock[]): string {
   return `오늘 일정 ${n}개`;
 }
 
+export interface PlannedBrief {
+  ymd: string;
+  at: number;
+  title: string;
+  body: string;
+}
+
+/**
+ * **Which briefings are still to come.** Pure, because the rule it encodes is one the user asked about by name:
+ *
+ * ***A briefing is a statement about the morning it was sent.*** Edit today's plan at 09:00 and today's briefing
+ * does **not** go out again — 07:00 has been and gone, and a second "오늘 일정" arriving at lunchtime would be
+ * describing a morning that already happened. Tomorrow's is re-cut; today's is history.
+ *
+ * A day with nothing in it gets nothing: an empty notification at 7am is worse than none.
+ */
+export function planBriefs(
+  blocks: TimeBlock[],
+  time: string,
+  now: number,
+  horizonDays = HORIZON_DAYS
+): PlannedBrief[] {
+  const [h, m] = String(time || "07:00").split(":").map(Number);
+  const out: PlannedBrief[] = [];
+
+  for (let i = 0; i < horizonDays; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const ymd = ymdOf(d);
+
+    const ofDay = blocks.filter((b) => b.date === ymd && inBrief(b));
+    if (ofDay.length === 0) continue;
+
+    const at = new Date(d);
+    at.setHours(h || 0, m || 0, 0, 0);
+    if (at.getTime() <= now) continue; // that morning has already been — it does not get a second briefing
+
+    out.push({ ymd, at: at.getTime(), title: briefTitle(ofDay), body: briefBody(ofDay) });
+  }
+  return out;
+}
+
 /**
  * Rebuild the next two weeks of briefings. Called at app start and after **any** change to the plan — a
  * briefing built from yesterday's plan would describe a day that no longer exists.
@@ -104,34 +146,20 @@ export async function rescheduleMorningBrief(): Promise<void> {
     const settings = await getSettings();
     if (!settings.morningBriefOn) return;
 
-    const [h, m] = String(settings.morningBriefTime ?? "07:00").split(":").map(Number);
+    // **Every phone briefs.** The briefing is a notification, and notifications go to all of them — only the
+    // execution moment is addressed to one (D70), because only it takes the screen. What must be solved is not
+    // *who* speaks but *whether they know the same thing*: see `syncBeforeBrief` (D77).
+
     const channelId = await ensureChannel(N);
 
     const raw = await AsyncStorage.getItem("lp.blocks.v1");
     const blocks: TimeBlock[] = raw ? (JSON.parse(raw) as TimeBlock[]) : [];
-    const now = Date.now();
 
-    for (let i = 0; i < HORIZON_DAYS; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const ymd = ymdOf(d);
-
-      const ofDay = blocks.filter((b) => b.date === ymd && inBrief(b));
-      if (ofDay.length === 0) continue; // nothing to say — so say nothing
-
-      const at = new Date(d);
-      at.setHours(h || 0, m || 0, 0, 0);
-      if (at.getTime() <= now) continue; // this morning has already been
-
+    for (const plan of planBriefs(blocks, settings.morningBriefTime, Date.now())) {
       await N.scheduleNotificationAsync({
-        identifier: ID(ymd),
-        content: {
-          title: briefTitle(ofDay),
-          body: briefBody(ofDay),
-          sound: null,
-          vibrate: null,
-        },
-        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: at, channelId },
+        identifier: ID(plan.ymd),
+        content: { title: plan.title, body: plan.body, sound: null, vibrate: null },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(plan.at), channelId },
       });
     }
   } catch {

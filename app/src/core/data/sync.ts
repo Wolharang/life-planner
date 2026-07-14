@@ -488,6 +488,33 @@ function disable(): void {
 let held = false;
 let pendingUid: string | null = null;
 
+/**
+ * **One pull, no listeners.** For the background task (D77): reconcile every collection against real server
+ * state, apply the hooks, and stop. No snapshot listeners, nothing left running — the process is about to be
+ * killed by Android anyway.
+ *
+ * This exists because *the app being open* was a hidden precondition of being correct. Sync only ran while a
+ * screen was up, so a phone that had been rebooted and not opened would go on briefing the day from a plan
+ * another phone had already changed. Two phones, two different mornings, and nothing to say which was true.
+ */
+export async function syncPullOnce(): Promise<boolean> {
+  const account = currentAccount();
+  if (!account) return false;
+
+  let pulled = false;
+  for (const name of NAMES) {
+    try {
+      await reconcileAgainstServer(name, account.uid);
+      reconciled.add(`${account.uid}:${name}`);
+      await hooks[name]?.();
+      pulled = true;
+    } catch {
+      // Offline, or refused. Keep the local rows exactly as they are — never guess (the whole D66 lesson).
+    }
+  }
+  return pulled;
+}
+
 export function holdSync(): void {
   held = true;
 }

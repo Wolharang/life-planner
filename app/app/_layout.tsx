@@ -12,6 +12,7 @@ import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
 import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
+import { registerBackgroundSync } from "@/core/notifications/backgroundSync";
 import { registerSelf } from "@/core/data/deviceRepository";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
@@ -107,6 +108,11 @@ export default function RootLayout() {
     // The briefings carry each day's actual list, so they are re-cut at every launch — after a reboot, a
     // reinstall, or a day simply passing.
     void rescheduleMorningBrief();
+
+    // Keep the other phones honest even when this one is closed (D77): a periodic background pull, kept alive
+    // across reboots by the OS. Best-effort by nature — Android decides when it runs — and nothing depends on
+    // it: the alarm is native and re-arms itself at boot.
+    void registerBackgroundSync();
 
     return stop;
   }, [identified]);
