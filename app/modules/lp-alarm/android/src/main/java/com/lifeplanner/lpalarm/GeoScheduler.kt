@@ -17,6 +17,8 @@ object GeoScheduler {
 
   private const val FLAGS = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
 
+  private val SLOTS = intArrayOf(1, 2)
+
   fun schedule(context: Context, blockId: String, date: String, at: Long, slot: Int) {
     val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(context, GeoReceiver::class.java).apply {
@@ -29,6 +31,21 @@ object GeoScheduler {
       am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     } catch (e: SecurityException) {
       // Exact-alarm permission withheld — skip this sample. Auto-eval degrades, the app does not.
+    }
+  }
+
+  /**
+   * Cancel both pending samples for a block. Called when the block is deleted (JS `unscheduleBlock`): the
+   * fire/re-check alarms are already cancelled there, and these must go too, or a deleted block would still
+   * wake the phone twice to sample a location for a workout that no longer exists.
+   */
+  fun cancel(context: Context, blockId: String) {
+    val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    for (slot in SLOTS) {
+      val intent = Intent(context, GeoReceiver::class.java).apply { action = "$ACTION_GEO:$blockId:$slot" }
+      val pi = PendingIntent.getBroadcast(context, "$blockId#geo$slot".hashCode(), intent, FLAGS)
+      am.cancel(pi)
+      pi.cancel()
     }
   }
 }

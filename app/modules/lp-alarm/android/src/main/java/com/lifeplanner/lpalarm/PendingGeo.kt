@@ -44,5 +44,15 @@ object PendingGeo {
     prefs(context).edit().remove("$blockId|$date").apply()
   }
 
+  /** Drop every captured sample for a block, across all dates — used when the block is deleted. */
+  fun clearBlock(context: Context, blockId: String) {
+    val p = prefs(context)
+    val editor = p.edit()
+    for (key in p.all.keys) {
+      if (key == blockId || key.startsWith("$blockId|")) editor.remove(key)
+    }
+    editor.apply()
+  }
+
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

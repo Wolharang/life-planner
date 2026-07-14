@@ -163,6 +163,12 @@ class LpAlarmModule : Module() {
       PendingGeo.clear(context, blockId, date)
     }
 
+    // A deleted block: cancel its two pending samples AND drop anything already captured.
+    Function("cancelGeoCaptures") { blockId: String ->
+      GeoScheduler.cancel(context, blockId)
+      PendingGeo.clearBlock(context, blockId)
+    }
+
     // §11 layers 3+5: run a synchronous backup scan now. Past-due alarms become R6 misses, not late FSI.
     Function("catchUp") {
       AlarmBackupWorker.runOnce(context)

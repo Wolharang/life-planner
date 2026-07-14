@@ -187,6 +187,10 @@ export const alarm = {
   clearGeoSamples(blockId: string, date: string): void {
     Native().clearGeoSamples?.(blockId, date);
   },
+  /** A deleted block: cancel its +5/+15 sample alarms and drop anything already captured. */
+  cancelGeoCaptures(blockId: string): void {
+    Native().cancelGeoCaptures?.(blockId);
+  },
   /** Kick a one-shot backup scan that fires any missed alarm — call on app open (§11 layers 3+5). */
   catchUp(): void {
     Native().catchUp?.();
