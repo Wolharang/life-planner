@@ -33,7 +33,11 @@ service cloud.firestore {
       match /consents/{docId} {
         allow read: if isOwner();
         allow create: if isOwner() && request.resource.data.id == docId;
-        allow update, delete: if false;
+        allow update: if false;
+        // Deletable **only** as part of 회원 탈퇴: the 처리방침 (제7조) promises 파기, and 파기 cannot mean
+        // "kept forever, unreadable". A consent that outlives the account it was given to is not evidence of
+        // anything — there is no longer anyone it was given by.
+        allow delete: if isOwner();
       }
 
       // The four synced collections (data-model §2). The measurement/catch-up stores
@@ -60,8 +64,20 @@ service cloud.firestore {
                       && !(resource.data.get('deletedAt', null) != null
                            && request.resource.data.get('deletedAt', null) == null);
 
-        // No hard deletes. Tombstone via update (deletedAt) — that is what propagates.
-        allow delete: if false;
+        // **Hard delete: the owner, and only for 파기.**
+        //
+        // This used to be `if false`, to force every removal through a tombstone — the tombstone is how the
+        // *other* phone learns a row is gone (D53/D54), and a row that merely vanished would be pushed back up
+        // by the next device to reconnect.
+        //
+        // But 이용약관 제6조 and 처리방침 제7조 promise that 탈퇴 destroys the server's copy, and on the free
+        // plan there is no Cloud Function to do it for us: the client is the only thing that can. **A promise
+        // of 파기 that the code cannot keep is worse than no promise at all**, so the owner may delete.
+        //
+        // The invariant survives in the client, which still soft-deletes every ordinary row (blockRepository)
+        // and hard-deletes **only** when wiping an entire account (`erase.ts`) — where there is no other phone
+        // left to inform, because the account itself is being destroyed.
+        allow delete: if isOwner();
       }
     }
   }

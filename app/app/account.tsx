@@ -6,14 +6,14 @@
 //
 // Sync is not a feature of the lever. Losing it costs you the other phone; it must never cost you the moment.
 
-import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
   authErrorMessage,
   currentAccount,
-  deleteCurrentUser,
+  discardCurrentUser,
   firebaseAvailable,
   googleAvailable,
   onAccountChanged,
@@ -24,6 +24,7 @@ import {
   type Account,
 } from "@/core/data/firebase";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
+import { deleteAccount, eraseAllRecords } from "@/core/data/erase";
 import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
 import {
   CONSENT_ITEMS,
@@ -89,7 +90,12 @@ export default function AccountScreen() {
   const available = firebaseAvailable();
   const withGoogle = googleAvailable();
 
-  const google = async () => {
+  // **Do not show them a login that is about to be taken back.** `onAccountChanged` fires the moment Firebase
+  // accepts the Google account, so the screen flashed "동기화 켜짐" with their email — and only then bounced them
+  // to 가입. Announcing an account we are in the middle of deleting is a lie the user watches us tell.
+  const [deciding, setDeciding] = useState(false);
+
+  const google = async (chooseAccount = false) => {
     if (busy) return;
     setError("");
 
@@ -105,17 +111,18 @@ export default function AccountScreen() {
     }
 
     setBusy(true);
+    setDeciding(true);
     // Sync must not start until we know what this login was. It begins the instant auth reports a user, and
     // an account we are about to delete would already have this phone's rows on the server.
     holdSync();
     let keepIt = true;
     try {
-      const { isNewUser } = await signInWithGoogle();
+      const { isNewUser } = await signInWithGoogle(chooseAccount);
 
       if (isNewUser && mode !== "signUp") {
         // A brand-new account, minted with nothing behind it. Take it back rather than let it stand.
         keepIt = false;
-        await deleteCurrentUser();
+        await discardCurrentUser();
         setMode("signUp");
         setError("처음이시네요. 필수 항목에 체크해 주세요.");
         return;
@@ -136,6 +143,7 @@ export default function AccountScreen() {
       setError(authErrorMessage(e)); // "" when the user simply backed out of the sheet
     } finally {
       releaseSync(keepIt);
+      setDeciding(false);
       setBusy(false);
     }
   };
@@ -186,6 +194,85 @@ export default function AccountScreen() {
     }
   };
 
+  // ── Leaving ────────────────────────────────────────────────────────────────────────────────────────
+  // 이용약관 제6조 and 처리방침 제7조 already promise these. Until now they had **no implementation behind
+  // them** — the worst kind of clause, because the user cannot discover it is empty.
+
+  const said = (msg: string) => Alert.alert("", msg);
+
+  const wipeRecords = () => {
+    const cloud = !!account;
+    Alert.alert(
+      "모든 기록을 지울까요?",
+      cloud
+        ? "이 기기와 서버에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 계정은 그대로 남아요. 되돌릴 수 없어요."
+        : "이 기기에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 되돌릴 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "지우기",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const { failed } = await eraseAllRecords();
+              said(failed > 0 ? `기록을 지웠어요. ${failed}건은 서버에서 지우지 못했어요.` : "기록을 모두 지웠어요.");
+            } catch {
+              said("기록을 지우지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const withdraw = () => {
+    Alert.alert(
+      "회원 탈퇴",
+      "계정과 서버에 저장된 기록이 모두 지워져요. 이 기기에 있는 기록은 어떻게 할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        // Leaving the service is not the same as giving up what you wrote. The choice is the user's.
+        { text: "기기 기록은 남기기", onPress: () => reallyWithdraw(true) },
+        { text: "기기 기록도 지우기", style: "destructive", onPress: () => reallyWithdraw(false) },
+      ]
+    );
+  };
+
+  const reallyWithdraw = (keepLocal: boolean) => {
+    Alert.alert(
+      "정말 탈퇴할까요?",
+      keepLocal
+        ? "계정과 서버의 기록이 지워져요. 이 기기의 기록은 남아요. 되돌릴 수 없어요."
+        : "계정과 서버의 기록, 그리고 이 기기의 기록까지 모두 지워져요. 되돌릴 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const { failed } = await deleteAccount(keepLocal);
+              said(
+                failed > 0
+                  ? `탈퇴했어요. ${failed}건은 서버에서 지우지 못했어요.`
+                  : "탈퇴했어요. 계정과 서버의 기록을 모두 지웠어요."
+              );
+            } catch {
+              // Firebase refuses `user.delete()` on a stale credential — it wants a recent login.
+              said("탈퇴하지 못했어요. 다시 로그인한 뒤 바로 시도해 주세요.");
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-group">
       <Stack.Screen options={{ headerShown: false }} />
@@ -217,7 +304,7 @@ export default function AccountScreen() {
               앱은 평소대로 쓰면 돼요. 모든 기록은 이 기기에 안전하게 저장돼요.
             </Text>
           </View>
-        ) : account ? (
+        ) : account && !deciding ? (
           <View className="bg-surface" style={{ borderRadius: 18, padding: 18 }}>
             <Text className="text-grey" style={{ fontSize: 12, marginBottom: 4 }}>
               동기화 켜짐
@@ -244,6 +331,7 @@ export default function AccountScreen() {
                 로그아웃
               </Text>
             </Pressable>
+
           </View>
         ) : (
           <View className="bg-surface" style={{ borderRadius: 18, padding: 18 }}>
@@ -365,7 +453,7 @@ export default function AccountScreen() {
                   <View className="bg-group" style={{ flex: 1, height: 1 }} />
                 </View>
                 <Pressable
-                  onPress={google}
+                  onPress={() => google(false)}
                   disabled={busy}
                   className="items-center"
                   style={{
@@ -380,6 +468,54 @@ export default function AccountScreen() {
                     Google로 계속하기
                   </Text>
                 </Pressable>
+
+                {/* Google remembers the first account and silently reuses it — which is a dead end for someone
+                    who owns two and picked the wrong one. This is the way back. */}
+                <Pressable
+                  onPress={() => google(true)}
+                  disabled={busy}
+                  hitSlop={{ top: 8, bottom: 8 }}
+                  style={{ marginTop: 12, alignSelf: "center" }}
+                >
+                  <Text className="text-faint" style={{ fontSize: 11.5, textDecorationLine: "underline" }}>
+                    다른 Google 계정으로 로그인
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* **Leaving.** Quiet, and unmissable when looked for. 이용약관 제6조 and 처리방침 제7조 promise both of
+            these; until now neither existed, which made them the emptiest kind of clause. */}
+        {available && (
+          <View style={{ marginTop: 24 }}>
+            <Pressable onPress={wipeRecords} disabled={busy} hitSlop={{ top: 6, bottom: 6 }}>
+              <Text className="text-grey" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
+                모든 기록 삭제
+              </Text>
+            </Pressable>
+            <Text className="text-faint" style={{ fontSize: 11, lineHeight: 17, marginTop: 3 }}>
+              {account
+                ? "이 기기와 서버의 일정·지출·식사·실행 기록을 지워요. 계정은 남아요."
+                : "이 기기의 일정·지출·식사·실행 기록을 지워요."}
+            </Text>
+
+            {account && (
+              <>
+                <Pressable
+                  onPress={withdraw}
+                  disabled={busy}
+                  hitSlop={{ top: 6, bottom: 6 }}
+                  style={{ marginTop: 14 }}
+                >
+                  <Text className="text-grey" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
+                    회원 탈퇴
+                  </Text>
+                </Pressable>
+                <Text className="text-faint" style={{ fontSize: 11, lineHeight: 17, marginTop: 3 }}>
+                  계정과 서버의 기록을 지워요. 이 기기의 기록을 남길지는 고를 수 있어요.
+                </Text>
               </>
             )}
           </View>

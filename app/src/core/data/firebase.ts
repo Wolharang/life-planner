@@ -112,9 +112,20 @@ export function googleAvailable(): boolean {
  * tick boxes from someone who already has an account — consent they gave when they signed up. **Asking again
  * for a consent already held is not caution; it is a wall in front of a door the user already owns.**
  */
-export async function signInWithGoogle(): Promise<{ isNewUser: boolean }> {
+export async function signInWithGoogle(chooseAccount = false): Promise<{ isNewUser: boolean }> {
   if (!loadGoogle()) throw new Error("cloud-unavailable");
   await googleMod.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+  // **Let them pick a different Google account.** After the first sign-in, Google remembers the choice and
+  // silently reuses it — good for getting back in, and a dead end for someone who owns two accounts and picked
+  // the wrong one. Signing out of the Google client (not of Firebase) is what brings the chooser back.
+  if (chooseAccount) {
+    try {
+      await googleMod.signOut();
+    } catch {
+      // nothing cached to forget — the chooser will appear anyway
+    }
+  }
 
   const result = await googleMod.signIn();
   // v13+ returns {type, data}; older builds returned the user object flat. Accept both.
@@ -146,11 +157,19 @@ export async function signInWithGoogle(): Promise<{ isNewUser: boolean }> {
 export async function deleteCurrentUser(): Promise<void> {
   const user = authMod().currentUser;
   if (!user) return;
+  // **This throws when it fails, and that is the point.** It used to swallow the error and sign out instead —
+  // which is fine for undoing an empty signup, and a lie for 회원 탈퇴: the account would still exist while the
+  // app told the user it was gone. Firebase refuses `delete()` on a stale credential (it wants a recent login),
+  // so the caller must be able to say so.
+  await user.delete();
+}
+
+/** Undo a signup we refused: delete it if we can, and at minimum leave nothing signed in on this phone. */
+export async function discardCurrentUser(): Promise<void> {
   try {
-    await user.delete();
+    await deleteCurrentUser();
   } catch {
-    // Deletion can be refused (stale credential). Signing out at least leaves nothing usable on this device;
-    // the empty account carries no data, because the consent gate ran before sync ever started.
+    // The account is empty — the consent gate held sync, so nothing of the user's ever reached it.
     await authMod().signOut();
   }
 }
