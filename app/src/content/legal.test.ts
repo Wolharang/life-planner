@@ -1,16 +1,23 @@
 // Guards on the shipped policy text.
 //
-// Not style checks — each of these is a mistake that was actually in the drafts we replaced, and each would
-// have gone out on a screen the user is asked to *agree to*:
-//   · `(초안)` in the title, and `## 8.` twice on two different clauses (markdown scaffolding, rendered raw)
-//   · 시행일 left as `2026년 ○월 ○일` / `2000년 00월 00일`
-//   · a collection list naming 결제 기록 · IMEI · Mac Address · 체중 · 프로필 사진 · 협력회사로부터의 제공 —
-//     none of which this app has ever touched.
+// Not style checks. Each of these is a mistake that was actually made and would have gone out on a screen the
+// user is asked to *agree to*:
 //
-// **A privacy policy that claims collection we do not perform is not caution — it is a false statement about
-// the user's data.** So the last test names the things we do not collect and holds the document to it.
+//   · the drafts leaked their own scaffolding — `(초안)` in the title, `## 8.` on two different clauses
+//   · 시행일 left as `2026년 ○월 ○일`
+//   · a 수집항목 list naming 결제 기록 · IMEI · Mac Address · 체중 · 프로필 사진 — none of which this app touches
+//   · and then, correcting for all that, **reassurance prose inside the instrument itself**:
+//     "서비스는 의료 목적의 도구가 아닙니다", "최소한만 모읍니다".
+//
+// That last one is the subtle one. A 약관 is normative — it defines, allocates duties, disclaims liability, in
+// 조·항·호. A 개인정보 처리방침 states the statutory items of 개인정보보호법 제30조. **Neither is a place to
+// comfort the reader.** The comfort belongs on the consent row and in 공지사항; the document must bind. So the
+// tests below hold the documents to the form of an instrument, not just to the truth of their contents.
 
 import { LEGAL_DOCS, LEGAL_ORDER, LEGAL_VERSION, shortDate } from "./legal";
+
+const flatten = (key: (typeof LEGAL_ORDER)[number]) =>
+  LEGAL_DOCS[key].blocks.map((b) => (b.t === "list" ? b.items.join(" ") : b.text)).join("\n");
 
 describe("the policy documents", () => {
   it("ships all three, and every one of them is required", () => {
@@ -22,9 +29,8 @@ describe("the policy documents", () => {
 
   it("has a real effective date — not a placeholder", () => {
     for (const key of LEGAL_ORDER) {
-      const doc = LEGAL_DOCS[key];
-      expect(/^\d{4}-\d{2}-\d{2}$/.test(doc.effectiveDate)).toBe(true);
-      expect(doc.effectiveDate).toBe(LEGAL_VERSION);
+      expect(/^\d{4}-\d{2}-\d{2}$/.test(LEGAL_DOCS[key].effectiveDate)).toBe(true);
+      expect(LEGAL_DOCS[key].effectiveDate).toBe(LEGAL_VERSION);
     }
   });
 
@@ -32,15 +38,35 @@ describe("the policy documents", () => {
     expect(shortDate("2026-07-14")).toBe("26. 07. 14.");
   });
 
-  it("never leaks a draft's scaffolding onto the screen", () => {
-    const banned = ["(초안)", "##", "**", "TBD", "○월", "00월"];
+  it("is an instrument, not a message — no reassurance asides, no 해요체", () => {
     for (const key of LEGAL_ORDER) {
-      const doc = LEGAL_DOCS[key];
-      const text = [doc.title, ...doc.blocks.map((b) => (b.t === "list" ? b.items.join(" ") : b.text))].join("\n");
-      for (const bad of banned) {
-        expect(text.includes(bad)).toBe(false);
+      // The `note` block is the app's highlighted-aside style. It belongs in 공지사항. A clause that needs a
+      // highlight to be believed is not a clause.
+      expect(LEGAL_DOCS[key].blocks.some((b) => b.t === "note")).toBe(false);
+
+      // The app's friendly voice ("~해요") is right everywhere else and wrong here. If it appears, someone has
+      // started writing copy inside the instrument again.
+      const text = flatten(key);
+      for (const voice of ["해요", "돼요", "예요", "드려요"]) {
+        expect(text.includes(voice)).toBe(false);
       }
     }
+    // ...and the message it replaced still exists, where a message belongs.
+    expect(LEGAL_DOCS.terms.summary.length > 0).toBe(true);
+  });
+
+  it("keeps the substance the reassurance used to carry — as binding clauses", () => {
+    const terms = flatten("terms");
+    expect(terms.includes("「의료기기법」")).toBe(true); // 제14조 — was "의료 목적의 도구가 아닙니다"
+    expect(terms.includes("책임을 지지 아니합니다")).toBe(true); // the alarm's limits, disclaimed
+
+    const privacy = flatten("privacy");
+    expect(privacy.includes("자동 수집 장치를 설치·운영하지 아니합니다")).toBe(true); // was "최소한만 모읍니다"
+    expect(privacy.includes("「개인정보 보호법」 제30조")).toBe(true); // it says what it is
+
+    const location = flatten("location");
+    // The honest version of "we collect no location today": collection is conditioned, in a clause.
+    expect(location.includes("수집되지 아니합니다")).toBe(true);
   });
 
   it("numbers each 조 exactly once — the old privacy policy had two 제8조", () => {
@@ -53,35 +79,33 @@ describe("the policy documents", () => {
     }
   });
 
-  it("does not claim to collect what the app never touches", () => {
-    // Each of these was in the draft's 수집항목. The app collects none of them — the code says so: `sync.ts`
-    // ships blocks/devices/expenses/meals, and Firebase Auth holds an email and a uid. That is the whole list.
-    const neverCollected = ["IMEI", "MAC 주소", "결제", "체중", "신장", "사진", "팩스", "협력회사", "광고"];
+  it("never leaks a draft's scaffolding onto the screen", () => {
+    for (const key of LEGAL_ORDER) {
+      const text = `${LEGAL_DOCS[key].title}\n${flatten(key)}`;
+      for (const bad of ["(초안)", "##", "**", "TBD", "○월", "00월"]) {
+        expect(text.includes(bad)).toBe(false);
+      }
+    }
+  });
+
+  it("does not claim to process what the app never touches", () => {
+    // Each was in the draft's 수집항목. The code says otherwise: `sync.ts` ships blocks/devices/expenses/meals,
+    // and Firebase Auth holds an email and a uid. That is the whole list.
+    const neverProcessed = ["IMEI", "MAC", "결제", "체중", "신장", "사진", "팩스", "협력회사", "쿠키"];
 
     for (const block of LEGAL_DOCS.privacy.blocks) {
       const text = block.t === "list" ? block.items.join(" ") : block.text;
-      for (const claim of neverCollected) {
-        // The word is allowed to appear — but only in a sentence that DENIES it. Anywhere else it is a claim.
-        if (text.includes(claim)) {
-          const denies = text.includes("수집하지 않습니다") || text.includes("쓰지 않습니다");
-          expect(denies).toBe(true);
-        }
+      for (const claim of neverProcessed) {
+        if (!text.includes(claim)) continue;
+        // The word may appear only in a clause that DENIES the processing. Anywhere else it is a claim.
+        expect(text.includes("아니합니다") || text.includes("않습니다")).toBe(true);
       }
     }
 
-    // And the things we DO collect must be named. Silence about the phone's name would be the same failure in
-    // the other direction: D70 uploads it, so the user is owed the sentence.
-    const privacy = LEGAL_DOCS.privacy.blocks
-      .map((b) => (b.t === "list" ? b.items.join(" ") : b.text))
-      .join("\n");
-    expect(privacy.includes("기기 이름")).toBe(true);
+    // And what we DO take must be named. Silence about the phone's name would be the same failure inverted:
+    // D70 uploads it, so 제2조 owes the user that line.
+    const privacy = flatten("privacy");
+    expect(privacy.includes("기기의 이름")).toBe(true);
     expect(privacy.includes("Google LLC")).toBe(true); // the processor — and that the data leaves the country
-  });
-
-  it("says plainly that no location is collected today", () => {
-    const location = LEGAL_DOCS.location.blocks
-      .map((b) => (b.t === "list" ? b.items.join(" ") : b.text))
-      .join("\n");
-    expect(location.includes("위치 정보를 전혀 수집하지 않습니다")).toBe(true);
   });
 });

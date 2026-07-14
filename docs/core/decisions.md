@@ -14,6 +14,23 @@
 
 ## 2026-07-14 — the app becomes a service someone else could use
 
+### D72. A 약관 is an instrument, not a message
+- **The founder, reading the shipped text:** *"「서비스는 의료·안전 목적의 도구가 아닙니다」 같은 건 '약관'이 아니라
+  전달하는 메시지이다. 「최소한만 모읍니다. 기기 고유번호는 수집하지 않습니다」 같은 건 방침이 아니다."* He was right.
+- I had corrected the drafts' *content* (D71) and then filled them with **reassurance prose**. A 약관 is
+  **normative** — it defines, allocates duties, and disclaims liability, in 조·항·호. A 개인정보 처리방침 states the
+  **statutory items of 개인정보보호법 제30조**. Neither is a place to comfort the reader. ***A document that
+  comforts instead of binding is worth nothing at the moment it is actually needed.***
+- **The substance survived; the form changed.** "의료 목적의 도구가 아닙니다" → **이용약관 제14조 (서비스의 성격 및
+  면책)**, citing 「의료기기법」. "최소한만 모읍니다" → **처리방침 제2조**'s exhaustive item list + **제10조 (자동 수집
+  장치를 설치·운영하지 아니합니다)**. "지금은 위치를 수집하지 않습니다" → **위치약관 제3조 ②**: collection is
+  *conditioned* on the permission and the feature being on — which is the same fact, stated as a rule.
+- The three documents now follow **개인정보보호법 제30조** (방침) and **위치정보법 제18·19조** (위치약관) item order.
+- **The messages did not disappear — they moved to where messages belong:** the one-line summary under each
+  consent row, and 공지사항. `legal.test.ts` now fails the build if a legal document contains a highlighted
+  aside (the `note` block) or the app's friendly 해요체. *A clause that needs a highlight to be believed is not
+  a clause.*
+
 ### D71. The app IS the policy document — and it may only claim the collection it actually performs
 - **Signup asks for all three, and all three are 필수** (founder, 2026-07-14): 서비스 이용약관 · 개인정보 처리방침 ·
   위치기반서비스 이용약관. Effective **2026-07-14**.
