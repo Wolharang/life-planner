@@ -12,6 +12,81 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-14 (evening) — GPS auto-evaluation, the Kakao map, and the day's polish
+
+### D86. The day's polish — 12h "놓쳤어요", modern confirm sheets everywhere, 주식/간식 → meal
+- **"OOO 놓쳤어요" auto-dismisses after 12h, not 7 days.** A missed occurrence (never fired) gets its own
+  `CATCHUP_MISSED_WINDOW_MS = 12h` — the moment has passed and a day-old miss card is noise, not a prompt. The
+  "아직 안 했죠" (fired-but-not-done) path keeps the 7-day window (it is still answerable).
+- **Every `Alert.alert` is gone — replaced by the `Sheet`/`ConfirmSheet` bottom sheet.** The OS dialog (grey box,
+  platform button order) is from another decade. Converted: the long-press record/block delete (home), block
+  delete (add-block), meal delete (add-meal), expense delete (add-expense), and the copy-day confirm (day). A
+  test's job aside, the rule now is **no `Alert.alert` in the app** — the sheet is the app's own voice.
+- **주식/간식 spending can link into the meal log** (founder). On the expense screen, **add mode only** (editing an
+  expense must not re-link — it would duplicate the meal): 주식 shows 아침/점심/저녁 chips (defaulted by the clock),
+  간식 goes straight to 간식, and a **kcal field** appears. On save with **kcal > 0** it also writes a `MealEntry`:
+  `foodName` = the expense name, meal `detail` = 구매처 + " " + 메모, `mealType` = the chosen 끼니. **kcal 0 cancels
+  the link** — no meal is written. Verified on device (the chips + kcal render, 저녁 auto-selected at night).
+
+### D85. The gym is picked on a **Kakao map**, in a local native module — with an OSM fallback and Kakao search
+- **A gym is set on a map, not by "현재 위치로 추가"** (which required standing there). The founder chose **Kakao
+  Maps** over the OSM WebView: native, Korean POIs, and **free without a billing account** — Google Maps needs a
+  card on file, which breaks free-only; a Kakao key does not.
+- **`modules/lp-kakaomap`** — a local Expo **view** module wrapping `com.kakao.vectormap.MapView` in an `ExpoView`
+  (the same local-module pattern as `lp-alarm`). SDK `com.kakao.maps.open:android:2.14.0`; the Maven repo
+  (`devrepo.kakao.com`) is added via **`expo-build-properties` `android.extraMavenRepos`**. The view inits+starts
+  the SDK when the `appKey` prop arrives, moves the camera on the `center` prop, emits `onCenterChanged` (settle)
+  and `onMoveStart`, and `resume()/pause()` on attach/detach.
+- **Keys live in gitignored `kakao.json`** (native app key + REST key), injected via `app.config.js` →
+  `extra.kakaoNativeAppKey` / `extra.kakaoRestApiKey` — treated like `google-services.json` (public identifiers,
+  but project keys kept out of tracked source). The REST key is **not** key-hash-protected (extractable from a
+  client), so it rides Kakao's free search quota — fine for personal use, noted honestly.
+- **Kakao console auth turns on the map** — register the **Android platform** (package `com.lifeplanner.app` + key
+  hash `Xo8WBi6jzSxKDVR4drqm84yr9iU=`) and enable 카카오맵. A wrong/missing registration is `MapAuthException(401)`
+  → blank tiles. **The key hash is the DEBUG keystore's** (release is debug-signed), so **prebuild must preserve
+  `android/app/debug.keystore`** or the hash changes every build and Kakao breaks — back it up and restore it
+  across `prebuild --clean`.
+- **OSM WebView fallback** — if there is no Kakao key (a fresh clone), or Kakao auth fails at runtime
+  (`onMapError`), the picker falls back to an OpenStreetMap Leaflet WebView. The picker always shows *some* map.
+- **Search is Kakao Local (REST), not the SDK.** `searchPlaces` (keyword search) sorts **nearest-first** around
+  the map centre (`x/y + sort=distance`) with a distance per result — a nationwide list was unsortable noise. The
+  empty-box placeholder **alternates every ~8s** between the reverse-geocoded address the map is looking at
+  (`coord2regioncode`, e.g. "서울시 마포구 동교동") and the hint "장소, 주소 검색"; **while the map moves it pins to the
+  address**, releasing 5s after it settles. Verified on device (map renders, search returns places with km).
+
+### D84. GPS auto-evaluation — a workout/run 실행 block judges itself by where the phone was
+- **The feature (founder).** For a **workout/run** block on the **실행** tier, once the user commits ("응, 할게"),
+  the phone's location is sampled at **t=0, +5m, +15m**. **Moved** (any fix beyond a radius, `DEFAULT_RADIUS_M =
+  150`) → 성공; **stayed put** → 실패 **unless the spot is a saved gym** → 성공 (standing still is what you do at the
+  gym). The verdict is only ever a **default** — the user overrides it by hand in the block detail (성공/미스 toggle
+  + 미스 사유), which marks `evalSource: "manual"` and auto-eval never overwrites it.
+- **The decision is a pure function** (`autoEval.ts` `evaluateByLocation`, haversine + `atGym`) — moved/stayed/
+  gym, `< 2` fixes → abstain (never a guessed verdict). Fully unit-tested. **Native capture** lives in `lp-alarm`
+  (`AutoEvalRegistry` — JS marks workout/run 실행 blocks at schedule time, native reads it at commit with no JS
+  alive; `GeoCapture` via framework `LocationManager`, `GeoScheduler`/`GeoReceiver` for the +5/+15 wakes, stored
+  in `PendingGeo`). On app open `applyGeoEval` drains the fixes, evaluates with the local gyms, and applies.
+- **HIGH bug caught in review, then fixed:** `applyGeoEval` first set only `block.status` — but the R6 catch-up
+  net decides "resolved" from the **outcome store**, and auto-eval means the user never self-reports, so the
+  occurrence (which has a fire marker from the commit) read as unresolved: nagged every open and, after 7 days,
+  **auto-archived as a miss — silently overwriting a GPS 성공.** Fix: `applyGeoEval` records an outcome
+  (`source: "location"`) that overrides a self-report and can never be overwritten by a later catch-up.
+- **Raw location never leaves the phone.** The three fixes are compared on-device and discarded; only the derived
+  성공/미스 (block status) syncs. **Saved gyms DO sync** (a static reference the user chose, like the block's 장소명)
+  — device-list wipe + `erase.ts` cover them.
+- **Legal (researched, not assumed) — we are NOT a 위치정보 business, so no 6-month retention.** 위치정보법 제2조
+  6·7호 define both location businesses as carrying it on **사업으로 영위**; 제16조's 확인자료 retention binds only
+  위치정보사업자등. This 기관 is **free, non-business, and its server never receives the location** (on-device,
+  discarded, not transmitted). So retention does not bind us → **immediate discard, no logs** (location 약관 제6조
+  rewritten to say so; the pre-written 6-month clause was a promise the code did not keep). 처리방침 제2조 제2항
+  lists the **saved gym's 위도·경도** (it now syncs → 국외이전 covers it); the transient sensor fixes are disclosed as
+  on-device/discarded/not-transmitted.
+- **Permissions where the feature needs them.** The onboarding now also requests **battery-optimization exclusion**
+  (Samsung deep-sleep otherwise blocks even the exact re-check alarm — this was a real device failure) and
+  **location**; a workout/run 실행 block save requests location at that moment; the 설정 readiness card counts
+  battery too (5 gates, not 4) and turns warn-red when incomplete. Runtime permissions cannot be auto-granted —
+  only the OS dialog / settings redirect. **Device-verified end-to-end** except the physical move→verdict, which
+  is the founder's self-experiment.
+
 ## 2026-07-14 (later) — the security review, and account recovery
 
 ### D83. Realtime review — one listener, correctly scoped, and conflict handling battle-tested by real incidents

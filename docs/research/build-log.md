@@ -7,6 +7,35 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-14 (evening) — GPS auto-evaluation, and picking a gym on a Kakao map
+
+The big build of the day, all device-verified on two phones. **GPS auto-evaluation** (D84): a workout/run 실행
+block judges itself by where the phone went — commit, then fixes at 0/5/15 min; moved → 성공, stayed → 실패 unless
+you were at a saved gym. Built as a tested pure decision (`evaluateByLocation`) over a native capture path in
+`lp-alarm` (`AutoEvalRegistry` / `GeoCapture` / `GeoScheduler` / `PendingGeo`), with the verdict a *default* the
+user overrides by hand. An adversarial review caught a HIGH bug before the founder could — the verdict set only
+`block.status`, so the catch-up net (which reads the outcome store) would auto-archive a GPS 성공 as a miss after
+7 days; fixed by recording an outcome with `source:"location"`. The legal was **researched, not assumed**: 위치정보법's
+retention duty binds a location *business*, which this free, on-device, non-transmitting 기관 is not — so location
+is discarded immediately, and the pre-written 6-month clause (a promise the code didn't keep) was removed. Saved
+gyms sync; the raw fixes never leave the phone. The failure that taught the most was not code: a fresh release
+install had **battery-optimization exclusion off**, Samsung deep-sleep froze the app, and the re-check alarm
+never fired — so onboarding now requests battery + location too.
+
+Then the gym picker moved to a **map** (D85). The founder chose **Kakao Maps** — native, Korean, and free without
+a card (Google needs billing). It is a local Expo *view* module (`lp-kakaomap`, MapView-in-ExpoView), SDK 2.14.0
+via `expo-build-properties` extraMavenRepos, keys in gitignored `kakao.json`. Auth is a Kakao-console job (package
++ key hash of the **debug** keystore, which prebuild must preserve, and enable 카카오맵); a first key 401'd until
+swapped. It falls back to an OSM WebView if Kakao can't authenticate, so the map always shows. Search is Kakao
+Local REST — nearest-first with distances, and the placeholder alternates between the reverse-geocoded address the
+map is looking at and the hint, pinning to the address while the map moves. Along the way (D86): "놓쳤어요" now
+auto-dismisses at 12h, every `Alert.alert` became a bottom sheet, and 주식/간식 spending links into the meal log
+when a calorie is entered.
+
+Release builds are how the founder actually uses this (standalone, no Metro): a `withReleaseHeap` config plugin
+keeps the Gradle heap at 6 GB across prebuilds, and the debug keystore is preserved so the Kakao key hash stays
+stable. Typecheck clean throughout; 133 tests.
+
 ## 2026-07-14 (later) — a security review, and the account you could lose forever
 
 The founder ran the app through a standard service-security checklist — twice. The first pass (unauthenticated

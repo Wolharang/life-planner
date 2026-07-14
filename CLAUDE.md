@@ -30,7 +30,7 @@ prototype's design/foundations** — its exact state is captured in `docs/resear
 | Confirmed decisions (D-log) | `docs/core/decisions.md` |
 | **Completed prototype (foundation · archived)** | `docs/research/prototype/` — PRD, build-log, plan, test-checklist, user-flows, **`PROTOTYPE-STATE.md`** |
 | Personas · research / analysis | `docs/research/` (personas/, essence, features/, competitive-analysis, hmw, information-architecture, …) |
-| **Legal — the shipped policy text** | **`app/src/content/legal.ts` IS the document** (D71) — structured, not markdown. `reference/*.md` (repo root) holds the founder's **superseded drafts**; they are no longer shipped. **Change a policy → edit `legal.ts`, bump `LEGAL_VERSION`, add a 공지사항** (the terms oblige advance notice). A new field that leaves the phone belongs in 개인정보 처리방침 제2조 **in the same commit**. |
+| **Legal — the shipped policy text** | **`app/src/content/legal.ts` IS the document** (D71) — structured, not markdown. `reference/*.md` (repo root) holds the founder's **superseded drafts**; they are no longer shipped. **Change a policy → edit `legal.ts`, bump `LEGAL_VERSION`, add a 공지사항** (the terms oblige advance notice). A new field that leaves the phone belongs in 개인정보 처리방침 제2조 **in the same commit**. **Location (D84):** the app is **not a 위치정보 business** (free, on-device, never transmits the fix) → the sensor fix is **discarded immediately, no retention** (do not re-add a 6-month log); a **saved gym's coordinates DO sync**, so they are in 제2조 제2항. |
 
 `docs/core/` = the essential **full-app** product truth; `docs/research/` = everything else (personas, analysis,
 process) **and the completed-prototype archive** (`docs/research/prototype/`). Keep `docs/core/` lean.
@@ -77,5 +77,13 @@ The app is in **`app/`** (see `app/README.md`). From `app/`:
 - **Typecheck:** `npm run typecheck` · **Test:** `npm test` (Jest; single test: `npm test -- <pattern>`).
 - **Gotcha:** Kotlin / native changes need a full `npx expo run:android` — a Metro reload only updates JS; a new
   native dependency needs `npx expo prebuild --clean`.
+- **Release build (how the founder actually runs it — standalone, no Metro):** `cd android && ./gradlew
+  assembleRelease` → `adb install -r …/app-release.apk`. Signed with the **debug** keystore (D85), so
+  **`prebuild --clean` must preserve `android/app/debug.keystore`** (back it up, restore it) — the **Kakao map
+  key hash is that keystore's**, and a regenerated keystore = a new hash = a 401 blank map. Heap is kept at 6 GB
+  by the `withReleaseHeap` config plugin (release R8 OOMs at 2 GB).
+- **Gitignored keys (never commit):** `app/google-services.json` (Firebase) and `app/kakao.json` (Kakao native
+  app key + REST key, D85). Both are injected at build via `app.config.js` → `extra.*`; absent → the feature
+  degrades (Google button hidden / OSM map fallback), never breaks the build.
 
 `app/tailwind.config.js` encodes the design system (`docs/core/design-system.md`).
