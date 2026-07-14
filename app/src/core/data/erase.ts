@@ -107,8 +107,53 @@ export async function eraseCloud(uid: string): Promise<{ deleted: number; failed
 }
 
 /**
- * 모든 기록 삭제. Logged in → the server's copy goes too, because otherwise the next login would quietly bring
- * back everything the user just asked us to destroy.
+ * **Tombstone every row in the account** — the delete that other devices can actually hear.
+ *
+ * A **hard** delete is the wrong tool here, and it was the tool we used. It leaves no trace, so the other phone
+ * does not see a deletion at all: it sees rows the cloud has never heard of, and its reconcile's rule is *"push
+ * those up"*. **The other phone would have restored the entire account**, and this one would have downloaded it
+ * all back on the next launch. "모든 기록 삭제" would have quietly undone itself, which is worse than not having
+ * the button.
+ *
+ * A tombstone is how a deletion travels (D53/D54), and it is terminal — the security rules forbid clearing
+ * `deletedAt`, so even a write already queued on another phone cannot bring the row back.
+ */
+async function tombstoneCloud(uid: string): Promise<{ deleted: number; failed: number }> {
+  const stats = { deleted: 0, failed: 0 };
+  const database = db();
+  if (!database) return stats;
+
+  const now = Date.now();
+  for (const name of CLOUD_COLLECTIONS) {
+    if (name === "consents") continue; // evidence of what was agreed to — not a record of the user's day
+    try {
+      const snap = await database
+        .collection("users")
+        .doc(uid)
+        .collection(name)
+        .get({ source: "server" });
+
+      for (const doc of snap?.docs ?? []) {
+        try {
+          // Only the id and the fact of death survive. The content — what you spent, what you ate, what you
+          // planned — is overwritten, not merely hidden.
+          await doc.ref.set({ id: doc.id, deletedAt: now });
+          stats.deleted++;
+        } catch {
+          stats.failed++;
+        }
+      }
+    } catch {
+      stats.failed++;
+    }
+  }
+  return stats;
+}
+
+/**
+ * 모든 기록 삭제. Logged in, the records belong to the **account**, not to the handset — so they go from every
+ * device that account reaches. Anything less would be a lie in both directions: the next login would bring back
+ * what the user destroyed, and the other phone would still be holding it.
  */
 export async function eraseAllRecords(): Promise<{ deleted: number; failed: number }> {
   const uid = currentAccount()?.uid;
@@ -117,10 +162,10 @@ export async function eraseAllRecords(): Promise<{ deleted: number; failed: numb
     return { deleted: 0, failed: 0 };
   }
 
-  // **Stop the uploads before deleting, and discard the ones already in flight afterwards.** A row Firestore
-  // sends a moment after we deleted it is a row we did not delete — see `purgeFirestoreCache`.
+  // Stop this phone's own uploads first: a row handed to Firestore a moment before the wipe would land a moment
+  // after it. (The tombstone is terminal, so it could not resurrect the row — but the books would still be wrong.)
   stopSync();
-  const stats = await eraseCloud(uid);
+  const stats = await tombstoneCloud(uid);
   await purgeFirestoreCache();
   await eraseLocal();
   return stats;

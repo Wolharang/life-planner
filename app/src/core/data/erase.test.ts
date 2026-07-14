@@ -66,9 +66,13 @@ jest.mock("./firebase", () => ({
         collection: (name: string) => ({
           get: async () => ({
             docs: (cloud[name] ?? []).map((id) => ({
+              id,
               ref: {
                 delete: async () => {
                   events.push(`cloud-delete:${name}/${id}`);
+                },
+                set: async (data: { deletedAt?: number }) => {
+                  events.push(`cloud-${data?.deletedAt ? "tombstone" : "set"}:${name}/${id}`);
                 },
               },
             })),
@@ -97,12 +101,25 @@ describe("leaving", () => {
     expect(events.indexOf("cancel:b2") < events.indexOf("erase-local")).toBe(true);
   });
 
-  it("모든 기록 삭제, logged in — the server's copy goes too, or the next login brings it all back", async () => {
+  it("모든 기록 삭제 TOMBSTONES the rows — a hard delete would be RESTORED by the other phone", async () => {
+    // The bug this replaces: a hard delete leaves no trace, so the other phone does not see a deletion at all
+    // — it sees rows the cloud has never heard of, and its reconcile's rule is "push those up". **It would
+    // have restored the entire account**, and this phone would have downloaded it back on the next launch.
+    // "모든 기록 삭제" would have quietly undone itself. A tombstone is how a deletion travels.
     reset();
     await eraseAllRecords();
-    expect(events.includes("cloud-delete:blocks/b1")).toBe(true);
-    expect(events.includes("cloud-delete:expenses/e1")).toBe(true);
-    expect(events.includes("cloud-delete:consents/2026-07-14")).toBe(true);
+
+    expect(events.includes("cloud-tombstone:blocks/b1")).toBe(true);
+    expect(events.includes("cloud-tombstone:expenses/e1")).toBe(true);
+    expect(events.includes("cloud-tombstone:meals/m1")).toBe(true);
+
+    // Never a hard delete here: that is what the other phone cannot hear.
+    expect(events.some((e) => e.startsWith("cloud-delete:"))).toBe(false);
+
+    // The consent is evidence of what was agreed to, not a record of the user's day. It is not theirs to wipe
+    // while the account lives — only 탈퇴 destroys it.
+    expect(events.some((e) => e.includes("consents"))).toBe(false);
+
     expect(events.includes("delete-account")).toBe(false); // the account stays: this is not 탈퇴
   });
 
@@ -118,11 +135,11 @@ describe("leaving", () => {
     expect(events.indexOf("purge-outbox") < events.indexOf("delete-account")).toBe(true);
   });
 
-  it("모든 기록 삭제 while logged in does the same — a queued row would resurrect what was just destroyed", async () => {
+  it("모든 기록 삭제 while logged in stops uploads first, then discards the queued ones", async () => {
     reset();
     await eraseAllRecords();
-    expect(events.indexOf("stop-sync") < events.indexOf("cloud-delete:meals/m1")).toBe(true);
-    expect(events.indexOf("cloud-delete:meals/m1") < events.indexOf("purge-outbox")).toBe(true);
+    expect(events.indexOf("stop-sync") < events.indexOf("cloud-tombstone:meals/m1")).toBe(true);
+    expect(events.indexOf("cloud-tombstone:meals/m1") < events.indexOf("purge-outbox")).toBe(true);
     expect(events.includes("delete-account")).toBe(false);
   });
 
