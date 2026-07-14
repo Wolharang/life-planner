@@ -14,6 +14,18 @@
 
 ## 2026-07-13 (late) — the two-device test, and what it exposed
 
+### D69. The far future has to be reachable — the editor gets a calendar
+- **The gap.** The block editor offered a **21-day chip row** (add mode) and a **‹ › that moved one day at a
+  time** (edit mode). So anything genuinely *ahead* — 9월 2일 개강, 12월의 시험, 두 달 뒤의 결혼식 — was in
+  practice **unenterable**: you would tap the arrow eighty times, or give up.
+- **This mattered more after D67.** Once "important events" *became* blocks, the block editor is the **only**
+  door onto the calendar — and it could not reach the dates that people put important events on. The unification
+  would have quietly cost the app the very thing the calendar was for.
+- **Decision.** A month calendar opens from the editor: any month, any date. It keeps the **multi-date** add
+  (D37 — N dates = N independent blocks, never a repeat rule); in edit mode it collapses to one.
+- The chip row stays: it is for **"soon"** (tonight, this weekend), which is what the day-planning habit (S3)
+  actually needs, and it is one tap faster than a calendar for exactly that.
+
 ### D68. A `없음` block answers itself — it is never asked, and it is never counted
 - **The founder:** *"이렇게 추가되는 알림 없는 일정은 굳이 '해냄'을 누르는 등 체크하게 할 필요가 없다."* Correct, and it
   matters more than it looks.

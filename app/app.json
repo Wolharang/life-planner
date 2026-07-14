@@ -3,7 +3,7 @@
     "name": "LifePlanner",
     "slug": "lifeplanner",
     "scheme": "lifeplanner",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAFAFA"
       },
-      "versionCode": 4
+      "versionCode": 5
     },
     "plugins": [
       "expo-router",

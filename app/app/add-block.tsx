@@ -16,6 +16,7 @@ import { addBlocks, updateBlock, deleteBlock, listBlocks, preCommitted, type Tim
 import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
+import { MonthPicker } from "@/ui/MonthPicker";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { alarm } from "@/core/notifications/alarm";
 import { loudnessOf, type BlockAlert, type BlockKind, type BlockLoudness } from "@/core/data/types";
@@ -107,6 +108,7 @@ export default function AddBlock() {
   const [leadCustom, setLeadCustom] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
 
   // New block: pre-fill the cue lead from the personal default (R13/D28).
   useEffect(() => {
@@ -284,6 +286,8 @@ export default function AddBlock() {
   };
 
   const pickerDates = Array.from({ length: MULTI_DAYS }, (_, i) => shiftYmd(baseDate, i));
+  // Dates chosen from the calendar that the chip row cannot show — so the count doesn't silently vanish.
+  const farDates = dates.filter((d) => !pickerDates.includes(d));
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -367,11 +371,15 @@ export default function AddBlock() {
         {/* dates */}
         <SectionLabel>{editId ? "날짜" : "언제 (여러 날 선택 가능)"}</SectionLabel>
         {editId ? (
+          // The arrows nudge a day; **tapping the date opens a calendar**. Moving a block to 9월 2일 used to
+          // mean tapping › fifty times.
           <View className="flex-row items-center justify-between bg-group" style={{ borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6 }}>
             <Pressable onPress={() => setDateStr((s) => shiftYmd(s, -1))} hitSlop={10} className="px-3 py-1">
               <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
             </Pressable>
-            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>{dateLabel(dateStr)}</Text>
+            <Pressable onPress={() => setCalOpen(true)} hitSlop={8} className="px-2 py-1">
+              <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>{dateLabel(dateStr)} ▾</Text>
+            </Pressable>
             <Pressable onPress={() => setDateStr((s) => shiftYmd(s, 1))} hitSlop={10} className="px-3 py-1">
               <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
             </Pressable>
@@ -399,6 +407,25 @@ export default function AddBlock() {
                 );
               })}
             </ScrollView>
+            {/* **The far future has to be reachable.** The chips only run 3 weeks out (they are for "soon" —
+                tonight, this weekend), so 9월 개강 or 12월 시험 simply could not be entered. The app *is* a
+                calendar; it just never handed one to the editor. */}
+            <View className="flex-row items-center" style={{ marginTop: 10, gap: 10 }}>
+              <Pressable
+                onPress={() => setCalOpen(true)}
+                className="bg-group"
+                style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 }}
+              >
+                <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+                  📅 달력에서 고르기
+                </Text>
+              </Pressable>
+              {farDates.length > 0 && (
+                <Text className="text-brand" style={{ fontSize: 12.5, fontWeight: "700" }}>
+                  +{farDates.length}개 (먼 날짜)
+                </Text>
+              )}
+            </View>
             <Text className="text-grey mt-2" style={{ fontSize: 12.5 }}>
               {dates.length > 1
                 ? `${dates.length}개의 날에 각각 하나씩 만들어요 (반복이 아니라 각각 따로예요)`
@@ -406,6 +433,19 @@ export default function AddBlock() {
             </Text>
           </>
         )}
+
+        <MonthPicker
+          visible={calOpen}
+          single={!!editId}
+          initial={editId ? dateStr : dates[dates.length - 1] ?? baseDate}
+          value={editId ? [dateStr] : dates}
+          onChange={(ds) => {
+            if (editId) setDateStr(ds[0] ?? dateStr);
+            else setDates(ds);
+            setError(null);
+          }}
+          onClose={() => setCalOpen(false)}
+        />
 
         {/* location */}
         <TextInput
