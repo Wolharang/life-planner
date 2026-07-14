@@ -242,6 +242,14 @@ export interface TimeBlock {
   /** free text on fail — binary + reason only, no quantitative comparison (D5/D29) */
   failReason?: string;
   completedAt?: number;
+  /**
+   * How this block's `status` came to be — only meaningful for a workout/run **실행** block (GPS auto-eval).
+   *   · `"location"` — decided automatically from where the phone was. **Still overridable by hand** — the auto
+   *      verdict is a default, never a lock (founder).
+   *   · `"manual"`   — the user set or changed it themselves; auto-eval must not overwrite it.
+   * Undefined = never auto-evaluated (any other block, or one the user judged the ordinary way).
+   */
+  evalSource?: "location" | "manual";
   createdAt: number;
   updatedAt: number;
 }
