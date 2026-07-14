@@ -46,6 +46,9 @@ export default function PickGym() {
   const [center, setCenter] = useState<GeoPoint>(DEFAULT); // live picked centre (what will be saved)
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
+  const [kakaoFailed, setKakaoFailed] = useState(false); // Kakao auth (401) etc. → fall back to OSM, never a blank map
+
+  const useKakaoNow = USE_KAKAO && !kakaoFailed;
 
   // Start on the user's location when we can get one; otherwise the default. Never blocks — a fix that never
   // arrives just leaves the map on the fallback, which the user pans from.
@@ -73,7 +76,7 @@ export default function PickGym() {
   const recenterToMe = async () => {
     const fix = await getCurrentFix();
     if (!fix) return;
-    if (USE_KAKAO) setMoveTarget([fix.lat, fix.lng]);
+    if (useKakaoNow) setMoveTarget([fix.lat, fix.lng]);
     else webRef.current?.injectJavaScript(`window.recenter(${fix.lat}, ${fix.lng}); true;`);
   };
 
@@ -90,7 +93,7 @@ export default function PickGym() {
     }
   };
 
-  const ready = start != null && (!USE_KAKAO || moveTarget != null);
+  const ready = start != null && (!useKakaoNow || moveTarget != null);
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -114,11 +117,12 @@ export default function PickGym() {
               지도를 불러오는 중…
             </Text>
           </View>
-        ) : USE_KAKAO ? (
+        ) : useKakaoNow ? (
           <KakaoMap
             appKey={KAKAO_KEY}
             center={moveTarget as [number, number]}
             onCenterChanged={(e) => setCenter({ lat: e.nativeEvent.lat, lng: e.nativeEvent.lng })}
+            onMapError={() => setKakaoFailed(true)} // 401 / SDK error → OSM fallback, not a blank map
             style={{ flex: 1 }}
           />
         ) : (
