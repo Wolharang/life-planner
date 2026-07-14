@@ -424,11 +424,44 @@ function disable(): void {
  * local-only (D20). Logging in enables sync **from that point**; logging out stops it and **keeps every
  * local row**.
  */
+// **A hold, for the one moment a login might have to be undone.**
+//
+// "Google로 계속하기" is a login for someone who has an account and a *signup* for someone who does not, and
+// Firebase only says which afterwards (`isNewUser`). So a Google press on the 로그인 tab can create an account
+// with no consent behind it — and the account screen then deletes it.
+//
+// But sync starts the instant auth reports a user. Without this hold, those milliseconds are enough to push
+// every local row to the new uid; deleting the auth user afterwards does **not** delete the documents. We
+// would have taken the account back and left the data on the server — the exact thing the consent gate exists
+// to prevent. So the caller holds sync across the decision, and only a login that survives it turns sync on.
+let held = false;
+let pendingUid: string | null = null;
+
+export function holdSync(): void {
+  held = true;
+}
+
+/** @param enableIfPending false when the login was undone — the uid must never be synced to. */
+export function releaseSync(enableIfPending = true): void {
+  held = false;
+  const uid = pendingUid;
+  pendingUid = null;
+  if (uid && enableIfPending) enable(uid);
+}
+
 export function startSync(applyHooks: ApplyHooks): () => void {
   hooks = applyHooks;
   return onAccountChanged((account) => {
-    if (account) enable(account.uid);
-    else disable();
+    if (!account) {
+      pendingUid = null;
+      disable();
+      return;
+    }
+    if (held) {
+      pendingUid = account.uid; // decided by releaseSync()
+      return;
+    }
+    enable(account.uid);
   });
 }
 

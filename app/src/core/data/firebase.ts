@@ -104,7 +104,15 @@ export function googleAvailable(): boolean {
  * Google → a Firebase credential → the same `uid` machinery as email/password. Nothing downstream cares which
  * door the user came through: sync keys off `uid` alone.
  */
-export async function signInWithGoogle(): Promise<void> {
+/**
+ * Sign in with Google. **Returns whether this call CREATED the account**, which cannot be known before the
+ * fact: one button serves both login and signup, and Firebase only tells us afterwards (`isNewUser`).
+ *
+ * That asymmetry is why the caller must ask. Gating the button on consent up front made the 로그인 tab demand
+ * tick boxes from someone who already has an account — consent they gave when they signed up. **Asking again
+ * for a consent already held is not caution; it is a wall in front of a door the user already owns.**
+ */
+export async function signInWithGoogle(): Promise<{ isNewUser: boolean }> {
   if (!loadGoogle()) throw new Error("cloud-unavailable");
   await googleMod.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
@@ -124,9 +132,27 @@ export async function signInWithGoogle(): Promise<void> {
   // error message, not the argument: **an error that says nothing costs more than one that looks technical.**
   const { accessToken } = await googleMod.getTokens();
   const authNs = require("@react-native-firebase/auth");
-  await authMod().signInWithCredential(
+  const cred = await authMod().signInWithCredential(
     authNs.default.GoogleAuthProvider.credential(idToken, accessToken)
   );
+  return { isNewUser: !!cred?.additionalUserInfo?.isNewUser };
+}
+
+/**
+ * Undo an account that should never have been created — a Google signup with no consent behind it. The user
+ * is deleted, not merely signed out: **an account we refused to accept must not be left standing on the
+ * server**, or the next login would silently find it and treat it as consented-to long ago.
+ */
+export async function deleteCurrentUser(): Promise<void> {
+  const user = authMod().currentUser;
+  if (!user) return;
+  try {
+    await user.delete();
+  } catch {
+    // Deletion can be refused (stale credential). Signing out at least leaves nothing usable on this device;
+    // the empty account carries no data, because the consent gate ran before sync ever started.
+    await authMod().signOut();
+  }
 }
 
 /** Logout stops sync but **keeps every local row** (D20) — the app carries on exactly as it did before login.

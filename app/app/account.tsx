@@ -16,12 +16,13 @@ import {
   googleAvailable,
   onAccountChanged,
   signIn,
+  deleteCurrentUser,
   signInWithGoogle,
   signOut,
   signUp,
   type Account,
 } from "@/core/data/firebase";
-import { syncStats } from "@/core/data/sync";
+import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
 import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
 import { consentIsCurrent, recordConsent } from "@/core/data/consentRepository";
 
@@ -39,10 +40,8 @@ export default function AccountScreen() {
   useEffect(() => onAccountChanged(setAccount), []);
 
   // ── Consent (이용약관 · 개인정보 처리방침 · 위치기반서비스) ─────────────────────────────────────────
-  // All three are required. Ticking a box that leaves no trace is theatre, so the answer is *recorded* with
-  // the version of the words they actually saw (consentRepository). And it has to guard **Google too**: for a
-  // first-time user that button is not a login, it is a sign-up — gate only the email form and an account gets
-  // created with no consent behind it at all.
+  // All three are required **to sign up** — never to log in. Ticking a box that leaves no trace is theatre, so
+  // the answer is *recorded* with the version of the words they actually saw (consentRepository).
   const [agreed, setAgreed] = useState<Record<LegalKey, boolean>>({
     terms: false,
     privacy: false,
@@ -79,23 +78,44 @@ export default function AccountScreen() {
   const google = async () => {
     if (busy) return;
     setError("");
-    // For someone who has never signed in, "Google로 계속하기" *is* the sign-up. If they have no current
-    // consent on file, send them to the 가입 tab rather than quietly minting an account behind the tick boxes.
-    if (!alreadyConsented && !allTicked) {
-      setMode("signUp");
+
+    // **One button, two acts.** "Google로 계속하기" is a login for someone who has an account and a *signup*
+    // for someone who does not — and which one it is cannot be known until Firebase answers (`isNewUser`).
+    //
+    // So: on the 가입 tab, the ticks are demanded up front. On the 로그인 tab they are NOT — asking again for a
+    // consent the user already gave at signup is not caution, it is a wall in front of a door they own. If the
+    // sign-in turns out to have *created* an account, we undo it and send them to 가입, where the ticks live.
+    if (mode === "signUp" && !allTicked) {
       setError("필수 항목에 모두 체크해 주세요.");
       return;
     }
+
     setBusy(true);
+    // Sync must not start until we know what this login was. It begins the instant auth reports a user, and
+    // an account we are about to delete would already have this phone's rows on the server.
+    holdSync();
+    let keepIt = true;
     try {
-      await signInWithGoogle();
-      if (!alreadyConsented) {
-        await recordConsent();
+      const { isNewUser } = await signInWithGoogle();
+
+      if (isNewUser && mode !== "signUp") {
+        // A brand-new account, minted with nothing behind it. Take it back rather than let it stand.
+        keepIt = false;
+        await deleteCurrentUser();
+        setMode("signUp");
+        setError("처음이시네요. 필수 항목에 체크해 주세요.");
+        return;
+      }
+
+      if (isNewUser) {
+        await recordConsent(); // the words they saw, stamped with their version
         setAlreadyConsented(true);
       }
     } catch (e) {
+      keepIt = false;
       setError(authErrorMessage(e)); // "" when the user simply backed out of the sheet
     } finally {
+      releaseSync(keepIt);
       setBusy(false);
     }
   };
