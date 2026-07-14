@@ -13,6 +13,7 @@ import {
   requestNotificationPermission,
   notificationPermissionGranted,
 } from "@/core/notifications/plainReminders";
+import { backgroundLocationGranted, requestBackgroundLocationPermission } from "@/core/geo/location";
 
 export const SEEN_KEY = "lp.onboarded.v1";
 
@@ -22,16 +23,20 @@ export default function Onboarding() {
   const [exact, setExact] = useState(true);
   const [fsi, setFsi] = useState(true);
   const [overlay, setOverlay] = useState(true);
+  const [battery, setBattery] = useState(true);
+  const [loc, setLoc] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       setExact(alarm.canScheduleExactAlarms());
       setFsi(alarm.canUseFullScreenIntent());
       setOverlay(alarm.canDrawOverlays());
+      setBattery(alarm.isIgnoringBatteryOptimizations());
     } catch {
       // native unavailable (dev skew) — leave granted so onboarding never blocks
     }
     setNotif(await notificationPermissionGranted());
+    setLoc(await backgroundLocationGranted());
   }, []);
 
   // Re-check when returning from a system settings screen.
@@ -96,6 +101,28 @@ export default function Onboarding() {
           hint="폰을 쓰는 중에도 그 시각에 화면이 바로 떠요. 꺼두면 알림만 오고, 눌러야 떠요"
           done={overlay}
           onPress={() => alarm.openOverlaySettings()}
+        />
+        {/* **절전 제외는 알람 신뢰성의 핵심이다.** 삼성 등은 앱을 '딥슬립'으로 얼려 정확한 알람까지 막는다 —
+            이게 빠지면 정한 시각에 화면이 안 뜬다(재확인 창 미발화의 실제 원인이었다). 한 번 탭이면 켜진다. */}
+        <PermRow
+          label="절전 모드에서 제외"
+          hint="꺼두면 절전이 알람을 늦추거나 아예 막아요. 정한 시각에 뜨려면 필요해요"
+          done={battery}
+          onPress={() => {
+            alarm.requestIgnoreBatteryOptimizations();
+            refresh();
+          }}
+        />
+        {/* 위치는 운동 자동 판정에만 쓰이고 기기 안에서만 처리·즉시 폐기된다(위치 약관). '항상 허용'은 15분 뒤
+            마지막 확인이 앱이 꺼져 있어도 필요해서다. */}
+        <PermRow
+          label="위치 허용 (운동 자동 판정)"
+          hint="헬스·러닝 실행이 실제로 됐는지 위치로 판정해요. 안 써도 앱은 그대로 동작해요"
+          done={loc}
+          onPress={async () => {
+            await requestBackgroundLocationPermission();
+            refresh();
+          }}
         />
 
         <Text className="text-ink-soft mt-9 mb-2" style={{ fontSize: 13 }}>

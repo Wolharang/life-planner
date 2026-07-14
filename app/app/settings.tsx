@@ -255,9 +255,17 @@ export default function Settings() {
   // now**. Each option must say what happens to the records already on this phone.
   const [importOpen, setImportOpen] = useState(false);
 
+  // Battery-optimization exclusion is counted here too: on Samsung it is what actually lets the alarm fire
+  // (deep-sleep blocks even an exact alarm), so a card that says "완료" without it is the lie that let a
+  // re-check silently not appear. Five gates, not four.
+  const READY_TOTAL = 5;
   const readyN =
-    (ready.exact ? 1 : 0) + (ready.fsi ? 1 : 0) + (ready.notif ? 1 : 0) + (ready.overlay ? 1 : 0);
-  const allReady = readyN === 4;
+    (ready.exact ? 1 : 0) +
+    (ready.fsi ? 1 : 0) +
+    (ready.notif ? 1 : 0) +
+    (ready.overlay ? 1 : 0) +
+    (battery ? 1 : 0);
+  const allReady = readyN === READY_TOTAL;
 
   return (
     <SafeAreaView className="flex-1 bg-group">
@@ -336,12 +344,12 @@ export default function Settings() {
           </View>
           <View className="flex-1" style={{ marginLeft: 14 }}>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700" }}>
-              알람 권한 4가지
+              알람이 제때 울릴 권한
             </Text>
-            <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+            <Text className={allReady ? "text-grey mt-0.5" : "text-warn mt-0.5"} style={{ fontSize: 13, fontWeight: allReady ? "400" : "700" }}>
               {allReady
                   ? "모두 허용됨"
-                  : `4개 중 ${readyN}개만 허용됨 — 눌러서 마저 켜기`}
+                  : `${READY_TOTAL}개 중 ${readyN}개만 허용됨 — 눌러서 마저 켜기`}
             </Text>
           </View>
           <Text className="text-faint" style={{ fontSize: 20 }}>

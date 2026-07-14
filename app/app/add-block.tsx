@@ -20,6 +20,7 @@ import { MonthPicker } from "@/ui/MonthPicker";
 import { listDevices, selfDeviceId, type DeviceRecord } from "@/core/data/deviceRepository";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { alarm } from "@/core/notifications/alarm";
+import { backgroundLocationGranted, requestBackgroundLocationPermission } from "@/core/geo/location";
 import { loudnessOf, type BlockAlert, type BlockKind, type BlockLoudness } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -289,6 +290,7 @@ export default function AddBlock() {
         updatedAt: now,
       };
       await updateBlock(updated); // the repository re-arms / cancels the alarm (architecture §9-2)
+      await ensureLocationForAutoEval();
       router.back();
       return;
     }
@@ -305,7 +307,18 @@ export default function AddBlock() {
     }));
     await addBlocks(created); // arms each one
     hapticSaved();
+    await ensureLocationForAutoEval();
     router.back();
+  };
+
+  // Auto-evaluation needs location — ask for it at the moment it turns on (a workout/run 실행 block is saved),
+  // not buried in onboarding a user may have skipped. Only prompts when it is actually missing.
+  const ensureLocationForAutoEval = async () => {
+    if ((kind === "workout" || kind === "run") && alert === "execution") {
+      if (!(await backgroundLocationGranted())) {
+        await requestBackgroundLocationPermission();
+      }
+    }
   };
 
   // Deleting a record is destructive and there is no undo, so it never happens on one tap. The reference
