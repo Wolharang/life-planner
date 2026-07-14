@@ -13,6 +13,8 @@ export type KakaoMapProps = ViewProps & {
   /** Camera centre [lat, lng]. Change it to move the map (the on-screen pin marks it). */
   center: [number, number];
   onCenterChanged?: (e: { nativeEvent: GeoPoint }) => void;
+  /** Fires when the camera STARTS moving (a pan/zoom begins). */
+  onMoveStart?: (e: { nativeEvent: Record<string, never> }) => void;
   onMapError?: (e: { nativeEvent: { message: string } }) => void;
 };
 

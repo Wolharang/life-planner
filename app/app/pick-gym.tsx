@@ -54,7 +54,9 @@ export default function PickGym() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [centerAddress, setCenterAddress] = useState(""); // what the map is currently looking at (reverse-geocoded)
-  const [phShowAddr, setPhShowAddr] = useState(false); // placeholder alternates: address ↔ guide text
+  const [phShowAddr, setPhShowAddr] = useState(false); // slow alternation: address ↔ guide text
+  const [pinAddress, setPinAddress] = useState(false); // map moving / just moved → force the address, hold the hint
+  const pinTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const useKakaoNow = USE_KAKAO && !kakaoFailed;
 
@@ -67,13 +69,33 @@ export default function PickGym() {
     return () => clearTimeout(t);
   }, [center]);
 
-  // Alternate the (empty-field) placeholder between the current address and the search hint.
+  // Alternate the (empty-field) placeholder between the current address and the search hint — slowly (each held
+  // ~8s, 3× the old cadence).
   useEffect(() => {
-    const i = setInterval(() => setPhShowAddr((v) => !v), 2600);
+    const i = setInterval(() => setPhShowAddr((v) => !v), 8000);
     return () => clearInterval(i);
   }, []);
+  useEffect(() => () => { if (pinTimer.current) clearTimeout(pinTimer.current); }, []);
 
-  const placeholder = phShowAddr && centerAddress ? centerAddress : "장소, 주소 검색";
+  // The map started moving → pin to the address and hold it (no timer while it is still moving).
+  const onMapMoveStart = () => {
+    setPinAddress(true);
+    if (pinTimer.current) clearTimeout(pinTimer.current);
+    pinTimer.current = null;
+  };
+  // The map settled → keep the address pinned, then 5s later drop back to the hint and resume alternating.
+  const onMapSettled = (lat: number, lng: number) => {
+    setCenter({ lat, lng });
+    setPinAddress(true);
+    if (pinTimer.current) clearTimeout(pinTimer.current);
+    pinTimer.current = setTimeout(() => {
+      setPinAddress(false);
+      setPhShowAddr(false); // reappear as the hint first
+    }, 5000);
+  };
+
+  // While moving/just-moved → the address; otherwise the slow alternation.
+  const placeholder = (pinAddress || phShowAddr) && centerAddress ? centerAddress : "장소, 주소 검색";
 
   // Move whichever map is showing — Kakao via the camera prop, OSM via injected JS. Shared by "go to me" and
   // by tapping a search result.
@@ -170,7 +192,8 @@ export default function PickGym() {
           <KakaoMap
             appKey={KAKAO_KEY}
             center={moveTarget as [number, number]}
-            onCenterChanged={(e) => setCenter({ lat: e.nativeEvent.lat, lng: e.nativeEvent.lng })}
+            onMoveStart={onMapMoveStart}
+            onCenterChanged={(e) => onMapSettled(e.nativeEvent.lat, e.nativeEvent.lng)}
             onMapError={() => setKakaoFailed(true)} // 401 / SDK error → OSM fallback, not a blank map
             style={{ flex: 1 }}
           />
@@ -181,7 +204,7 @@ export default function PickGym() {
             onMessage={(e) => {
               try {
                 const c = JSON.parse(e.nativeEvent.data);
-                if (typeof c?.lat === "number" && typeof c?.lng === "number") setCenter({ lat: c.lat, lng: c.lng });
+                if (typeof c?.lat === "number" && typeof c?.lng === "number") onMapSettled(c.lat, c.lng);
               } catch {
                 /* ignore malformed */
               }

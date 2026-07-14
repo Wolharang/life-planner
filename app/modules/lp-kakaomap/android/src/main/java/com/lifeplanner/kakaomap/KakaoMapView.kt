@@ -25,6 +25,7 @@ class KakaoMapView(context: Context, appContext: AppContext) : ExpoView(context,
   private var pendingCenter: LatLng? = null
 
   private val onCenterChanged by EventDispatcher()
+  private val onMoveStart by EventDispatcher()
   private val onMapError by EventDispatcher()
 
   init {
@@ -54,6 +55,7 @@ class KakaoMapView(context: Context, appContext: AppContext) : ExpoView(context,
           kakaoMap = map
           pendingCenter?.let { moveTo(it) }
           emitCenter()
+          map.setOnCameraMoveStartListener { _, _ -> onMoveStart(mapOf<String, Any>()) }
           map.setOnCameraMoveEndListener { _, position, _ ->
             val p = position.position
             onCenterChanged(mapOf("lat" to p.latitude, "lng" to p.longitude))

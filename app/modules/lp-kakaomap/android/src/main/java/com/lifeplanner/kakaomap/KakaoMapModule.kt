@@ -17,7 +17,7 @@ class KakaoMapModule : Module() {
     Name("LpKakaoMap")
 
     View(KakaoMapView::class) {
-      Events("onCenterChanged", "onMapError")
+      Events("onCenterChanged", "onMoveStart", "onMapError")
 
       Prop("appKey") { view: KakaoMapView, key: String ->
         view.setAppKey(key)
