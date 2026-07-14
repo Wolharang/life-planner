@@ -1,22 +1,37 @@
-// 약관 및 개인정보 처리 동의 — the list, with the date each document was agreed to.
+// 약관 및 개인정보 처리 동의 — the standing record: what was agreed to, when, and on which phone.
 //
-// This screen exists because consent that can only be read *once*, at the moment you are trying to get past
-// it, is not really available at all. Here it is a standing record: what you agreed to, and when.
-//
-// The date is the user's own — not the document's. "26. 07. 14." on a row means *you* said yes that day.
+// Consent that can only be read *once*, at the moment you are trying to get past it, is not really available
+// at all. Here it stands: each item with **the second it was ticked** — they are separate acts, so they carry
+// separate times — and the device it was given on.
 
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { LEGAL_DOCS, LEGAL_ORDER, shortDate } from "@/content/legal";
-import { getConsent, type ConsentRecord } from "@/core/data/consentRepository";
+import { AGE_CONSENT, LEGAL_DOCS, shortDate } from "@/content/legal";
+import {
+  CONSENT_ITEMS,
+  getConsent,
+  type ConsentItem,
+  type ConsentRecord,
+} from "@/core/data/consentRepository";
 
-const ymd = (ms: number) => {
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+/** "26. 07. 14." — the date the row was agreed. */
+const dateOf = (ms: number) => {
   const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return shortDate(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
 };
+
+/** "14:22:07" — to the second, because that is what was asked for and what a record is worth. */
+const timeOf = (ms: number) => {
+  const d = new Date(ms);
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+};
+
+const titleOf = (item: ConsentItem) =>
+  item === "age" ? "만 19세 이상 확인" : LEGAL_DOCS[item].title;
 
 export default function LegalListScreen() {
   const router = useRouter();
@@ -46,36 +61,60 @@ export default function LegalListScreen() {
           필수 동의 내용
         </Text>
 
-        {LEGAL_ORDER.map((key) => {
-          const at = consent?.agreedAt?.[key];
+        {CONSENT_ITEMS.map((item) => {
+          const at = consent?.agreedAt?.[item];
+          const isAge = item === "age"; // a statement, not a document — nothing to open
           return (
             <Pressable
-              key={key}
-              onPress={() => router.push({ pathname: "/legal/doc", params: { doc: key } })}
+              key={item}
+              disabled={isAge}
+              onPress={() => router.push({ pathname: "/legal/doc", params: { doc: item } })}
               className="flex-row items-center"
-              style={{ paddingVertical: 20 }}
+              style={{ paddingVertical: 18 }}
             >
-              <Text className="text-ink" style={{ flex: 1, fontSize: 16, fontWeight: "700" }}>
-                {LEGAL_DOCS[key].title}
+              <Text className="text-ink" style={{ flex: 1, fontSize: 15.5, fontWeight: "700" }}>
+                {titleOf(item)}
               </Text>
-              {/* Blank until they actually agree — a date here that nobody earned would be a small lie. */}
+
+              {/* Blank until they actually agree — a date nobody earned would be a small lie. */}
               {at ? (
-                <Text className="text-grey" style={{ fontSize: 15, marginRight: 10 }}>
-                  {shortDate(ymd(at))}
-                </Text>
+                <View style={{ alignItems: "flex-end", marginRight: isAge ? 0 : 10 }}>
+                  <Text className="text-grey" style={{ fontSize: 14 }}>
+                    {dateOf(at)}
+                  </Text>
+                  <Text className="text-faint" style={{ fontSize: 11.5, marginTop: 1 }}>
+                    {timeOf(at)}
+                  </Text>
+                </View>
               ) : null}
-              <Text className="text-faint" style={{ fontSize: 17 }}>
-                ›
-              </Text>
+
+              {!isAge && (
+                <Text className="text-faint" style={{ fontSize: 17 }}>
+                  ›
+                </Text>
+              )}
             </Pressable>
           );
         })}
 
-        {!consent && (
+        {consent ? (
+          <View className="bg-group" style={{ borderRadius: 12, padding: 14, marginTop: 16 }}>
+            <Text className="text-grey" style={{ fontSize: 12.5, lineHeight: 19 }}>
+              동의한 기기 · {consent.deviceLabel}
+            </Text>
+            <Text className="text-faint" style={{ fontSize: 11.5, lineHeight: 18, marginTop: 3 }}>
+              약관 버전 {consent.version}
+            </Text>
+          </View>
+        ) : (
           <Text className="text-faint" style={{ fontSize: 12.5, lineHeight: 19, marginTop: 16 }}>
             아직 동의한 기록이 없어요. 가입할 때 동의하게 돼요.
           </Text>
         )}
+
+        <Text className="text-faint" style={{ fontSize: 11.5, lineHeight: 18, marginTop: 14 }}>
+          {AGE_CONSENT.replace("[필수] ", "")}는 문서가 아니라 확인 항목이라 따로 열어볼 내용이 없어요.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

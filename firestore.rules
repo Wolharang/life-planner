@@ -22,6 +22,20 @@ service cloud.firestore {
 
       allow read, write: if isOwner();
 
+      // **Consent is evidence, not state.** (D73/D74) One document per LEGAL_VERSION, carrying the second it
+      // was given, per tick, and the device it was given on. It may be created and read — never rewritten,
+      // never deleted. A consent record the client can edit is not a record of anything: the whole point is
+      // that we can still show, later, exactly what was agreed to and when.
+      //
+      // NOTE: rules are evaluated with OR, so this cannot simply be "more specific" than the wildcard below —
+      // the wildcard's `update` is explicitly withheld from this collection, or it would grant what this
+      // match denies.
+      match /consents/{docId} {
+        allow read: if isOwner();
+        allow create: if isOwner() && request.resource.data.id == docId;
+        allow update, delete: if false;
+      }
+
       // The four synced collections (data-model §2). The measurement/catch-up stores
       // (lp.outcomes/fires/missed/latencies, §2.7) never leave the device, so they have no rule here.
       match /{collection}/{docId} {
@@ -41,6 +55,7 @@ service cloud.firestore {
         //
         // There is no "undelete" in this app: a block you re-create gets a new id.
         allow update: if isOwner()
+                      && collection != 'consents'   // evidence is append-only — see the match above
                       && request.resource.data.id == docId
                       && !(resource.data.get('deletedAt', null) != null
                            && request.resource.data.get('deletedAt', null) == null);

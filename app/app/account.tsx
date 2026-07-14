@@ -12,11 +12,12 @@ import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
   authErrorMessage,
+  currentAccount,
+  deleteCurrentUser,
   firebaseAvailable,
   googleAvailable,
   onAccountChanged,
   signIn,
-  deleteCurrentUser,
   signInWithGoogle,
   signOut,
   signUp,
@@ -24,7 +25,15 @@ import {
 } from "@/core/data/firebase";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
 import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
-import { consentIsCurrent, recordConsent } from "@/core/data/consentRepository";
+import {
+  CONSENT_ITEMS,
+  consentComplete,
+  consentIsCurrent,
+  fetchConsent,
+  pushConsent,
+  recordConsent,
+  type ConsentItem,
+} from "@/core/data/consentRepository";
 
 type Mode = "signIn" | "signUp";
 
@@ -42,24 +51,29 @@ export default function AccountScreen() {
   // ── Consent (이용약관 · 개인정보 처리방침 · 위치기반서비스) ─────────────────────────────────────────
   // All three are required **to sign up** — never to log in. Ticking a box that leaves no trace is theatre, so
   // the answer is *recorded* with the version of the words they actually saw (consentRepository).
-  const [agreed, setAgreed] = useState<Record<LegalKey, boolean>>({
-    terms: false,
-    privacy: false,
-    location: false,
-  });
-  // 이용약관 제5조 lets the 기관 refuse an applicant who is 만 18세 이하 — but a discretion it has no way to
-  // exercise is one in name only. So the applicant confirms it, and the answer is kept with the consent.
-  const [ageOk, setAgeOk] = useState(false);
+  // **Each tick keeps its own second.** They are separate acts — the moment the age was confirmed is not the
+  // moment the privacy policy was accepted — and a single timestamp stamped over all four at submit would be a
+  // record of the *submit*, not of the consents. Unticking clears the time: an act that was taken back leaves
+  // no trace of having happened.
+  const [ticks, setTicks] = useState<Partial<Record<ConsentItem, number>>>({});
+  const tick = (item: ConsentItem) =>
+    setTicks((t) => (t[item] ? { ...t, [item]: undefined } : { ...t, [item]: Date.now() }));
+
   const [alreadyConsented, setAlreadyConsented] = useState(false);
   useEffect(() => {
     consentIsCurrent().then(setAlreadyConsented);
   }, []);
 
-  const allTicked = ageOk && LEGAL_ORDER.every((k) => agreed[k]);
+  const allTicked = CONSENT_ITEMS.every((k) => !!ticks[k]);
   const toggleAll = () => {
-    const next = !allTicked;
-    setAgeOk(next);
-    setAgreed({ terms: next, privacy: next, location: next });
+    if (allTicked) {
+      setTicks({});
+      return;
+    }
+    const now = Date.now();
+    const all: Partial<Record<ConsentItem, number>> = {};
+    for (const k of CONSENT_ITEMS) all[k] = now; // one press, one instant — honestly the same second for all
+    setTicks(all);
   };
 
   // **Say when sync is behind.** Writes are handed to Firestore and not awaited (awaiting hangs the save
@@ -107,9 +121,15 @@ export default function AccountScreen() {
         return;
       }
 
+      const uid = currentAccount()?.uid;
       if (isNewUser) {
-        await recordConsent(); // the words they saw, stamped with their version
+        await recordConsent(ticks, uid); // each tick, with the second it was given
         setAlreadyConsented(true);
+      } else if (uid) {
+        // A returning phone, or a second one: bring the account's consent down, or 동의 내역 would be empty
+        // for the same person on the same account (D74).
+        await pushConsent(uid);
+        setAlreadyConsented(consentComplete(await fetchConsent(uid)));
       }
     } catch (e) {
       keepIt = false;
@@ -135,10 +155,17 @@ export default function AccountScreen() {
     try {
       if (mode === "signUp") {
         await signUp(email, password);
-        await recordConsent(); // the words they saw, stamped with their version
+        await recordConsent(ticks, currentAccount()?.uid); // each tick, with the second it was given
         setAlreadyConsented(true);
       } else {
         await signIn(email, password);
+        // A returning phone: bring the account's consent down, or 동의 내역 would be empty for the same
+        // person on the same account (D74). And if this phone consented moments ago, stamp the uid on it.
+        const uid = currentAccount()?.uid;
+        if (uid) {
+          await pushConsent(uid);
+          setAlreadyConsented(consentComplete(await fetchConsent(uid)));
+        }
       }
       setPassword("");
       // The sync engine is watching the auth state (app/_layout) — it pushes this device's rows up, then
@@ -259,12 +286,12 @@ export default function AccountScreen() {
 
                 {/* A statement, not a document — nothing to open, so no 보기 link. */}
                 <Pressable
-                  onPress={() => setAgeOk((v) => !v)}
+                  onPress={() => tick("age")}
                   className="flex-row items-center"
                   style={{ paddingVertical: 6 }}
                   hitSlop={{ top: 6, bottom: 6 }}
                 >
-                  <Box on={ageOk} />
+                  <Box on={!!ticks.age} />
                   <Text className="text-grey" style={{ fontSize: 12.5, marginLeft: 10, flex: 1 }}>
                     {AGE_CONSENT}
                   </Text>
@@ -276,12 +303,12 @@ export default function AccountScreen() {
                 {LEGAL_ORDER.map((key) => (
                   <View key={key} className="flex-row items-center" style={{ paddingVertical: 6 }}>
                     <Pressable
-                      onPress={() => setAgreed((a) => ({ ...a, [key]: !a[key] }))}
+                      onPress={() => tick(key)}
                       className="flex-row items-center"
                       style={{ flex: 1 }}
                       hitSlop={{ top: 6, bottom: 6 }}
                     >
-                      <Box on={agreed[key]} />
+                      <Box on={!!ticks[key]} />
                       <Text
                         numberOfLines={1}
                         className="text-grey"
