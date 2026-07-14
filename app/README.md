@@ -1,11 +1,21 @@
 # app/ — LifePlanner (React Native + Expo, Android-first)
 
-The running app. **State (2026-07-11): everything except the backend is built and verified on a real device**
-— calendar, D-1 day planning, **the execution lever**, in-the-moment logs, day summary, review. The only phase
-left is **F0 (Firebase: Auth + Firestore + sync)**.
+The running app. **State (2026-07-14): SHIPPED — v0.4.0 (versionCode 6) runs standalone on the founder's phone
+(no Metro, no laptop).** Every phase incl. **F0 (Firebase auth + sync)** is built and device-verified. The only
+thing left is to **use it**: the product's survival turns on **S1** (execution rate) and **S3** (does he
+actually plan the next day) — neither is a coding question.
+
+**The model, after the two-device test (D62–D70) — read before touching anything:**
+- **One unit: the `TimeBlock`.** `ImportantEvent` is **retired** (D67). The **alert tier says what the thing
+  IS**: **없음** (only holds the hour — never evaluated; answers itself as 지남, D68) · **알림** (it matters) ·
+  **실행** (the lever). `kind` (일반/운동/러닝) is orthogonal.
+- **Loudness is its own 3-way axis** (D65): **무음 · 진동 · 소리**. The moment itself may be silent.
+- **The moment is addressed to ONE phone** (D70) — everything syncs, only the *takeover* is scoped.
+- **Sync never trusts the cache** (D66): reconcile reads `source: "server"`, because a snapshot layers your own
+  **un-sent** writes on top of the server's — that lie silently swallowed 180 expenses.
 
 > **Where the truth lives.** Product = `../docs/core/prd.md` (R1–R18) · decisions = `../docs/core/decisions.md`
-> (D1–D50) · **"where are we" = `../docs/research/implementation-plan.md` → "Build progress (live) — CURRENT
+> (D1–D70 — **D62–D70 are the newest and they changed the model**) · **"where are we" = `../docs/research/implementation-plan.md` → "Build progress (live) — CURRENT
 > STATE"** · history = `../docs/research/build-log.md` · device acceptance =
 > `../docs/research/device-test-checklist.md`.
 

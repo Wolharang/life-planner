@@ -34,15 +34,28 @@ the plan-vs-actual bookkeeping — is the real target.
 
 ## 3. Feature specs (by priority)
 
-### 3.1 Core — Calendar of important events
-- Monthly calendar view; dates carrying important events are visually marked.
-- Add/edit/delete an important event on a date (title, date, time, notify-at time, memo).
-- **Cloud auto-sync (Firebase)**: important events propagate to **all** of the user's logged-in devices.
-- **Advance notification**: a notification fires at a configured time (minutes/hours) **before** the event,
-  on all devices, alerting the user that the important event exists.
-- Conflict handling is **not a dedicated feature**: because all important events sit on the calendar, when
-  the user adds a new one they already see any existing events on that date, so double-booking is naturally
-  avoided. No collision-detection logic is planned.
+### 3.1 Core — The month calendar of **the day itself**
+> **⚠ REWRITTEN 2026-07-14 by D67. `ImportantEvent` NO LONGER EXISTS.** It was never a different kind of thing:
+> an "important event" is a **`TimeBlock` with `alert: "none"`**. Two entities forced the user to answer a
+> question that has nothing to do with their life — *"is this a 일정 or a 블록?"* — and then punished the answer:
+> a block added to hold an hour **did not appear on the calendar**, so the month showed a free afternoon that
+> was not free. **A calendar that hides half your commitments is worse than none.**
+
+- Monthly calendar view; **every** date carrying **any block** is marked (one bar per block; +N over three).
+- **The alert tier says what the thing IS** (D62/D65/D67/D68):
+  - **없음** — it only **holds the hour** (강의, 이동, 알바). It never announces itself, it is **never evaluated**,
+    and it **answers itself**: once its time passes it appears in 지난 기록 as **지남**, derived and never recorded.
+    *This is what an "important event" used to be.*
+  - **알림** — it matters: a plain notification at up to 3 moments the user picks (D45).
+  - **실행** — the lever: the lock-screen execution moment (R7).
+  `kind` (일반 / 운동 / 러닝) is **orthogonal** to all three.
+- **Loudness is a separate 3-way axis** (D65): **무음 · 진동 · 소리**. Even the execution moment may be silent.
+- **Adding happens in one place** — the block editor, reachable from the calendar's ＋. It opens a **month
+  picker** so a date months away is reachable (D69).
+- **Cloud auto-sync**: blocks propagate to all logged-in devices — but **only the phone(s) a block names take
+  the screen** (D70); the others get one buzz + a notification.
+- Conflict handling is still **not a dedicated feature** — but now it actually works, because the calendar shows
+  *everything* that occupies the day, so an hour that is taken is visible where you look for free hours.
 
 > **Why this is core (pain points with KakaoTalk calendar, from the user):**
 > (1) an event added on one phone did **not** appear on another → the user missed an existing important
@@ -137,8 +150,8 @@ the plan-vs-actual bookkeeping — is the real target.
 > **Canonical field definitions live in `docs/core/data-model.md`** — the list below is a sketch; names/structure
 > follow `docs/core/data-model.md`.
 
-- **ImportantEvent**: id, date, time, title, **notifyLeadMinutes** (per-event offset before start; default if
-  unset, D28), color (optional), memo, createdAt/updatedAt.
+- ~~**ImportantEvent**~~ — **폐기 (D67).** Absorbed into `TimeBlock` as `alert: "none"` (a notify-lead becomes
+  `soft`); `color` and `memo` moved onto the block. There is **one unit**.
 - **TimeBlock** (day plan): id, date, **start–end** (free-form interval), title, **location** (optional),
   **kind** (`normal | workout | run`), **alert** (`soft | execution` — **default `execution`**; the `none` tier of
   D40 was **removed** by D43/D45) (+ alarmLeadMinutes, microStartNote, **alertSound** per-block, **alertLeads** =

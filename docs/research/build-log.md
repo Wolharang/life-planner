@@ -7,6 +7,83 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-14 (small hours) — the two-device test, and the model it broke
+
+The release was cut, so the founder did the thing we had been unable to do all along: **he used two phones.**
+Everything that follows was found by *use*, not by reading — and one of it rewrote the product's core model.
+
+**Sync said it had delivered writes it never sent (D66).** He imported his budget history — **180 expenses** —
+logged in on the second phone, and **not one was there**. Two faults, and the second is the one that matters.
+Firestore's outbox had **jammed**: 400 writes queued at import, the meals drained, and the 180 expenses sat
+**undelivered, unrejected and unretried**. (Clearing the queue and re-pushing landed all 180 in seven seconds,
+zero failures — nothing was ever wrong with the data.) But **the app declared them synced**: a Firestore
+snapshot **layers your own un-sent writes on top of the server's state**, so `reconcile` read *"the cloud has
+all 180 of these"*, pushed nothing, and never tried again. It was confidently, permanently wrong, and told
+nobody. He found out by opening the Firebase console. The reconcile now reads with **`source: "server"`**, and
+because a write is fire-and-forget by necessity, the app **keeps books** and shows what it still owes.
+***"We don't wait" must never become "we don't know."***
+
+**A block you deleted while LOGGED OUT came back on login (D64).** `syncRemove` is a no-op with no account —
+correct, and therefore fatal: the deletion left **no trace anywhere**, and the cloud handed the rows straight
+back. Deletes now always write a **local tombstone**. *Third time in one day: an invariant that must survive
+being offline or logged out cannot live in the code path that only runs when you are online and logged in.*
+
+**Rescheduling a missed block left it dead (D63).** He missed a block, **moved it later to actually do it**,
+committed at the moment — and the app showed **미스** and **"진짜 했어?" never came**. The block kept
+`status: fail`, so the catch-up net saw the occurrence as *already resolved*, **threw the fire marker away**,
+and `scheduleBlock` cancelled the re-check. **The alarm rang into an app that had already decided the answer.**
+*"I missed the 15:58 gym, I'll move it to 17:27 and do it"* is the most natural thing a person does with this
+product, and it was the one thing it silently refused to allow.
+
+**Google sign-in: the error that said nothing cost hours.** `accessToken cannot be empty` — **one missing
+argument**. We had re-verified the SHA-1 against the actual APK signature, the web client id, the enabled
+providers (all correct) and reached for "propagation delay" and "this device's Play Services may be patched".
+All wrong. It hid that long because we **caught the error and replaced it with "로그인에 실패했어요"**. Surfacing
+the code found it in one minute. ***An error that says nothing costs more than one that looks technical.***
+
+### And then the model broke — in the right direction
+
+**D62 — `없음` comes back.** D43 had deleted it ("a block you'd never be told about isn't worth adding"). That
+**mistook a block for an alert**. A block is also **an hour of your day that is taken**: 강의, 알바, 이동 belong on
+the plan *so the day is honest*.
+
+**D67 — one unit; the tier IS what the thing is.** He added a `없음` block and **it did not appear on the
+calendar**. The month showed a free afternoon that was not free. Two entities — `ImportantEvent` and
+`TimeBlock` — that were **always the same thing**, forcing the user to answer a question that has nothing to do
+with their life (*"is this a 일정 or a 블록?"*) and then punishing the answer. **A calendar that hides half your
+commitments is worse than none: it does not merely omit, it actively tells you the day is free.**
+`ImportantEvent` is **retired**. **없음** = it holds the hour · **알림** = it matters · **실행** = the lever.
+*(Cheapest possible moment: zero events existed, locally or in the cloud.)*
+
+**D68 — a `없음` block answers itself.** No 해냄 to press, no 쉼 to toggle; it flows into 지난 기록 as **지남**,
+derived and never recorded. *A 강의 that happened exactly as planned is not a datum about the lever* — and
+demanding a tap to clear it would turn the honest day into a chore list, which is the maintenance death (C2)
+the product exists to avoid.
+
+**D65 — 무음.** Loudness was a boolean, so the quiet end of it **still buzzed your leg**. A vibration is not
+free: if the phone twitches twenty times a day, the twenty-first — the one that matters — is just another
+twitch. Three settings now, still orthogonal to the tier: **the execution moment itself may be silent.** *The
+screen IS the intervention; the noise was only ever its escort.*
+
+**D69 — the far future.** After D67 the block editor became the **only** door onto the calendar — and it could
+reach only 21 days (add) or one arrow-tap per day (edit). The unification would have quietly cost the app the
+very thing the calendar was for. It opens a month calendar now.
+
+**D70 — the moment is addressed to ONE phone.** With sync working, an `실행` block took over **every logged-in
+phone at once**. Three phones lighting up together does not say *"do it now"* — it asks **"where am I supposed
+to do this?"** The account remembers its devices; a block names the phone(s) that may take the screen (default:
+the one you planned on). The others still **tell** you — one buzz, one notification. *Being unaware is a
+different failure from being interrupted in three rooms, and we refuse both.* Fallbacks err **loud**: an alarm
+on the wrong phone is an annoyance; **an alarm on no phone is the product failing**.
+
+### Shipping state
+**v0.4.0 (versionCode 6)** — release APK, signed with the same key (so Google sign-in keeps working), **runs
+with no Metro and no laptop**. Icon shipped. Day zero was created deliberately (device reinstalled, Firestore
+wiped): **the self-experiment cannot start on data carrying test blocks, prototype leftovers, and outcomes the
+bugs invented. A false record is worse than none, because we would reason from it.**
+
+---
+
 ## 2026-07-13 (night) — everything the audit found, fixed; release build; day zero
 
 The founder's call: **"모든 것을 다 해결하고 가는 것이 좋다."** So the rest of the audit — every MEDIUM and LOW,

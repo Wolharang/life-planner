@@ -1,5 +1,21 @@
 # On-device verification — full app
 
+## ⚠ WHAT IS STILL UNVERIFIED (2026-07-14) — needs BOTH phones at once
+
+Everything else has passed on a real device. These three need two phones connected and logged into the same
+account, and they are the ones that would bite silently, weeks in:
+
+1. **Propagation.** Add a block on phone A → it appears on phone B within seconds (and B **arms its alert**,
+   not just the row).
+2. **The resurrection scenarios (D53 / D54 / D64)** — each was a real bug, each was fixed, none has been run
+   end-to-end:
+   - **B deletes X · A is offline and edits X · A reconnects** → X must **stay deleted**, alarm gone.
+   - **Delete X while LOGGED OUT, then log in** → X must **not come back** (this one actually happened).
+3. **D70 device picker.** With two phones registered, an `실행` block must take the screen **only on the phone(s)
+   it names** — and the others must still get **one buzz + a notification** at the same moment.
+
+---
+
 > **F0 (backend) has its own pass: jump to "F0 — the backend" at the bottom.** The sections below are the
 > pre-Firebase acceptance pass, which already **PASSED (2026-07-11)**. Re-run **§A (the lever)** after F0 —
 > sync must not have touched it.

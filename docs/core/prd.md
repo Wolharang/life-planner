@@ -200,8 +200,12 @@ Adding a new event, he already **sees** the existing Saturday event → no doubl
 ## 7. Requirements / Features
 
 ### 7.0 — Data & behavior model (canonical fields: `docs/core/data-model.md`)
-Entities: **ImportantEvent** (date, time, title, notifyLeadMinutes, color, memo) · **TimeBlock** (date, start–end,
-title, location?, `kind`, `alert` (`soft|execution`, default `execution` — D43/D45 removed D40's `none`) +
+Entities *(2026-07-14, **D67**: `ImportantEvent` is **retired** — it was always a `TimeBlock` with
+`alert:"none"`; the **tier says what the thing is**)*: **TimeBlock** (date, start–end,
+title, location?, `kind`, **`alert`** (**`none | soft | execution`**, default `execution` — `none` was removed by
+D43 and **brought back by D62**, because a block is also *an hour that is taken*; `none` is never evaluated and
+answers itself as 지남, D68) + **`alertLoudness`** (**무음/진동/소리**, D65 — independent of the tier) +
+**`executeOn`** (which phone(s) may take the screen, D70) + **`color`/`memo`** (absorbed from the retired event) +
 `alarmLeadMinutes` + `microStartNote` + `alertSound` (per-block) + `alertLeads` (≤3, soft only), D-1 snapshot
 `snapStart/snapEnd/snapTitle/plannedAt`, `status` planned|success|fail, `failReason`) · **Expense** (timestamp,
 category[8 fixed D16], amount[KRW D25], payment[free-text D26], store, name) · **MealEntry** (mealType[아침/점심/

@@ -46,7 +46,8 @@ API). 알림은 **온디바이스 로컬**(서버 푸시 없음).
         └─────────────┘                                                   │
                              (동기화 전용; 없이도 앱 완전 동작)              │ HTTPS/WS
    ┌───────────────────── FIREBASE (관리형 BaaS, Spark 무료) ──────────────▼──┐
-   │  Cloud Firestore  /users/{uid}/{events,timeblocks,expenses,meals}        │
+   │  Cloud Firestore  /users/{uid}/{blocks,devices,expenses,meals}           │
+   │    (events는 D67로 폐기 — TimeBlock 하나로 통합; devices는 D70)              │
    │  Firebase Auth (id+password)   ·  Security Rules: 사용자별 격리           │
    │  커스텀 서버 ✕ · API 계층 ✕ · Cloud Functions ✕ · Cloud Storage ✕(D19)   │
    └──────────────────────────────────────────────────────────────────────────┘
