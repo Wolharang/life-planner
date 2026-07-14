@@ -15,6 +15,8 @@ import { getSettings, updateSettings } from "@/core/data/settingsRepository";
 import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup";
 import { onAccountChanged, type Account } from "@/core/data/firebase";
 import { evidenceCount, resetEvidence } from "@/core/data/evidence";
+import { eraseAllRecords } from "@/core/data/erase";
+import { Sheet, ConfirmSheet } from "@/ui/Sheet";
 
 const LEADS = [
   { label: "정각", v: 0 },
@@ -141,35 +143,46 @@ export default function Settings() {
       }
     })();
   };
-  // Day zero (see evidence.ts). Destructive and irreversible, so it says exactly what it will destroy and
-  // exactly what it will not — and it never runs on one tap.
-  const promptResetMetrics = async () => {
+  // ── 기록 삭제 ──────────────────────────────────────────────────────────────────────────────────────
+  // **Two different acts, one door.** 기록 초기화 wipes the *evidence* (해냄·미스·발화) and leaves the plan —
+  // it is how day zero is made, and a false record is worse than none because we would reason from it.
+  // 모든 기록 삭제 wipes everything you ever wrote, and on the server too.
+  //
+  // They used to sit on different screens, which meant the destructive one nobody expected (모든 기록 삭제) was
+  // filed under 계정, next to 회원 탈퇴. Records belong with records. What must never happen is choosing one
+  // while meaning the other, so each option **says what survives**, and the irreversible step stands alone.
+  const [eraseOpen, setEraseOpen] = useState(false);
+  const [confirmErase, setConfirmErase] = useState<null | "evidence" | "all">(null);
+  const [evidenceN, setEvidenceN] = useState(0);
+  const [notice, setNotice] = useState("");
+
+  const openErase = async () => {
     if (busy) return;
-    const n = await evidenceCount();
-    if (n === 0) {
-      Alert.alert("기록 초기화", "지울 기록이 없어요. 이미 0일차예요.");
-      return;
+    setEvidenceN(await evidenceCount());
+    setEraseOpen(true);
+  };
+
+  const runErase = async (what: "evidence" | "all") => {
+    setBusy(true);
+    try {
+      if (what === "evidence") {
+        await resetEvidence();
+        setConfirmErase(null);
+        setNotice("실행 기록을 초기화했어요. 0일차부터 다시 셉니다.");
+      } else {
+        const { failed } = await eraseAllRecords();
+        setConfirmErase(null);
+        setNotice(
+          failed > 0 ? `기록을 지웠어요. ${failed}건은 서버에서 지우지 못했어요.` : "모든 기록을 지웠어요."
+        );
+      }
+      await refresh();
+    } catch {
+      setConfirmErase(null);
+      setNotice("지우지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
     }
-    Alert.alert(
-      "기록을 초기화할까요?",
-      `해냄·미스·발화 기록 ${n}건이 영구히 지워져요. 일정·블록·지출·식사는 그대로 남아요.\n\n되돌릴 수 없어요.`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "초기화",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await resetEvidence();
-              Alert.alert("초기화 완료", "0일차부터 다시 셉니다.");
-            } finally {
-              setBusy(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const promptImport = () => {
@@ -493,14 +506,14 @@ export default function Settings() {
           {/* Day zero. The measurement stores carry test blocks, prototype leftovers, and outcomes the
               bugs we just fixed invented — a false miss is worse than no data, because we would reason
               from it. This wipes the EVIDENCE (outcomes/fires/missed/latencies), not the plan. */}
-          <Pressable onPress={promptResetMetrics} disabled={busy}>
+          <Pressable onPress={openErase} disabled={busy}>
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  기록 초기화
+                  기록 삭제
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  해냄·미스·발화 기록을 모두 지우고 0일차부터 다시 시작해요. 일정과 블록은 그대로예요.
+                  실행 기록만 초기화하거나, 모든 기록을 지울 수 있어요.
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -510,6 +523,57 @@ export default function Settings() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Each option says **what survives** — that is the only thing that keeps these two apart in a hurry. */}
+      <Sheet
+        visible={eraseOpen}
+        title="기록 삭제"
+        message="무엇을 지울까요? 되돌릴 수 없어요."
+        onClose={() => setEraseOpen(false)}
+        actions={[
+          {
+            label: "실행 기록만 초기화",
+            desc:
+              evidenceN === 0
+                ? "지울 실행 기록이 없어요. 이미 0일차예요."
+                : `해냄·미스·발화 ${evidenceN}건을 지우고 0일차부터 다시 세요. 일정·지출·식사는 그대로 남아요.`,
+            disabled: evidenceN === 0,
+            onPress: () => {
+              setEraseOpen(false);
+              setConfirmErase("evidence");
+            },
+          },
+          {
+            label: "모든 기록 삭제",
+            desc: account
+              ? "이 기기와 서버의 일정·지출·식사·실행 기록을 모두 지워요. 계정은 남아요."
+              : "이 기기의 일정·지출·식사·실행 기록을 모두 지워요.",
+            danger: true,
+            onPress: () => {
+              setEraseOpen(false);
+              setConfirmErase("all");
+            },
+          },
+        ]}
+      />
+
+      <ConfirmSheet
+        visible={!!confirmErase}
+        title={confirmErase === "all" ? "모든 기록을 지울까요?" : "실행 기록을 초기화할까요?"}
+        message={
+          confirmErase === "all"
+            ? account
+              ? "이 기기와 서버의 일정·지출·식사·실행 기록이 모두 지워져요. 계정은 남아요. 되돌릴 수 없어요."
+              : "이 기기의 일정·지출·식사·실행 기록이 모두 지워져요. 되돌릴 수 없어요."
+            : "해냄·미스·발화 기록이 지워지고 0일차부터 다시 세요. 계획은 그대로 남아요. 되돌릴 수 없어요."
+        }
+        confirmLabel={busy ? "지우는 중…" : confirmErase === "all" ? "모두 지우기" : "초기화하기"}
+        busy={busy}
+        onConfirm={() => runErase(confirmErase === "all" ? "all" : "evidence")}
+        onClose={() => setConfirmErase(null)}
+      />
+
+      <Sheet visible={!!notice} title={notice} onClose={() => setNotice("")} actions={[]} cancelLabel="확인" />
     </SafeAreaView>
   );
 }

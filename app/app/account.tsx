@@ -6,7 +6,7 @@
 //
 // Sync is not a feature of the lever. Losing it costs you the other phone; it must never cost you the moment.
 
-import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -24,7 +24,8 @@ import {
   type Account,
 } from "@/core/data/firebase";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
-import { deleteAccount, eraseAllRecords } from "@/core/data/erase";
+import { deleteAccount } from "@/core/data/erase";
+import { Sheet, ConfirmSheet } from "@/ui/Sheet";
 import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
 import {
   CONSENT_ITEMS,
@@ -195,82 +196,34 @@ export default function AccountScreen() {
   };
 
   // ── Leaving ────────────────────────────────────────────────────────────────────────────────────────
-  // 이용약관 제6조 and 처리방침 제7조 already promise these. Until now they had **no implementation behind
-  // them** — the worst kind of clause, because the user cannot discover it is empty.
+  // 이용약관 제6조 and 처리방침 제7조 already promise 탈퇴 and 파기. Until now they had **no implementation
+  // behind them** — the worst kind of clause, because the user cannot discover it is empty.
+  //
+  // 모든 기록 삭제 does NOT live here: erasing your records is not leaving the service, and putting the two
+  // side by side made the account screen a place where the two heaviest buttons sat together. It moved to
+  // 설정, merged with 기록 초기화 — where the records are.
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState<null | { keepLocal: boolean }>(null);
+  const [done, setDone] = useState("");
 
-  const said = (msg: string) => Alert.alert("", msg);
-
-  const wipeRecords = () => {
-    const cloud = !!account;
-    Alert.alert(
-      "모든 기록을 지울까요?",
-      cloud
-        ? "이 기기와 서버에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 계정은 그대로 남아요. 되돌릴 수 없어요."
-        : "이 기기에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 되돌릴 수 없어요.",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "지우기",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              const { failed } = await eraseAllRecords();
-              said(failed > 0 ? `기록을 지웠어요. ${failed}건은 서버에서 지우지 못했어요.` : "기록을 모두 지웠어요.");
-            } catch {
-              said("기록을 지우지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
-            } finally {
-              setBusy(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const withdraw = () => {
-    Alert.alert(
-      "회원 탈퇴",
-      "계정과 서버에 저장된 기록이 모두 지워져요. 이 기기에 있는 기록은 어떻게 할까요?",
-      [
-        { text: "취소", style: "cancel" },
-        // Leaving the service is not the same as giving up what you wrote. The choice is the user's.
-        { text: "기기 기록은 남기기", onPress: () => reallyWithdraw(true) },
-        { text: "기기 기록도 지우기", style: "destructive", onPress: () => reallyWithdraw(false) },
-      ]
-    );
-  };
-
-  const reallyWithdraw = (keepLocal: boolean) => {
-    Alert.alert(
-      "정말 탈퇴할까요?",
-      keepLocal
-        ? "계정과 서버의 기록이 지워져요. 이 기기의 기록은 남아요. 되돌릴 수 없어요."
-        : "계정과 서버의 기록, 그리고 이 기기의 기록까지 모두 지워져요. 되돌릴 수 없어요.",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "탈퇴",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              const { failed } = await deleteAccount(keepLocal);
-              said(
-                failed > 0
-                  ? `탈퇴했어요. ${failed}건은 서버에서 지우지 못했어요.`
-                  : "탈퇴했어요. 계정과 서버의 기록을 모두 지웠어요."
-              );
-            } catch {
-              // Firebase refuses `user.delete()` on a stale credential — it wants a recent login.
-              said("탈퇴하지 못했어요. 다시 로그인한 뒤 바로 시도해 주세요.");
-            } finally {
-              setBusy(false);
-            }
-          },
-        },
-      ]
-    );
+  const withdraw = async (keepLocal: boolean) => {
+    setBusy(true);
+    try {
+      const { failed } = await deleteAccount(keepLocal);
+      setConfirmLeave(null);
+      setDone(
+        failed > 0
+          ? `탈퇴했어요. ${failed}건은 서버에서 지우지 못했어요.`
+          : "탈퇴했어요. 계정과 서버의 기록을 지웠어요."
+      );
+    } catch {
+      // Firebase refuses `user.delete()` on a stale credential — it wants a recent login. Say so, rather than
+      // report a 탈퇴 that did not happen.
+      setConfirmLeave(null);
+      setDone("탈퇴하지 못했어요. 다시 로그인한 뒤 바로 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -486,38 +439,19 @@ export default function AccountScreen() {
           </View>
         )}
 
-        {/* **Leaving.** Quiet, and unmissable when looked for. 이용약관 제6조 and 처리방침 제7조 promise both of
-            these; until now neither existed, which made them the emptiest kind of clause. */}
-        {available && (
+        {/* **Leaving.** Only 회원 탈퇴 lives here. Erasing your records is a different act — it belongs with the
+            records, in 설정 — and side by side the two heaviest buttons in the app made each other easier to
+            press by mistake. */}
+        {account && (
           <View style={{ marginTop: 24 }}>
-            <Pressable onPress={wipeRecords} disabled={busy} hitSlop={{ top: 6, bottom: 6 }}>
+            <Pressable onPress={() => setLeaveOpen(true)} disabled={busy} hitSlop={{ top: 6, bottom: 6 }}>
               <Text className="text-grey" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
-                모든 기록 삭제
+                회원 탈퇴
               </Text>
             </Pressable>
             <Text className="text-faint" style={{ fontSize: 11, lineHeight: 17, marginTop: 3 }}>
-              {account
-                ? "이 기기와 서버의 일정·지출·식사·실행 기록을 지워요. 계정은 남아요."
-                : "이 기기의 일정·지출·식사·실행 기록을 지워요."}
+              계정과 서버의 기록을 지워요. 이 기기의 기록을 남길지는 고를 수 있어요.
             </Text>
-
-            {account && (
-              <>
-                <Pressable
-                  onPress={withdraw}
-                  disabled={busy}
-                  hitSlop={{ top: 6, bottom: 6 }}
-                  style={{ marginTop: 14 }}
-                >
-                  <Text className="text-grey" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
-                    회원 탈퇴
-                  </Text>
-                </Pressable>
-                <Text className="text-faint" style={{ fontSize: 11, lineHeight: 17, marginTop: 3 }}>
-                  계정과 서버의 기록을 지워요. 이 기기의 기록을 남길지는 고를 수 있어요.
-                </Text>
-              </>
-            )}
           </View>
         )}
 
@@ -568,6 +502,57 @@ export default function AccountScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Two steps, on purpose. The first asks the question only the user can answer — **do the records on this
+          phone go with the account?** Leaving the service is not the same as giving up what you wrote. The
+          second is the one that cannot be undone, and it stands alone so it cannot be reached by momentum. */}
+      <Sheet
+        visible={leaveOpen}
+        title="회원 탈퇴"
+        message="계정과 서버에 저장된 기록이 지워져요. 이 기기에 있는 기록은 어떻게 할까요?"
+        onClose={() => setLeaveOpen(false)}
+        actions={[
+          {
+            label: "기기 기록은 남기기",
+            desc: "계정만 지워요. 이 기기의 일정·지출·식사·실행 기록은 그대로 쓸 수 있어요.",
+            onPress: () => {
+              setLeaveOpen(false);
+              setConfirmLeave({ keepLocal: true });
+            },
+          },
+          {
+            label: "기기 기록도 함께 지우기",
+            desc: "계정과 서버, 그리고 이 기기의 기록까지 모두 지워요.",
+            danger: true,
+            onPress: () => {
+              setLeaveOpen(false);
+              setConfirmLeave({ keepLocal: false });
+            },
+          },
+        ]}
+      />
+
+      <ConfirmSheet
+        visible={!!confirmLeave}
+        title="정말 탈퇴할까요?"
+        message={
+          confirmLeave?.keepLocal
+            ? "계정과 서버의 기록이 지워져요. 이 기기의 기록은 남아요. 되돌릴 수 없어요."
+            : "계정과 서버의 기록, 그리고 이 기기의 기록까지 모두 지워져요. 되돌릴 수 없어요."
+        }
+        confirmLabel={busy ? "지우는 중…" : "탈퇴하기"}
+        busy={busy}
+        onConfirm={() => withdraw(!!confirmLeave?.keepLocal)}
+        onClose={() => setConfirmLeave(null)}
+      />
+
+      <Sheet
+        visible={!!done}
+        title={done}
+        onClose={() => setDone("")}
+        actions={[]}
+        cancelLabel="확인"
+      />
     </SafeAreaView>
   );
 }
