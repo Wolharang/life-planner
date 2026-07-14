@@ -85,6 +85,16 @@ and there is **no server push**, so no mass-send vector exists. Email SPF/DKIM r
 domain (we run no custom sender domain). Two forward guardrails recorded: adding any promotional notification needs
 a separate opt-in + a 21–08 block, and a custom email domain would make SPF/DKIM/DMARC ours. (D82)
 
+**Sixth security pass — realtime (a review, no code change; the hardened core).** One realtime capability:
+Firestore `onSnapshot` on the four synced collections, live only foreground + logged in. Necessary-vs-not is
+already split: **realtime foreground** (multi-device immediacy, and on Firestore no dearer than polling) and
+**periodic pull background** (`syncPullOnce`, D77 — exactly the "주기적 갱신 대체" asked for). Nothing time-critical
+depends on it — the native alarm is independent. Reconnect is covered three deep (SDK offline persistence +
+auto-replay; caught listener errors; a `source:server` reconcile on every login, with the reconciled-mark cleared
+on disable). Concurrent edits are multi-*device* not multi-user (D3), but the handling is the most battle-tested
+code in the repo: last-write-to-reach-server wins (server-side, not client clock), terminal tombstones (the fix for
+resurrected blocks), `source:server` reconcile (the fix for the 134 orphaned meals). (D83)
+
 ---
 
 ## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find

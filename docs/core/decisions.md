@@ -14,6 +14,35 @@
 
 ## 2026-07-14 (later) — the security review, and account recovery
 
+### D83. Realtime review — one listener, correctly scoped, and conflict handling battle-tested by real incidents
+- **The app has exactly one realtime capability**: Firestore `onSnapshot` listeners on the four synced collections
+  (blocks · devices · expenses · meals), live **only while logged in and in the foreground** (`sync.ts` `enable`).
+  No WebSocket, no Realtime Database, no custom stream.
+- **Necessary vs. not is already separated — the app runs realtime foreground and periodic pull background.**
+  - *Foreground → realtime.* The one thing that genuinely benefits is multi-device immediacy: edit tomorrow on
+    phone A and phone B reflects it at once. On Firestore this is **not more expensive than polling** — a single
+    subscription that streams only deltas, the same read quota as a fetch but immediate and using *fewer* reads
+    than aggressive polling. For one user with a few devices it is negligible. So it is the economical choice, not
+    gratuitous realtime.
+  - *Background (app closed) → periodic pull.* `syncPullOnce()` (D77), no listeners, ~15-min background-fetch —
+    **exactly the "주기적 갱신으로 대체" the checklist asks for**, applied where a live listener cannot run anyway.
+  - **Nothing time-critical rides on the listener.** The lever (execution alarm) is native, exact, re-armed at
+    boot — wholly independent of sync. If the snapshot never fired, the product's core still works.
+- **Disconnect / reconnect — handled at three layers.** (1) The Firestore SDK itself: offline persistence,
+  automatic reconnect, `onSnapshot` re-fires and the write outbox replays on reconnect; writes are **never
+  awaited**, so offline they queue instead of hanging. (2) The listener's error callback is caught — a rules/network
+  error never crashes; local storage keeps serving (R11). (3) Every (re)login runs `reconcileAgainstServer` with
+  `source:"server"` to heal any gap accrued while away, and `disable()` **clears the "already reconciled" mark** so
+  a stale one can never skip that heal.
+- **Concurrent edits — this is multi-*device*, not multi-user (D3), but the mechanics are the real thing and the
+  most battle-tested code in the app** (§6 · D53/D54/D76): **last write to reach the server wins**, settled
+  server-side, never by the client clock; **tombstones are terminal** — a delete cannot be resurrected even by a
+  write already queued on an offline phone (enforced in the rules *and* the client), the fix for the founder's
+  **resurrected deleted blocks**; the reconcile reads `source:"server"` so the outbox cannot masquerade as server
+  state, the fix for the **134 orphaned meals** and the "imported expenses declared synced then abandoned" bug;
+  `updatedAt` (client clock) decides only *which side has the newer copy to push*, explicitly **not** conflict
+  resolution. **No code change — the area is not just healthy, it is the hardened core.**
+
 ### D82. Notifications review — three channels, zero advertising, and the guardrails for the day that changes
 - **Every situation the app posts a notification in, and its channel** (grep-verified, three sources only):
   - **실행 순간 알람** — native `lp-alarm`, channel **실행 알람**, `IMPORTANCE_HIGH`, `bypassDnd=true`,
