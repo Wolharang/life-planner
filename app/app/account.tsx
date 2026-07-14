@@ -83,7 +83,7 @@ export default function AccountScreen() {
     // consent on file, send them to the 가입 tab rather than quietly minting an account behind the tick boxes.
     if (!alreadyConsented && !allTicked) {
       setMode("signUp");
-      setError("Google로 가입하려면 아래 항목에 모두 체크해 주세요.");
+      setError("필수 항목에 모두 체크해 주세요.");
       return;
     }
     setBusy(true);
@@ -108,7 +108,7 @@ export default function AccountScreen() {
       return;
     }
     if (mode === "signUp" && !allTicked) {
-      setError("필수 항목에 모두 체크해야 가입할 수 있어요.");
+      setError("필수 항목에 모두 체크해 주세요.");
       return;
     }
     setBusy(true);
@@ -241,41 +241,41 @@ export default function AccountScreen() {
                 <Pressable
                   onPress={() => setAgeOk((v) => !v)}
                   className="flex-row items-center"
-                  style={{ paddingVertical: 7 }}
+                  style={{ paddingVertical: 6 }}
                   hitSlop={{ top: 6, bottom: 6 }}
                 >
                   <Box on={ageOk} />
-                  <Text className="text-grey" style={{ fontSize: 13.5, marginLeft: 10, flex: 1 }}>
+                  <Text className="text-grey" style={{ fontSize: 12.5, marginLeft: 10, flex: 1 }}>
                     {AGE_CONSENT}
                   </Text>
                 </Pressable>
 
+                {/* One line each, and no subtitle. The consent list is not where the document gets explained —
+                    that is what the document is for, one tap away behind 보기. Prose piled onto a tick box does
+                    not get read; it only makes the box harder to find. */}
                 {LEGAL_ORDER.map((key) => (
-                  // Top-aligned, not centred: the summary wraps to two lines, and a vertically centred 보기
-                  // lands in the middle of the sentence it is meant to open.
-                  <View key={key} className="flex-row items-start" style={{ paddingVertical: 7 }}>
+                  <View key={key} className="flex-row items-center" style={{ paddingVertical: 6 }}>
                     <Pressable
                       onPress={() => setAgreed((a) => ({ ...a, [key]: !a[key] }))}
-                      className="flex-row items-start"
+                      className="flex-row items-center"
                       style={{ flex: 1 }}
                       hitSlop={{ top: 6, bottom: 6 }}
                     >
                       <Box on={agreed[key]} />
-                      <View style={{ marginLeft: 10, flex: 1, paddingRight: 8 }}>
-                        <Text className="text-grey" style={{ fontSize: 13.5, lineHeight: 20 }}>
-                          {LEGAL_DOCS[key].consent}
-                        </Text>
-                        <Text className="text-faint" style={{ fontSize: 11.5, lineHeight: 17, marginTop: 2 }}>
-                          {LEGAL_DOCS[key].summary}
-                        </Text>
-                      </View>
+                      <Text
+                        numberOfLines={1}
+                        className="text-grey"
+                        style={{ fontSize: 12.5, marginLeft: 10, flex: 1, paddingRight: 8 }}
+                      >
+                        {LEGAL_DOCS[key].consent}
+                      </Text>
                     </Pressable>
                     {/* You cannot meaningfully agree to something you cannot open. */}
                     <Pressable
                       onPress={() => router.push({ pathname: "/legal/doc", params: { doc: key } })}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Text className="text-faint" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
+                      <Text className="text-faint" style={{ fontSize: 11.5, textDecorationLine: "underline" }}>
                         보기
                       </Text>
                     </Pressable>
@@ -285,8 +285,10 @@ export default function AccountScreen() {
             )}
 
             {error ? (
-              // A miss is neutral data and so is a failed login — stated, never scolded (no red-alarm UI).
-              <Text className="text-grey" style={{ fontSize: 13, marginTop: 10 }}>
+              // **Ink, not grey — and still not red.** A failed login is neutral data (R14: the app does not
+              // scold), but a message the user cannot see is not restraint, it is just a dead end: they press
+              // 가입, nothing happens, and the reason is whispered in the same grey as the placeholder text.
+              <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "600", marginTop: 12 }}>
                 {error}
               </Text>
             ) : null}

@@ -51,8 +51,19 @@ describe("the policy documents", () => {
         expect(text.includes(voice)).toBe(false);
       }
     }
-    // ...and the message it replaced still exists, where a message belongs.
-    expect(LEGAL_DOCS.terms.summary.length > 0).toBe(true);
+  });
+
+  it("keeps each consent line to one short line", () => {
+    // The rows once carried a subtitle explaining the document. **A consent list is not where a document gets
+    // explained — that is what the document is for**, one tap away behind 보기. Prose piled onto a tick box does
+    // not get read; it only makes the box harder to find.
+    for (const key of LEGAL_ORDER) {
+      const line = LEGAL_DOCS[key].consent;
+      expect(line.startsWith("[필수]")).toBe(true);
+      expect(line.length <= 22).toBe(true); // it must fit on one line, at 12.5sp, next to the 보기 link
+      expect(line.includes("\n")).toBe(false);
+    }
+    expect(AGE_CONSENT.length <= 22).toBe(true);
   });
 
   it("keeps the substance the reassurance used to carry — as binding clauses", () => {

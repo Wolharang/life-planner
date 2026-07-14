@@ -53,10 +53,15 @@ export interface LegalDoc {
   title: string;
   /** YYYY-MM-DD — the day this version takes effect. Shown as the version chip. */
   effectiveDate: string;
-  /** The one line the user ticks. All three are required (founder, 2026-07-14). */
+  /**
+   * The one line the user ticks. All three are required (founder, 2026-07-14).
+   *
+   * **One line, and short.** It once carried a plain-Korean subtitle under it — "무엇을 처리하고, 어디에 맡기고,
+   * 언제 파기하는지". The founder cut them: *"체크하는 것에 말이 너무 많다."* He is right. A consent list is not
+   * where you explain the document — **that is what the document is for**, one tap away behind 보기. Prose piled
+   * onto a tick box does not get read; it just makes the box harder to find.
+   */
   consent: string;
-  /** Plain Korean, under the consent row. **This** is where the message goes — not inside the document. */
-  summary: string;
   blocks: Block[];
 }
 
@@ -82,8 +87,7 @@ const TERMS: LegalDoc = {
   key: "terms",
   title: "서비스 이용약관",
   effectiveDate: EFFECTIVE,
-  consent: "[필수] 서비스 이용약관에 동의합니다",
-  summary: "서비스를 어떤 조건으로 제공하고, 알림에 대해 무엇을 책임지는지",
+  consent: "[필수] 서비스 이용약관 동의",
   blocks: [
     { t: "chapter", text: "제1장 총칙" },
 
@@ -277,8 +281,7 @@ const PRIVACY: LegalDoc = {
   key: "privacy",
   title: "개인정보 처리방침",
   effectiveDate: EFFECTIVE,
-  consent: "[필수] 개인정보 수집·이용에 동의합니다",
-  summary: "무엇을 처리하고, 어디에 맡기고, 언제 파기하는지",
+  consent: "[필수] 개인정보 처리방침 동의",
   blocks: [
     {
       t: "p",
@@ -481,8 +484,7 @@ const LOCATION: LegalDoc = {
   key: "location",
   title: "위치기반서비스 이용약관",
   effectiveDate: EFFECTIVE,
-  consent: "[필수] 위치기반서비스 이용약관에 동의합니다",
-  summary: "위치는 회원이 권한을 허용하고 기능을 켠 경우에만 수집됩니다",
+  consent: "[필수] 위치기반서비스 이용약관 동의",
   blocks: [
     { t: "article", text: "제1조 (목적)" },
     {
@@ -581,7 +583,7 @@ export const LEGAL_ORDER: LegalKey[] = ["terms", "privacy", "location"];
  * is recorded with the consent (처리방침 제2조 ④) — an age we asked about and did not keep is one we cannot say
  * we ever asked about.
  */
-export const AGE_CONSENT = "[필수] 만 19세 이상입니다";
+export const AGE_CONSENT = "[필수] 만 19세 이상";
 
 /** "2026-07-14" → "26. 07. 14." — the form the consent list and the version chip use. */
 export function shortDate(ymd: string): string {
