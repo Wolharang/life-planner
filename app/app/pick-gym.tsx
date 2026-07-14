@@ -50,25 +50,22 @@ export default function PickGym() {
 
   const useKakaoNow = USE_KAKAO && !kakaoFailed;
 
-  // Start on the user's location when we can get one; otherwise the default. Never blocks — a fix that never
-  // arrives just leaves the map on the fallback, which the user pans from.
+  // Open on the user's location when we can get one; otherwise the default. `getCurrentFix` bounds itself (a
+  // fresh fix within a few seconds, else the OS's last-known), so no separate timeout is needed — and the
+  // separate timeout used to be a **bug**: it captured the initial `start` (null) in its closure, so it fired
+  // after 4s and overwrote the already-set current location back to the default. Set it once, here, and leave it.
   useEffect(() => {
     let done = false;
-    const apply = (c: GeoPoint) => {
+    getCurrentFix().then((fix) => {
       if (done) return;
+      const c = fix ?? DEFAULT;
       setStart(c);
       setCenter(c);
       setMoveTarget([c.lat, c.lng]);
-    };
-    getCurrentFix().then((fix) => apply(fix ?? DEFAULT));
-    const t = setTimeout(() => {
-      if (!done && start == null) apply(DEFAULT);
-    }, 4000);
+    });
     return () => {
       done = true;
-      clearTimeout(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const osm = useMemo(() => (start ? osmHtml(start) : null), [start]);
