@@ -40,7 +40,17 @@ the email is real, recover a lost password — for free: **준회원/정회원 b
 - The 준회원 banner **blocks nothing** (D20/R14) — a benefit named in neutral taupe, auto-rechecking once per login
   for a link clicked in the browser. (D79)
 
-No native change, no prebuild. Typecheck clean; **12 suites / 111 tests** (was 11/107).
+**Follow-up the same day** — email change, graceful failure, and an abuse cap:
+- **이메일 주소 변경** via `verifyBeforeUpdateEmail`: the link goes to the *new* inbox and the address swaps only
+  once it is clicked, and Firebase alerts the *old* address. A typo cannot strand the account. Email accounts only.
+- **When Firebase does not answer cleanly, guide instead of dead-ending** — `auth/too-many-requests` (its global
+  quota, not the user's fault) and the unknown branch now carry calm, actionable Korean.
+- **A device-local daily budget** (`rateLimit.ts`): the founder's fix for "누군가 남용하면 Firebase 한도를 초과해
+  다른 사람이 인증을 못 받는다." AsyncStorage is per-install, so it *is* the device-based limit — no id to read.
+  Reset **1/day**, email change **3/day**, resend **3/day**, per action per device; a no-network attempt is
+  refunded so it never burns the day's only reset. Guarded by `rateLimit.test.ts`.
+
+No native change, no prebuild. Typecheck clean; **13 suites / 116 tests** (was 11/107).
 
 ---
 

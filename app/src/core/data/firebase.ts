@@ -218,6 +218,24 @@ export async function refreshVerification(): Promise<Account | null> {
 }
 
 /**
+ * Change the account's email — the safe way, and the only way that cannot lock a user out.
+ *
+ * `verifyBeforeUpdateEmail` sends a confirmation link to the **new** address and swaps the email only once that
+ * link is clicked. So a typo cannot strand the account on an inbox nobody owns, and someone who briefly holds the
+ * session cannot silently move the account to their own inbox. Firebase **also notifies the old address** that a
+ * change was requested — the security alert the founder expected.
+ *
+ * Firebase requires a *recent* login for this; a stale session throws `auth/requires-recent-login`, which the
+ * screen turns into "다시 로그인한 뒤 시도해 주세요" rather than a dead end.
+ */
+export async function changeEmail(newEmail: string): Promise<void> {
+  if (!load()) throw new Error("cloud-unavailable");
+  const user = authMod().currentUser;
+  if (!user) throw new Error("no-user");
+  await user.verifyBeforeUpdateEmail(newEmail.trim());
+}
+
+/**
  * Send a password-reset link to an email address. **This is a logged-OUT action** — you use it precisely because
  * you cannot sign in — so we cannot read the account's 정회원 status here, and Firebase's email-enumeration
  * protection will not tell us either. That is fine, and it is *why the model holds*: the link goes only to that
@@ -377,12 +395,19 @@ export function authErrorMessage(err: any): string {
     case "auth/wrong-password":
     case "auth/user-not-found":
       return "이메일 또는 비밀번호가 맞지 않아요.";
+    case "auth/requires-recent-login":
+      // The session is too old for a sensitive change (email / delete). Re-authenticating is the fix.
+      return "보안을 위해 로그아웃한 뒤 다시 로그인하고 시도해 주세요.";
     case "auth/network-request-failed":
-      return "네트워크에 연결되지 않았어요. 앱은 그대로 쓸 수 있어요.";
+      return "네트워크에 연결되지 않았어요. 잠시 후 다시 시도해 주세요.";
     case "auth/too-many-requests":
-      return "잠시 후에 다시 시도해 주세요.";
+      // Firebase's own **global** send limit — not the user's fault, and the honest thing is to say the mail
+      // could not be sent right now, not to imply they did something wrong. (founder: 한도 초과 대비 안내 문구.)
+      return "지금은 메일을 보낼 수 없어요. 인증 메일 발송이 잠시 제한됐어요. 잠시 후 다시 시도해 주세요.";
     default:
-      // Show the code. A message that says nothing costs more than one that looks technical.
-      return `로그인에 실패했어요. 앱은 그대로 쓸 수 있어요.${err?.code ? `\n(${err.code})` : ""}`;
+      // No code, or one we do not recognise — treat it as "Firebase did not answer cleanly" and guide rather
+      // than dead-end. Show the code so a real report carries the one fact we would need. (founder: 응답이 제대로
+      // 오지 않을 때 안내.)
+      return `요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.${err?.code ? `\n(${err.code})` : ""}`;
   }
 }

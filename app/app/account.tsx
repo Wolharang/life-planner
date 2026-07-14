@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
   authErrorMessage,
+  changeEmail,
   currentAccount,
   discardCurrentUser,
   firebaseAvailable,
@@ -26,6 +27,7 @@ import {
   signUp,
   type Account,
 } from "@/core/data/firebase";
+import { spendDaily, refundDaily, dailyLimit } from "@/core/data/rateLimit";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
 import { deleteAccount } from "@/core/data/erase";
 import { Sheet, ConfirmSheet } from "@/ui/Sheet";
@@ -216,13 +218,53 @@ export default function AccountScreen() {
 
   const resend = async () => {
     if (busy) return;
+    // Device budget first — before we touch Firebase's shared quota.
+    const gate = await spendDaily("resendVerification");
+    if (!gate.allowed) {
+      setNote(`인증 메일은 같은 기기에서 하루에 ${dailyLimit("resendVerification")}번까지 보낼 수 있어요. 내일 다시 시도해 주세요.`);
+      return;
+    }
     setBusy(true);
     setNote("");
     try {
       await resendVerification();
       setNote("인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.");
     } catch (e) {
+      if (isNetwork(e)) await refundDaily("resendVerification"); // a mail that never left must not cost a token
       setNote(authErrorMessage(e) || "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── 이메일 주소 변경 (로그인 상태 · 이메일 계정만) ────────────────────────────────────────────────────
+  // Google accounts do not change their email here — it is Google's, not ours. The new address must confirm the
+  // change by clicking a link (verifyBeforeUpdateEmail): the email only moves once the new inbox proves it is
+  // real, and the OLD address is notified by Firebase. Same device budget as resend — 3 a day.
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailNote, setEmailNote] = useState("");
+
+  const submitEmailChange = async () => {
+    if (busy) return;
+    if (!newEmail.trim()) {
+      setEmailNote("새 이메일을 입력해 주세요.");
+      return;
+    }
+    const gate = await spendDaily("emailChange");
+    if (!gate.allowed) {
+      setEmailNote(`이메일 변경은 같은 기기에서 하루에 ${dailyLimit("emailChange")}번까지 보낼 수 있어요. 내일 다시 시도해 주세요.`);
+      return;
+    }
+    setBusy(true);
+    setEmailNote("");
+    try {
+      await changeEmail(newEmail);
+      setEmailNote(`${newEmail.trim()}(으)로 확인 링크를 보냈어요. 링크를 누르면 이메일이 바뀌어요. 기존 이메일로도 변경 안내가 가요.`);
+      setNewEmail("");
+    } catch (e) {
+      if (isNetwork(e)) await refundDaily("emailChange");
+      setEmailNote(authErrorMessage(e) || "변경하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
@@ -255,6 +297,13 @@ export default function AccountScreen() {
       setError("이메일을 입력한 뒤 눌러 주세요.");
       return;
     }
+    // The tightest budget: one reset per device per day. It is the most abusable send (logged out, any address),
+    // and the founder's concern is exactly this — one device must not be able to drain Firebase's shared quota.
+    const gate = await spendDaily("passwordReset");
+    if (!gate.allowed) {
+      setResetInfo("비밀번호 재설정 메일은 같은 기기에서 하루에 한 번만 보낼 수 있어요. 내일 다시 시도해 주세요.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -263,8 +312,10 @@ export default function AccountScreen() {
         "가입한 이메일이라면 재설정 링크를 보냈어요. 메일함을 확인해 주세요.\n\nGoogle로 가입했다면 'Google로 계속하기'로 로그인해 주세요.",
       );
     } catch (e) {
-      // A real error (network, rate limit) is worth saying; anything else stays neutral.
-      setError(authErrorMessage(e));
+      if (isNetwork(e)) await refundDaily("passwordReset"); // no network → the reset never left; give it back
+      // Firebase did not answer cleanly (its own limit, or no response). Guide, in the same calm sheet, instead
+      // of dead-ending with a raw error. (founder: 제대로 응답이 오지 않을 때 안내 문구.)
+      setResetInfo(authErrorMessage(e) || "지금은 메일을 보낼 수 없어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
@@ -392,6 +443,72 @@ export default function AccountScreen() {
                     <Text className="text-ink" style={{ fontSize: 13, fontWeight: "600" }}>메일 다시 보내기</Text>
                   </Pressable>
                 </View>
+              </View>
+            )}
+
+            {/* 이메일 주소 변경 — email accounts only (a Google email is Google's to change). Collapsed until asked
+                for: it is a rare action, and an always-open input next to the account email invites accidents. */}
+            {!account.google && (
+              <View style={{ marginBottom: 12 }}>
+                {!changingEmail ? (
+                  <Pressable
+                    onPress={() => {
+                      setChangingEmail(true);
+                      setEmailNote("");
+                    }}
+                    hitSlop={{ top: 6, bottom: 6 }}
+                  >
+                    <Text className="text-grey" style={{ fontSize: 13, textDecorationLine: "underline" }}>
+                      이메일 주소 변경
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View className="bg-group" style={{ borderRadius: 12, padding: 14 }}>
+                    <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "600", marginBottom: 8 }}>
+                      새 이메일 주소
+                    </Text>
+                    <TextInput
+                      value={newEmail}
+                      onChangeText={setNewEmail}
+                      placeholder="새 이메일"
+                      placeholderTextColor="#B0B8C1"
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      className="bg-surface text-ink"
+                      style={{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 }}
+                    />
+                    <Text className="text-grey" style={{ fontSize: 12, lineHeight: 18, marginTop: 8 }}>
+                      새 주소로 확인 링크를 보내요. 링크를 눌러야 바뀌고, 기존 주소로도 변경 안내가 가요.
+                    </Text>
+                    {emailNote ? (
+                      <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600", marginTop: 8 }}>
+                        {emailNote}
+                      </Text>
+                    ) : null}
+                    <View className="flex-row" style={{ marginTop: 12 }}>
+                      <Pressable
+                        onPress={submitEmailChange}
+                        disabled={busy}
+                        className="bg-brand items-center"
+                        style={{ borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16, marginRight: 8, opacity: busy ? 0.5 : 1 }}
+                      >
+                        <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>확인 링크 보내기</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setChangingEmail(false);
+                          setNewEmail("");
+                          setEmailNote("");
+                        }}
+                        disabled={busy}
+                        className="items-center justify-center"
+                        style={{ paddingVertical: 11, paddingHorizontal: 12 }}
+                      >
+                        <Text className="text-grey" style={{ fontSize: 13, fontWeight: "600" }}>취소</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
             <Pressable
@@ -700,6 +817,11 @@ export default function AccountScreen() {
       />
     </SafeAreaView>
   );
+}
+
+/** A send that never reached Firebase — so the device budget should be refunded, not charged. */
+function isNetwork(err: any): boolean {
+  return err?.code === "auth/network-request-failed";
 }
 
 /** A tick box. Brand blue when on — an unticked box is a blank, never a warning (nothing here is red). */

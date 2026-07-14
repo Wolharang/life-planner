@@ -44,6 +44,20 @@
 - **The security review's other five items already passed** (verified against the deployed ruleset, not asserted):
   unauthenticated data access denied · per-user isolation by `request.auth.uid == uid` · no admin path exists
   (single-user app, D3) · 처리방침 page ships (`legal.ts`) · 회원 탈퇴 destroys the account and its data (D75/D76).
+- **Email address change, verified (follow-up).** `changeEmail` = `verifyBeforeUpdateEmail(new)`: the link goes to
+  the **new** inbox and the email swaps **only when it is clicked**, so a typo cannot strand the account and a
+  momentary session-holder cannot silently move it; **Firebase also alerts the old address.** Email accounts only
+  — a Google email is Google's to change. `auth/requires-recent-login` becomes "다시 로그인한 뒤 시도해 주세요",
+  never a dead end.
+- **Graceful failure when Firebase does not answer cleanly.** `auth/too-many-requests` (Firebase's *global* send
+  quota, not the user's fault) → "지금은 메일을 보낼 수 없어요 … 잠시 후 다시"; the unknown/default branch now guides
+  ("요청을 처리하지 못했어요 … 다시 시도") with the code appended, instead of dead-ending.
+- **A device-local daily send budget** (`rateLimit.ts`) — the founder's anti-abuse cap, so one device cannot drain
+  the shared quota and lock others out. AsyncStorage is per-install, so this *is* the "기기 기반" limit with no
+  device id to read. **비밀번호 재설정 1/day** (tightest — logged out, any address), **이메일 변경 3/day**,
+  **인증 메일 재발송 3/day**, device-global per action (not per email — a per-email counter would let one device
+  mail N addresses). A no-network attempt is **refunded** so it never costs the day's only reset. Pinned by
+  `rateLimit.test.ts`.
 
 ## 2026-07-14 (later) — leaving, and the day it must survive
 
