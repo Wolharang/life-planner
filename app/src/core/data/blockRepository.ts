@@ -113,11 +113,26 @@ async function ensureMigrated(): Promise<void> {
  * An event had no end time and was never evaluated — both fall out for free: `end` stays undefined, and a
  * `none` block is excluded from evaluation (돌아보기), exactly as R1 required of events.
  */
+/** The retired `ImportantEvent` row, as it sits in `lp.events.v1` and in old backup files. This is the last
+ *  place its shape is read; nothing else in the app knows it exists. Every field is optional because the rows
+ *  come off disk — a malformed one must be skipped, not trusted. */
+interface LegacyEventRow {
+  id?: string;
+  title?: string;
+  date?: string;
+  time?: string;
+  notifyLeadMinutes?: number;
+  color?: string;
+  memo?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 async function ensureEventsMigrated(): Promise<void> {
   const raw = await AsyncStorage.getItem(LEGACY_EVENTS_KEY);
   if (!raw) return;
 
-  let events: any[];
+  let events: LegacyEventRow[];
   try {
     events = JSON.parse(raw);
     if (!Array.isArray(events)) throw new Error("not an array");
@@ -138,8 +153,13 @@ async function ensureEventsMigrated(): Promise<void> {
 
   const have = new Set(blocks.map((b) => b.id));
   const now = Date.now();
+  // A row with no id or no date cannot become a block — it has no identity and no day to sit on. Skip it
+  // rather than invent either: a block on the wrong day would arm an alarm at the wrong time.
+  const usable = (e: LegacyEventRow): e is LegacyEventRow & { id: string; date: string } =>
+    !!e?.id && !!e?.date && !have.has(e.id);
+
   const migrated: TimeBlock[] = events
-    .filter((e) => e?.id && e?.date && !have.has(e.id))
+    .filter(usable)
     .map((e) => {
       const lead = Number(e.notifyLeadMinutes);
       const hasLead = Number.isFinite(lead) && lead > 0;

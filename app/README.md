@@ -38,8 +38,7 @@ full-screen intent · **다른 앱 위에 표시**. The last one is not optional
 ```
 app/                      # expo-router routes (each file = a screen)
   (tabs)/                 #   홈(index) · 캘린더 · 기록  — the tab bar
-  day.tsx  add-block.tsx  #   day plan · block add/edit
-  add-event.tsx           #   important event add/edit
+  day.tsx  add-block.tsx  #   day plan · block add/edit (the ONLY way in — D67 retired add-event.tsx)
   add-expense.tsx  add-meal.tsx
   summary.tsx  review.tsx #   day summary (R10) · 돌아보기 (R17)
   settings.tsx  onboarding.tsx  metrics.tsx

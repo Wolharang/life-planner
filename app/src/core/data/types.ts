@@ -239,32 +239,17 @@ export interface TimeBlock {
 }
 
 /**
- * **LEGACY (D67, 2026-07-13) — retired.** An "important event" was always just a block that holds an hour and
- * does not push you: it is now a `TimeBlock` with `alert: "none"` (or `"soft"` if it had a notify lead).
+ * **`ImportantEvent` was RETIRED here (D67, 2026-07-13). Do not bring it back.**
  *
- * Two entities meant the user had to answer a question that has nothing to do with their life — *"is this a
- * 캘린더 일정 or a 블록?"* — and then live with the consequence: a block added for the calendar **did not appear
- * on the calendar**, so the month showed a free afternoon that was not free. The tier now *is* the answer:
- * **없음** = it just holds the hour · **알림** = it matters · **실행** = the lever. Kind (일반/운동/러닝) is
- * orthogonal to all three.
+ * An "important event" was always just a block that holds an hour and does not push you — it is now a
+ * `TimeBlock` with `alert: "none"` (or `"soft"` if it had a notify lead). Two entities forced the user to
+ * answer a question that has nothing to do with their life — *"is this a 캘린더 일정 or a 블록?"* — and then
+ * live with the consequence: a block added for the calendar **did not appear on the calendar**, so the month
+ * showed a free afternoon that was not free. The tier now *is* the answer: **없음** = it just holds the hour ·
+ * **알림** = it matters · **실행** = the lever. Kind (일반/운동/러닝) is orthogonal to all three.
  *
- * Kept only so `blockRepository` can migrate old rows once, then drop the key.
+ * The old row's shape survives only where it is still read — `blockRepository.ensureEventsMigrated()`.
  */
-export interface ImportantEvent {
-  id: string;
-  title: string;
-  /** YYYY-MM-DD (device local) — the calendar day this event sits on */
-  date: string;
-  /** wall-clock local start time, "HH:mm" — optional */
-  time?: string;
-  /** minutes before `time` to fire the advance notification; default applied if unset (D28) */
-  notifyLeadMinutes?: number;
-  /** calendar bar color (hex). Falls back to the brand color when unset */
-  color?: string;
-  memo?: string;
-  createdAt: number;
-  updatedAt: number;
-}
 
 /**
  * The loudness a block actually announces with. Reads the **old boolean forward**: rows written before D65

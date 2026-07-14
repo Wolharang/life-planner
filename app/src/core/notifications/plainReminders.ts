@@ -3,10 +3,13 @@
 // Two users of it:
 //   1. Task plain reminders (prototype R1/R2) — chosen minute-offsets before a task's set time.
 //      Identifiers `${taskId}-r${offset}`.
-//   2. ImportantEvent advance notification (full-app R3/D18) — one local alert at
-//      `event time − notifyLeadMinutes` (falls back to the personal default lead when unset).
-//      Identifiers `${eventId}-e`.
+//   2. The block **알림** tier (D40/D43/D45) — up to 3 chosen moments before a block's start.
+//      Identifiers `${blockId}-b${i}`. This is also what a `실행` block falls back to on a phone the
+//      moment is not addressed to (D70) — it must still *tell* you, just not take the screen.
 // Both are one-shot per next occurrence; the app re-arms on open so recurring ones keep rolling.
+//
+// (The ImportantEvent advance alert that used to live here is gone — D67 retired the entity; an event is
+// just a block whose tier says it only holds the hour.)
 //
 // expo-notifications is loaded LAZILY + defensively: if its native module isn't linked yet (e.g. before
 // a full `prebuild` + rebuild), notifications silently no-op instead of crashing the whole app.
@@ -167,70 +170,59 @@ export async function cancelBlockSoftAlert(blockId: string): Promise<void> {
 const leadLabel = (lead: number) =>
   lead === 0 ? "지금" : lead % 60 === 0 ? `${lead / 60}시간 전` : `${lead}분 전`;
 
+export interface SoftAlertBlock {
+  id: string;
+  title: string;
+  start: string;
+  end?: string;
+  alarmLeadMinutes: number;
+  alertSound?: boolean;
+  alertLoudness?: BlockLoudness;
+  alertLeads?: number[];
+}
+
+/**
+ * **Which moments a soft alert actually lands on** — pure, so it can be tested (the scheduling call around
+ * it is an expo-notifications side-effect that only exists on a device).
+ *
+ * A moment already in the past is dropped rather than fired late: a notification that says "1시간 전" when
+ * the hour is gone is worse than silence — it is a lie about the clock.
+ */
+export function softLeadMoments(block: SoftAlertBlock, startAt: number, now: number): number[] {
+  return (block.alertLeads?.length ? block.alertLeads : [block.alarmLeadMinutes])
+    .map((l) => Math.max(0, Math.round(l)))
+    .filter((l, i, a) => a.indexOf(l) === i) // the same moment twice is just noise
+    .sort((a, b) => b - a) // earliest notification first
+    .slice(0, SOFT_LEADS_MAX)
+    .map((l) => startAt - l * 60_000)
+    .filter((at) => at > now);
+}
+
 /**
  * The soft tier (D40/D43/D45): a plain notification that **tells** you — at up to **3 moments the user
  * chose** (`alertLeads`, minutes before start; e.g. an hour before, 15 min before, and on the dot). It
  * never takes the screen, so it can never become a second execution cue (R15).
  */
-export async function scheduleBlockSoftAlert(
-  block: {
-    id: string;
-    title: string;
-    start: string;
-    end?: string;
-    alarmLeadMinutes: number;
-    alertSound?: boolean;
-    alertLoudness?: BlockLoudness;
-    alertLeads?: number[];
-  },
-  startAt: number
-): Promise<void> {
+export async function scheduleBlockSoftAlert(block: SoftAlertBlock, startAt: number): Promise<void> {
   const N = getNotifications();
   if (!N) return;
   try {
     await cancelBlockSoftAlert(block.id);
     const channelId = await ensureSoftChannel(N, loudnessOf(block));
-    const now = Date.now();
 
-    const leads = (block.alertLeads?.length ? block.alertLeads : [block.alarmLeadMinutes])
-      .map((l) => Math.max(0, Math.round(l)))
-      .filter((l, i, a) => a.indexOf(l) === i) // the same moment twice is just noise
-      .sort((a, b) => b - a) // earliest notification first
-      .slice(0, SOFT_LEADS_MAX);
-
-    for (let i = 0; i < leads.length; i++) {
-      const at = startAt - leads[i] * 60_000;
-      if (at <= now) continue; // a moment that has already passed is simply skipped
+    const moments = softLeadMoments(block, startAt, Date.now());
+    for (let i = 0; i < moments.length; i++) {
+      const lead = Math.round((startAt - moments[i]) / 60_000);
       await N.scheduleNotificationAsync({
         identifier: `${block.id}${BLOCK_SUFFIX}${i}`,
         content: {
           title: block.title,
-          body: `${leadLabel(leads[i])} · ${block.start}${block.end ? `–${block.end}` : ""}`,
+          body: `${leadLabel(lead)} · ${block.start}${block.end ? `–${block.end}` : ""}`,
         },
-        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(at), channelId },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: new Date(moments[i]), channelId },
       });
     }
   } catch {
     // best-effort
   }
 }
-
-// ── ImportantEvent advance notification (R3) ────────────────────────────────────────────────────────
-
-const EVENT_SUFFIX = "-e";
-
-/** The personal default lead (R13/D28), required lazily so this module's pure time math stays importable
- *  without pulling in AsyncStorage. 0 (fire at the event time) if settings can't be read. */
-async function defaultLead(): Promise<number> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { getSettings } = require("@/core/data/settingsRepository");
-    return (await getSettings()).defaultLeadMinutes ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
-
-/** Schedule (replacing any existing) the soft advance alert for one event. Lead = the event's own
- *  `notifyLeadMinutes`, else the personal default (R3 "default if unset", D28). */
