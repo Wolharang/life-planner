@@ -3,7 +3,8 @@
 // empty gaps, tappable to place a block where it can actually happen — so an overloaded day doesn't
 // quietly drop the workout. Editing here is plan design; the execution moment itself is unchanged (R7).
 
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
+import { Sheet } from "@/ui/Sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -57,39 +58,31 @@ export default function DayPlan() {
     return last ? blocksOn(all, last) : [];
   }, [all, date]);
 
+  const [copyOpen, setCopyOpen] = useState(false);
   const copyDay = () => {
-    if (source.length === 0) return;
-    Alert.alert(
-      `${source.length}개를 그대로 가져올까요?`,
-      `${source[0].date}의 계획을 이 날에 복사해요. 시간·알림 설정도 함께 와요. 각각 따로 고칠 수 있어요.`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "가져오기",
-          onPress: async () => {
-            const now = Date.now();
-            await addBlocks(
-              source.map((b) => ({
-                ...b,
-                id: newId("block"),
-                date,
-                status: "planned" as const,
-                failReason: undefined,
-                completedAt: undefined,
-                // The snapshot is the plan of record, and this plan is being made NOW.
-                snapStart: b.start,
-                snapEnd: b.end,
-                snapTitle: b.title,
-                plannedAt: now,
-                createdAt: now,
-                updatedAt: now,
-              }))
-            );
-            load();
-          },
-        },
-      ]
+    if (source.length > 0) setCopyOpen(true);
+  };
+  const doCopy = async () => {
+    const now = Date.now();
+    await addBlocks(
+      source.map((b) => ({
+        ...b,
+        id: newId("block"),
+        date,
+        status: "planned" as const,
+        failReason: undefined,
+        completedAt: undefined,
+        // The snapshot is the plan of record, and this plan is being made NOW.
+        snapStart: b.start,
+        snapEnd: b.end,
+        snapTitle: b.title,
+        plannedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })),
     );
+    setCopyOpen(false);
+    load();
   };
 
   // R2: a remote change must appear without navigating away and back.
@@ -249,6 +242,18 @@ export default function DayPlan() {
           </Text>
         </Pressable>
       </View>
+
+      <Sheet
+        visible={copyOpen}
+        title={`${source.length}개를 그대로 가져올까요?`}
+        message={
+          source[0]
+            ? `${source[0].date}의 계획을 이 날에 복사해요. 시간·알림 설정도 함께 와요. 각각 따로 고칠 수 있어요.`
+            : undefined
+        }
+        actions={[{ label: "가져오기", onPress: doCopy }]}
+        onClose={() => setCopyOpen(false)}
+      />
     </SafeAreaView>
   );
 }

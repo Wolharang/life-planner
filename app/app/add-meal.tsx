@@ -2,7 +2,8 @@
 // (아침/점심/저녁/간식) · food name (required) · detail · kcal (**manual only**, D27). **No photo** (D19),
 // and **no 운동/러닝 record** — a workout is a TimeBlock marked success (D22). Bar: ≤2 taps + a number (S4).
 
-import { View, Text, Pressable, TextInput, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView } from "react-native";
+import { ConfirmSheet } from "@/ui/Sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -111,20 +112,16 @@ export default function AddMeal() {
 
   // Deleting a record is destructive and there is no undo, so it never happens on one tap. The reference
   // apps both asked (reference-apps.md §A4/§B4) and we quietly dropped the ask when porting them.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = () => {
+    if (editId) setConfirmDelete(true);
+  };
+  const doDelete = async () => {
     if (!editId) return;
-    Alert.alert("이 식사를 지울까요?", "되돌릴 수 없어요.", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "지우기",
-        style: "destructive",
-        onPress: async () => {
-          await deleteMeal(editId);
-          hapticDeleted();
-          router.back();
-        },
-      },
-    ]);
+    await deleteMeal(editId);
+    hapticDeleted();
+    setConfirmDelete(false);
+    router.back();
   };
 
   return (
@@ -271,6 +268,15 @@ export default function AddMeal() {
           </Pressable>
         )}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title="이 식사를 지울까요?"
+        message="되돌릴 수 없어요."
+        confirmLabel="지우기"
+        onConfirm={doDelete}
+        onClose={() => setConfirmDelete(false)}
+      />
     </SafeAreaView>
   );
 }

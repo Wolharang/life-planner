@@ -6,7 +6,8 @@
 // The switch on a card IS the R7 "오늘은 휴식" pre-fire toggle (ON = armed, OFF = 휴식) — never an
 // alarm on/off switch, and it disappears once the moment has passed (no in-flow escape).
 
-import { View, Text, Pressable, FlatList, Alert, AppState, Switch, TextInput } from "react-native";
+import { View, Text, Pressable, FlatList, AppState, Switch, TextInput } from "react-native";
+import { ConfirmSheet } from "@/ui/Sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -126,28 +127,39 @@ export default function Home() {
    * Deleting a `pending` row removes the fire marker, so the catch-up net stops asking about it too — the
    * occurrence is simply forgotten, not marked missed. (설정 → 기록 초기화 clears the whole log at once.)
    */
+  // One modern bottom-sheet confirm for every "정말?" on this screen — the OS `Alert.alert` (grey box, buttons
+  // in the platform's order) is from another decade. `confirm` holds what to ask and what to do on 확인.
+  const [confirm, setConfirm] = useState<
+    null | { title: string; message: string; confirmLabel: string; onConfirm: () => Promise<void> | void }
+  >(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const runConfirm = async () => {
+    if (!confirm) return;
+    setConfirmBusy(true);
+    try {
+      await confirm.onConfirm();
+    } finally {
+      setConfirmBusy(false);
+      setConfirm(null);
+    }
+  };
+
   const confirmDeleteHistory = (h: HistoryEntry) => {
-    Alert.alert(
-      "이 기록을 지울까요?",
-      `${h.title || "실행"} · ${relDay(h.date)}\n\n측정에서도 빠져요. 되돌릴 수 없어요.`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "지우기",
-          style: "destructive",
-          onPress: async () => {
-            if (h.status === "pending") {
-              const all = await listFires();
-              await setFires(all.filter((f) => !(f.taskId === h.taskId && f.date === h.date)));
-            } else {
-              await removeOutcome(h.taskId, h.date);
-            }
-            setCatchUps((prev) => prev.filter((x) => !(x.taskId === h.taskId && x.date === h.date)));
-            load();
-          },
-        },
-      ]
-    );
+    setConfirm({
+      title: "이 기록을 지울까요?",
+      message: `${h.title || "실행"} · ${relDay(h.date)}\n\n측정에서도 빠져요. 되돌릴 수 없어요.`,
+      confirmLabel: "지우기",
+      onConfirm: async () => {
+        if (h.status === "pending") {
+          const all = await listFires();
+          await setFires(all.filter((f) => !(f.taskId === h.taskId && f.date === h.date)));
+        } else {
+          await removeOutcome(h.taskId, h.date);
+        }
+        setCatchUps((prev) => prev.filter((x) => !(x.taskId === h.taskId && x.date === h.date)));
+        load();
+      },
+    });
   };
 
   const router = useRouter();
@@ -179,7 +191,11 @@ export default function Home() {
   //  (b) native missed markers (boot/backup scans) → "놓쳤어요".
   //  (c) never-fired: a past flagged block that left NO marker (device off / not armed) → "놓쳤어요".
   // Unresolved past the window → auto-archived as `miss` (no guilt), then it drops out of the net.
-  const CATCHUP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // [TBD ~7 days], PRD R6
+  const CATCHUP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // [TBD ~7 days], PRD R6 — the "아직 안 했죠" (fired) path
+  // "OOO 놓쳤어요" (a missed occurrence — never fired) is shorter-lived: it auto-archives as a (no-guilt) miss
+  // 12h after the fact and drops off the top of the home screen (founder). The moment already passed; a
+  // day-old "놓쳤어요" is noise, not a prompt.
+  const CATCHUP_MISSED_WINDOW_MS = 12 * 60 * 60 * 1000;
   const NEVER_FIRED_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
   const computeCatchUps = useCallback(async () => {
     const fires = await listFires();
@@ -218,7 +234,7 @@ export default function Home() {
       const key = `${m.taskId}|${m.date}`;
       covered.add(key);
       if (resolved(m.taskId, m.date)) continue;
-      if (now - m.intended > CATCHUP_WINDOW_MS) {
+      if (now - m.intended > CATCHUP_MISSED_WINDOW_MS) {
         await settle(m.taskId, m.date, m.title, "miss", "catch-up", now);
         continue;
       }
@@ -242,8 +258,8 @@ export default function Home() {
       const key = `${b.id}|${b.date}`;
       if (covered.has(key)) continue;
       const fireAt = blockFireAt(b)!;
-      if (now - fireAt > CATCHUP_WINDOW_MS) {
-        await settle(b.id, b.date, b.title, "miss", "catch-up", now); // older than the window → archive
+      if (now - fireAt > CATCHUP_MISSED_WINDOW_MS) {
+        await settle(b.id, b.date, b.title, "miss", "catch-up", now); // older than 12h → archive (no guilt)
         covered.add(key);
         continue;
       }
@@ -327,17 +343,15 @@ export default function Home() {
   );
 
   const confirmDelete = (block: TimeBlock) => {
-    Alert.alert("삭제할까요?", `${block.title} · ${block.start}`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제",
-        style: "destructive",
-        onPress: async () => {
-          await deleteBlock(block.id); // the repository evicts the alarm → no ghost fire
-          load();
-        },
+    setConfirm({
+      title: "삭제할까요?",
+      message: `${block.title} · ${block.start}`,
+      confirmLabel: "삭제",
+      onConfirm: async () => {
+        await deleteBlock(block.id); // the repository evicts the alarm → no ghost fire
+        load();
       },
-    ]);
+    });
   };
 
   // Occurrences whose answer is mid-flight — see resolveCatchUp.
@@ -845,6 +859,16 @@ export default function Home() {
           </Pressable>
         </Link>
       </View>
+
+      <ConfirmSheet
+        visible={!!confirm}
+        title={confirm?.title ?? ""}
+        message={confirm?.message ?? ""}
+        confirmLabel={confirmBusy ? "지우는 중…" : (confirm?.confirmLabel ?? "삭제")}
+        busy={confirmBusy}
+        onConfirm={runConfirm}
+        onClose={() => setConfirm(null)}
+      />
     </SafeAreaView>
   );
 }

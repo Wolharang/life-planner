@@ -8,7 +8,8 @@
 // execution moment, R7). Only 실행 pierces the lock screen (R15), and it stays rare *because* the soft tier
 // now absorbs everything that doesn't need forcing.
 
-import { View, Text, Pressable, TextInput, Switch, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, TextInput, Switch, ScrollView } from "react-native";
+import { ConfirmSheet } from "@/ui/Sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState, type ReactNode } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -323,30 +324,20 @@ export default function AddBlock() {
 
   // Deleting a record is destructive and there is no undo, so it never happens on one tap. The reference
   // apps both asked (reference-apps.md §A4/§B4) and we quietly dropped the ask when porting them.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = () => {
+    if (editId) setConfirmDelete(true);
+  };
+  // A pre-committed block deleted on its own day records a **miss** (spec §3.6) — otherwise deleting is a
+  // silent, cost-free "can't today", the one escape R7 forbids. The sheet says so plainly, without a threat.
+  const willCountMiss =
+    orig != null && orig.status === "planned" && preCommitted(orig) && orig.date <= todayYmd();
+  const doDelete = async () => {
     if (!editId) return;
-    // A pre-committed block deleted on its own day records a **miss** (spec §3.6) — otherwise deleting is a
-    // silent, cost-free "can't today", the one escape R7 forbids. It must never happen behind the user's
-    // back, so the dialog says so plainly — and says it without a threat: no penalty, just a record.
-    const willCount =
-      orig != null && orig.status === "planned" && preCommitted(orig) && orig.date <= todayYmd();
-    Alert.alert(
-      "이 블록을 지울까요?",
-      willCount
-        ? "어제 미리 정해둔 오늘 일이라, 지우면 '안 함'으로 남아요. 벌점은 없어요 — 그냥 기록이에요.\n알림도 함께 꺼져요."
-        : "알림도 함께 꺼져요. 되돌릴 수 없어요.",
-      [
-      { text: "취소", style: "cancel" },
-      {
-        text: "지우기",
-        style: "destructive",
-        onPress: async () => {
-          await deleteBlock(editId);
-          hapticDeleted();
-          router.back();
-        },
-      },
-    ]);
+    await deleteBlock(editId);
+    hapticDeleted();
+    setConfirmDelete(false);
+    router.back();
   };
 
   const pickerDates = Array.from({ length: MULTI_DAYS }, (_, i) => shiftYmd(baseDate, i));
@@ -889,6 +880,19 @@ export default function AddBlock() {
           </Pressable>
         )}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title="이 블록을 지울까요?"
+        message={
+          willCountMiss
+            ? "어제 미리 정해둔 오늘 일이라, 지우면 '안 함'으로 남아요. 벌점은 없어요 — 그냥 기록이에요. 알림도 함께 꺼져요."
+            : "알림도 함께 꺼져요. 되돌릴 수 없어요."
+        }
+        confirmLabel="지우기"
+        onConfirm={doDelete}
+        onClose={() => setConfirmDelete(false)}
+      />
     </SafeAreaView>
   );
 }

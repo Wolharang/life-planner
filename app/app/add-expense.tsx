@@ -3,23 +3,31 @@
 // D26). The bar for this screen is **S4: ≤2 taps + the amount** — so the date defaults to today, the
 // category is one tap, and the amount field is focused first.
 
-import { View, Text, Pressable, TextInput, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addExpense, updateExpense, deleteExpense, listExpenses, type Expense } from "@/core/data/expenseRepository";
+import { addMeal } from "@/core/data/mealRepository";
 import { CATEGORY_COLOR, CATEGORY_ICON, EXPENSE_CATEGORIES } from "@/core/logs/constants";
 import { stampFor } from "@/core/logs/aggregate";
 import { newId } from "@/core/data/id";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
-import type { ExpenseCategory } from "@/core/data/types";
+import { ConfirmSheet } from "@/ui/Sheet";
+import type { ExpenseCategory, MealType } from "@/core/data/types";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const dateLabel = (d: string) => {
   const [y, m, dd] = d.split("-").map(Number);
   return `${m}월 ${dd}일 (${WD[new Date(y, m - 1, dd).getDay()]})`;
 };
+
+/** Default the 주식 → meal type by the clock, like the meal screen (아침/점심/저녁). */
+function mealTypeNow(now = new Date()): MealType {
+  const h = now.getHours();
+  return h < 11 ? "아침" : h < 17 ? "점심" : "저녁";
+}
 
 export default function AddExpense() {
   const router = useRouter();
@@ -36,6 +44,10 @@ export default function AddExpense() {
   const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<Expense[]>([]);
+  // 주식/간식 → optional link into the meal log (founder). Only offered when ADDING (editing an expense does
+  // not re-link — the meal was already created at add time, and re-linking would duplicate it).
+  const [mealType, setMealType] = useState<MealType>(mealTypeNow());
+  const [kcal, setKcal] = useState("");
 
   /**
    * **The friction-killer S4 is graded on.** `features/execution-integrated-day.md §3.5` specifies "a fast
@@ -92,6 +104,9 @@ export default function AddExpense() {
   // reference app's "name required" gate was the single biggest friction, and forgotten logs are the
   // problem we're solving (C2).
   const canSave = !isNaN(amountNum) && amountNum > 0;
+  // 주식/간식 spending can also be a meal — offer the link (add mode only).
+  const linksMeal = !editId && (category === "주식" || category === "간식");
+  const kcalNum = parseInt(kcal.replace(/,/g, ""), 10) || 0;
 
   const save = async () => {
     if (!canSave) {
@@ -115,26 +130,39 @@ export default function AddExpense() {
     };
     if (editId) await updateExpense(expense);
     else await addExpense(expense);
+
+    // Link 주식/간식 into the meal log when a calorie was entered (0 → cancelled, no meal). The food name is
+    // the expense name; the meal memo is the store + memo (구매처 + 메모); 주식 uses the chosen 끼니, 간식 → 간식.
+    if (linksMeal && kcalNum > 0) {
+      const detail = [store.trim(), memo.trim()].filter(Boolean).join(" ");
+      await addMeal({
+        id: newId("meal"),
+        date,
+        timestamp: expense.timestamp,
+        mealType: category === "간식" ? "간식" : mealType,
+        foodName: expense.name,
+        detail: detail || undefined,
+        kcal: kcalNum,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
     hapticSaved();
     router.back();
   };
 
-  // Deleting a record is destructive and there is no undo, so it never happens on one tap. The reference
-  // apps both asked (reference-apps.md §A4/§B4) and we quietly dropped the ask when porting them.
+  // Deleting a record is destructive and there is no undo, so it never happens on one tap.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = () => {
+    if (editId) setConfirmDelete(true);
+  };
+  const doDelete = async () => {
     if (!editId) return;
-    Alert.alert("이 지출을 지울까요?", "되돌릴 수 없어요.", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "지우기",
-        style: "destructive",
-        onPress: async () => {
-          await deleteExpense(editId);
-          hapticDeleted();
-          router.back();
-        },
-      },
-    ]);
+    await deleteExpense(editId);
+    hapticDeleted();
+    setConfirmDelete(false);
+    router.back();
   };
 
   return (
@@ -266,6 +294,56 @@ export default function AddExpense() {
           style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 6 }}
         />
 
+        {/* 식사 연동 — 주식/간식만 (D6). 칼로리를 적으면 식사 기록에 자동으로 함께 남고, 0이면 연동하지 않는다. */}
+        {linksMeal && (
+          <View style={{ marginTop: 26 }}>
+            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", marginBottom: 4 }}>
+              식사 기록에 함께 추가
+            </Text>
+            <Text className="text-grey" style={{ fontSize: 12.5, lineHeight: 18, marginBottom: 10 }}>
+              {category === "간식"
+                ? "칼로리를 적으면 식사의 ‘간식’에 자동으로 함께 기록돼요. 0이면 추가하지 않아요."
+                : "끼니를 고르고 칼로리를 적으면 식사에 자동으로 함께 기록돼요. 0이면 추가하지 않아요."}
+            </Text>
+            {category === "주식" && (
+              <View className="flex-row" style={{ gap: 8, marginBottom: 12 }}>
+                {(["아침", "점심", "저녁"] as MealType[]).map((m) => {
+                  const on = mealType === m;
+                  return (
+                    <Pressable
+                      key={m}
+                      onPress={() => setMealType(m)}
+                      className={on ? "bg-brand" : "bg-group"}
+                      style={{ flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}
+                    >
+                      <Text
+                        className={on ? "" : "text-ink"}
+                        style={{ fontSize: 14, fontWeight: "700", color: on ? "#FFFFFF" : undefined }}
+                      >
+                        {m}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            <View className="flex-row items-baseline" style={{ borderBottomWidth: 1, borderBottomColor: "#F2F4F6", paddingBottom: 6 }}>
+              <TextInput
+                value={kcal}
+                onChangeText={(t) => setKcal(t.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor="#D1D6DB"
+                className="text-ink flex-1"
+                style={{ fontSize: 18, fontWeight: "700" }}
+              />
+              <Text className="text-grey" style={{ fontSize: 15, fontWeight: "600" }}>
+                kcal
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* date — defaults to today; only touched when back-filling */}
         <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", marginTop: 26, marginBottom: 10 }}>
           날짜
@@ -305,6 +383,15 @@ export default function AddExpense() {
           </Pressable>
         )}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirmDelete}
+        title="이 지출을 지울까요?"
+        message="되돌릴 수 없어요."
+        confirmLabel="지우기"
+        onConfirm={doDelete}
+        onClose={() => setConfirmDelete(false)}
+      />
     </SafeAreaView>
   );
 }
