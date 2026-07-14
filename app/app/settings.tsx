@@ -556,6 +556,21 @@ export default function Settings() {
           ))}
 
           <Divider />
+          <Pressable onPress={() => router.push("/pick-gym" as never)}>
+            <Row>
+              <View className="flex-1 pr-3">
+                <Text className="text-brand" style={{ fontSize: 15, fontWeight: "700" }}>
+                  지도에서 헬스장 고르기
+                </Text>
+                <Text className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 18 }}>
+                  그 자리에 없어도 지도를 움직여 직접 지정할 수 있어요
+                </Text>
+              </View>
+              <Text className="text-faint" style={{ fontSize: 18 }}>›</Text>
+            </Row>
+          </Pressable>
+
+          <Divider />
           <Pressable onPress={addHereAsGym} disabled={gymBusy}>
             <Row>
               <View className="flex-1 pr-3">
