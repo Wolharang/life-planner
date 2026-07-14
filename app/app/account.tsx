@@ -22,6 +22,8 @@ import {
   type Account,
 } from "@/core/data/firebase";
 import { syncStats } from "@/core/data/sync";
+import { LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal.generated";
+import { consentIsCurrent, recordConsent } from "@/core/data/consentRepository";
 
 type Mode = "signIn" | "signUp";
 
@@ -35,6 +37,30 @@ export default function AccountScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => onAccountChanged(setAccount), []);
+
+  // ── Consent (이용약관 · 개인정보처리방침 · 위치기반서비스) ──────────────────────────────────────────
+  // Ticking a box that leaves no trace is theatre, so the answer is *recorded* with the version of the words
+  // they actually saw (consentRepository). And it has to guard **Google too**: for a first-time user that
+  // button is not a login, it is a sign-up — gate only the email form and an account gets created with no
+  // consent behind it at all.
+  const [agreed, setAgreed] = useState<Record<LegalKey, boolean>>({
+    terms: false,
+    privacy: false,
+    location: false,
+  });
+  const [alreadyConsented, setAlreadyConsented] = useState(false);
+  useEffect(() => {
+    consentIsCurrent().then(setAlreadyConsented);
+  }, []);
+
+  const requiredOk = LEGAL_ORDER.filter((k) => LEGAL_DOCS[k].required).every((k) => agreed[k]);
+  const allTicked = LEGAL_ORDER.every((k) => agreed[k]);
+  const agreedKeys = () => LEGAL_ORDER.filter((k) => agreed[k]);
+
+  const toggleAll = () => {
+    const next = !allTicked;
+    setAgreed({ terms: next, privacy: next, location: next });
+  };
 
   // **Say when sync is behind.** Writes are handed to Firestore and not awaited (awaiting hangs the save
   // button offline), but the app must not therefore *pretend* they landed: the founder's 180 imported expenses
@@ -52,9 +78,20 @@ export default function AccountScreen() {
   const google = async () => {
     if (busy) return;
     setError("");
+    // For someone who has never signed in, "Google로 계속하기" *is* the sign-up. If they have no current
+    // consent on file, send them to the 가입 tab rather than quietly minting an account behind the tick boxes.
+    if (!alreadyConsented && !requiredOk) {
+      setMode("signUp");
+      setError("Google로 가입하려면 아래 약관에 먼저 동의해 주세요.");
+      return;
+    }
     setBusy(true);
     try {
       await signInWithGoogle();
+      if (!alreadyConsented) {
+        await recordConsent(agreedKeys());
+        setAlreadyConsented(true);
+      }
     } catch (e) {
       setError(authErrorMessage(e)); // "" when the user simply backed out of the sheet
     } finally {
@@ -69,10 +106,19 @@ export default function AccountScreen() {
       setError("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
+    if (mode === "signUp" && !requiredOk) {
+      setError("필수 약관에 동의해야 가입할 수 있어요.");
+      return;
+    }
     setBusy(true);
     try {
-      if (mode === "signUp") await signUp(email, password);
-      else await signIn(email, password);
+      if (mode === "signUp") {
+        await signUp(email, password);
+        await recordConsent(agreedKeys()); // the words they saw, stamped with their version
+        setAlreadyConsented(true);
+      } else {
+        await signIn(email, password);
+      }
       setPassword("");
       // The sync engine is watching the auth state (app/_layout) — it pushes this device's rows up, then
       // starts listening. Nothing to do here.
@@ -179,6 +225,44 @@ export default function AccountScreen() {
               style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 }}
             />
 
+            {mode === "signUp" && (
+              <View style={{ marginTop: 18 }}>
+                <Pressable onPress={toggleAll} className="flex-row items-center" style={{ paddingVertical: 6 }}>
+                  <Box on={allTicked} />
+                  <Text className="text-ink" style={{ fontSize: 14.5, fontWeight: "600", marginLeft: 10 }}>
+                    전체 동의
+                  </Text>
+                </Pressable>
+
+                <View className="bg-group" style={{ height: 1, marginVertical: 6 }} />
+
+                {LEGAL_ORDER.map((key) => (
+                  <View key={key} className="flex-row items-center" style={{ paddingVertical: 5 }}>
+                    <Pressable
+                      onPress={() => setAgreed((a) => ({ ...a, [key]: !a[key] }))}
+                      className="flex-row items-center"
+                      style={{ flex: 1 }}
+                      hitSlop={{ top: 6, bottom: 6 }}
+                    >
+                      <Box on={agreed[key]} />
+                      <Text className="text-grey" style={{ fontSize: 13.5, marginLeft: 10, flex: 1 }}>
+                        {LEGAL_DOCS[key].consent}
+                      </Text>
+                    </Pressable>
+                    {/* You cannot meaningfully agree to something you cannot open. */}
+                    <Pressable
+                      onPress={() => router.push({ pathname: "/legal", params: { doc: key } })}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text className="text-faint" style={{ fontSize: 12.5, textDecorationLine: "underline" }}>
+                        보기
+                      </Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {error ? (
               // A miss is neutral data and so is a failed login — stated, never scolded (no red-alarm UI).
               <Text className="text-grey" style={{ fontSize: 13, marginTop: 10 }}>
@@ -230,8 +314,54 @@ export default function AccountScreen() {
             )}
           </View>
         )}
+
+        {/* The quiet shelf. These have to be *reachable*, not *prominent*: nothing down here helps you do the
+            thing at 7am, and the screen's job is sync. Faint, small, at the very bottom — findable when looked
+            for, invisible when not. (공지사항 sits with them because the terms promise changes are announced
+            there — 제3조 3항.) */}
+        <View style={{ marginTop: 36 }}>
+          <View className="flex-row flex-wrap items-center">
+            {LEGAL_ORDER.map((key, i) => (
+              <View key={key} className="flex-row items-center">
+                {i > 0 && (
+                  <Text className="text-faint" style={{ fontSize: 11, marginHorizontal: 7 }}>
+                    ·
+                  </Text>
+                )}
+                <Pressable
+                  onPress={() => router.push({ pathname: "/legal", params: { doc: key } })}
+                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                >
+                  <Text className="text-faint" style={{ fontSize: 11.5 }}>
+                    {LEGAL_DOCS[key].title}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+            <Text className="text-faint" style={{ fontSize: 11, marginHorizontal: 7 }}>
+              ·
+            </Text>
+            <Pressable onPress={() => router.push("/notices")} hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}>
+              <Text className="text-faint" style={{ fontSize: 11.5 }}>
+                공지사항
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** A tick box. Brand blue when on — an unticked box is a blank, never a warning (nothing here is red). */
+function Box({ on }: { on: boolean }) {
+  return (
+    <View
+      className={on ? "bg-brand items-center justify-center" : "bg-group items-center justify-center"}
+      style={{ width: 20, height: 20, borderRadius: 6 }}
+    >
+      {on && <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>✓</Text>}
+    </View>
   );
 }
 
