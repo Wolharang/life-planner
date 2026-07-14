@@ -5,7 +5,7 @@
 // clone without kakao.json), so the picker always works. Either way a fixed centre pin marks what gets saved,
 // and the map posts its centre back on every settle.
 
-import { View, Text, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, TextInput, ActivityIndicator, ScrollView, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -14,6 +14,7 @@ import { WebView } from "react-native-webview";
 import { addGym, listGyms } from "@/core/data/gymRepository";
 import { getCurrentFix } from "@/core/geo/location";
 import { KakaoMap, kakaoMapAvailable } from "@/core/geo/KakaoMap";
+import { searchPlaces, kakaoSearchAvailable, type Place } from "@/core/geo/kakaoSearch";
 import { newId } from "@/core/data/id";
 import type { GeoPoint } from "@/core/schedule/autoEval";
 
@@ -48,7 +49,41 @@ export default function PickGym() {
   const [busy, setBusy] = useState(false);
   const [kakaoFailed, setKakaoFailed] = useState(false); // Kakao auth (401) etc. → fall back to OSM, never a blank map
 
+  const [query, setQuery] = useState(""); // 헬스장 이름 검색
+  const [results, setResults] = useState<Place[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+
   const useKakaoNow = USE_KAKAO && !kakaoFailed;
+
+  // Move whichever map is showing — Kakao via the camera prop, OSM via injected JS. Shared by "go to me" and
+  // by tapping a search result.
+  const moveMapTo = (lat: number, lng: number) => {
+    setCenter({ lat, lng });
+    if (useKakaoNow) setMoveTarget([lat, lng]);
+    else webRef.current?.injectJavaScript(`window.recenter(${lat}, ${lng}); true;`);
+  };
+
+  const runSearch = async () => {
+    const q = query.trim();
+    if (!q) return;
+    Keyboard.dismiss();
+    setSearching(true);
+    setSearched(true);
+    try {
+      setResults(await searchPlaces(q));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pickResult = (p: Place) => {
+    moveMapTo(p.lat, p.lng);
+    setLabel(p.name); // pre-fill the gym name with the place they chose (still editable)
+    setResults([]);
+    setSearched(false);
+    setQuery(p.name);
+  };
 
   // Open on the user's location when we can get one; otherwise the default. `getCurrentFix` bounds itself (a
   // fresh fix within a few seconds, else the OS's last-known), so no separate timeout is needed — and the
@@ -72,9 +107,7 @@ export default function PickGym() {
 
   const recenterToMe = async () => {
     const fix = await getCurrentFix();
-    if (!fix) return;
-    if (useKakaoNow) setMoveTarget([fix.lat, fix.lng]);
-    else webRef.current?.injectJavaScript(`window.recenter(${fix.lat}, ${fix.lng}); true;`);
+    if (fix) moveMapTo(fix.lat, fix.lng);
   };
 
   const save = async () => {
@@ -142,6 +175,78 @@ export default function PickGym() {
         {ready && (
           <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ fontSize: 40, marginBottom: 40 }}>📍</Text>
+          </View>
+        )}
+
+        {/* Search a gym by name (Kakao Local) — tap a result and the map jumps there. Floats over the map. */}
+        {ready && kakaoSearchAvailable && (
+          <View style={{ position: "absolute", left: 12, right: 12, top: 12 }}>
+            <View
+              className="bg-surface flex-row items-center"
+              style={{ borderRadius: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: "#E5E8EB" }}
+            >
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                onSubmitEditing={runSearch}
+                returnKeyType="search"
+                placeholder="헬스장 이름으로 검색"
+                placeholderTextColor="#B0B8C1"
+                className="text-ink"
+                style={{ flex: 1, paddingVertical: 12, fontSize: 15 }}
+              />
+              {query.length > 0 && (
+                <Pressable
+                  onPress={() => {
+                    setQuery("");
+                    setResults([]);
+                    setSearched(false);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text className="text-faint" style={{ fontSize: 16, marginRight: 8 }}>✕</Text>
+                </Pressable>
+              )}
+              <Pressable onPress={runSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 17 }}>🔍</Text>
+              </Pressable>
+            </View>
+
+            {(searching || searched) && (
+              <View
+                className="bg-surface"
+                style={{ borderRadius: 12, marginTop: 6, borderWidth: 1, borderColor: "#E5E8EB", maxHeight: 280, overflow: "hidden" }}
+              >
+                {searching ? (
+                  <View style={{ padding: 16, alignItems: "center" }}>
+                    <ActivityIndicator />
+                  </View>
+                ) : results.length === 0 ? (
+                  <Text className="text-grey" style={{ padding: 14, fontSize: 13 }}>
+                    검색 결과가 없어요
+                  </Text>
+                ) : (
+                  <ScrollView keyboardShouldPersistTaps="handled">
+                    {results.map((p, i) => (
+                      <Pressable
+                        key={i}
+                        onPress={() => pickResult(p)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: "#F1F3F5" }}
+                      >
+                        <Text className="text-ink" numberOfLines={1} style={{ fontSize: 14.5, fontWeight: "600" }}>
+                          {p.name}
+                        </Text>
+                        {p.address ? (
+                          <Text className="text-grey" numberOfLines={1} style={{ fontSize: 12, marginTop: 2 }}>
+                            {p.address}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            )}
           </View>
         )}
 
