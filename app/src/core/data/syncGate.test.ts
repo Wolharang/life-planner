@@ -15,9 +15,18 @@
 
 const listeners: ((a: { uid: string } | null) => void)[] = [];
 
+const mockStore: Record<string, string> = {};
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
-  default: { getItem: async () => null, setItem: async () => undefined },
+  default: {
+    getItem: async (k: string) => mockStore[k] ?? null,
+    setItem: async (k: string, v: string) => {
+      mockStore[k] = v;
+    },
+    removeItem: async (k: string) => {
+      delete mockStore[k];
+    },
+  },
 }));
 const mockClosed = new Map<string, "keep" | "wipe">();
 const mockEvents: string[] = [];
@@ -38,7 +47,14 @@ jest.mock("./firebase", () => ({
   },
 }));
 
-import { startSync, syncEnabled, holdSync, releaseSync, onAccountClosed } from "./sync";
+import {
+  startSync,
+  syncEnabled,
+  holdSync,
+  releaseSync,
+  onAccountClosed,
+  checkClosedWhileSignedOut,
+} from "./sync";
 
 startSync({});
 
@@ -184,5 +200,45 @@ describe("the consent gate on sync", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(syncEnabled()).toBe(true);
     auth(null);
+  });
+
+  // ── The phone that came back too late ───────────────────────────────────────────────────────────────
+  //
+  // Offline longer than an ID token lives (~1h), it is signed out by **Firebase itself** on reconnect — the
+  // deleted user cannot refresh. By the time our code looks there is no account to ask about. It would simply
+  // appear logged out, for no stated reason, still holding every row the user asked us to erase everywhere.
+
+  it("asks on behalf of a phone Firebase already signed out — using the uid it last synced as", async () => {
+    auth(null);
+    mockStore["lp.sync.owner.v1"] = "gone-5";
+    mockClosed.set("gone-5", "wipe");
+
+    let wipeAsked: boolean | null = null as boolean | null;
+    onAccountClosed((wipe) => {
+      wipeAsked = wipe;
+    });
+
+    await checkClosedWhileSignedOut();
+
+    expect(wipeAsked).toBe(true);
+    // The mark is dropped only once we KNOW — it is also what stops one account's rows landing in another's.
+    expect(mockStore["lp.sync.owner.v1"] === undefined).toBe(true);
+    mockClosed.delete("gone-5");
+  });
+
+  it("leaves a LIVE account's owner mark alone — never act on a guess", async () => {
+    auth(null);
+    mockStore["lp.sync.owner.v1"] = "still-here";
+
+    let told = false;
+    onAccountClosed(() => {
+      told = true;
+    });
+
+    await checkClosedWhileSignedOut();
+
+    expect(told).toBe(false);
+    expect(mockStore["lp.sync.owner.v1"]).toBe("still-here");
+    delete mockStore["lp.sync.owner.v1"];
   });
 });

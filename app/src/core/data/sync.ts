@@ -514,6 +514,33 @@ export function releaseSync(enableIfPending = true): void {
   if (uid && enableIfPending) enable(uid);
 }
 
+/**
+ * **The phone that came back too late.** (D76)
+ *
+ * A device offline for longer than an ID token lives (~1h) is signed out by **Firebase itself** the moment it
+ * reconnects — the deleted user cannot refresh a token. By the time our code looks, there is no account to ask
+ * about: it would simply appear logged out, for no stated reason, still holding every row the user asked us to
+ * erase on every device.
+ *
+ * So we ask on its behalf, using the uid it last synced as (`lp.sync.owner.v1`) — which is exactly what that
+ * mark is for. The tombstone is readable without a login for this reason and no other.
+ *
+ * Called once at startup, after the auth state has settled.
+ */
+export async function checkClosedWhileSignedOut(): Promise<void> {
+  if (currentAccount()) return; // still signed in — `enable()` does the asking
+  const owner = await AsyncStorage.getItem(OWNER_KEY);
+  if (!owner) return;
+
+  const { closed, wipeDevices } = await accountClosure(owner);
+  if (!closed) return;
+
+  closedNotice?.(wipeDevices);
+  // The account is gone for good. Drop the mark so the next login is an ordinary first login — but only now
+  // that we KNOW, never on a guess: the mark is also what stops one account's rows from landing in another's.
+  await AsyncStorage.removeItem(OWNER_KEY);
+}
+
 export function startSync(applyHooks: ApplyHooks): () => void {
   hooks = applyHooks;
   return onAccountChanged((account) => {

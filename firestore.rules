@@ -37,9 +37,21 @@ service cloud.firestore {
                && get(/databases/$(database)/documents/users/$(uid)).data.get('closedAt', null) != null;
       }
 
-      // The tombstone may be written (once, by its owner) and read. It can never be edited away or deleted —
-      // if a client could remove it, the resurrection it exists to prevent would simply resume.
-      allow read: if isOwner();
+      // The tombstone may be written once, by its owner, and **read by anyone who already knows the uid**.
+      //
+      // Why public `get`: a phone that was offline longer than an ID token lives (~1h) is **signed out by
+      // Firebase itself** the moment it reconnects — the deleted user cannot refresh. It would then never learn
+      // that the account was closed, never carry out the "기기 기록도 지우기" the user chose, and never explain
+      // its own sudden logout. An owner-only read is unreadable exactly when it is needed.
+      //
+      // What it costs: someone who *already has* a uid can learn that it was closed, when, and whether the
+      // records were wiped. The document holds **no name, no email, nothing that identifies a person** — and
+      // `list` stays denied, so the collection cannot be enumerated to go fishing for uids.
+      //
+      // It can never be edited away or deleted: if a client could remove it, the resurrection it exists to
+      // prevent would simply resume, because the rules would see an ordinary, living account again.
+      allow get: if true;
+      allow list: if false;
       allow create: if isOwner() && request.resource.data.get('closedAt', null) != null;
       allow update, delete: if false;
 

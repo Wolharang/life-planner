@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
-import { onAccountClosed, startSync } from "@/core/data/sync";
+import { checkClosedWhileSignedOut, onAccountClosed, startSync } from "@/core/data/sync";
 import { Sheet } from "@/ui/Sheet";
 import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
@@ -94,9 +94,16 @@ export default function RootLayout() {
       }
       setClosed({ wiped: wipeDevices });
     });
-    return startSync({
+    const stop = startSync({
       blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
     });
+
+    // The phone that was offline too long: Firebase signed it out before we could ask. Ask anyway, using the
+    // uid it last synced as — otherwise a device that reconnects a day later never learns, never wipes, and
+    // never explains its own logout.
+    void checkClosedWhileSignedOut();
+
+    return stop;
   }, [identified]);
 
   if (!loaded && !error) return null;
