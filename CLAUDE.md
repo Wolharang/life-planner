@@ -25,7 +25,8 @@ prototype's design/foundations** — its exact state is captured in `docs/resear
 | Design ethos / decision tie-breakers | `docs/core/design-principles.md` |
 | Design system — tokens / skin (incl. current app skin) | `docs/core/design-system.md` |
 | How — architecture · data model | `docs/core/architecture.md` · `docs/core/data-model.md` |
-| **How to build — full-app phased plan** | `docs/research/implementation-plan.md` (F0 backend → F1 calendar → … F5 eval) |
+| **How to build — full-app phased plan** | `docs/research/implementation-plan.md` (F0 backend → F1 calendar → … F5 eval). **All phases done; read the Headline for the live state.** |
+| **What is still UNVERIFIED on a device** | `docs/research/device-test-checklist.md` — **top of file** (two phones · the 07:00 briefing · the rebooted-and-never-opened phone) |
 | Confirmed decisions (D-log) | `docs/core/decisions.md` |
 | **Completed prototype (foundation · archived)** | `docs/research/prototype/` — PRD, build-log, plan, test-checklist, user-flows, **`PROTOTYPE-STATE.md`** |
 | Personas · research / analysis | `docs/research/` (personas/, essence, features/, competitive-analysis, hmw, information-architecture, …) |
@@ -58,6 +59,13 @@ process) **and the completed-prototype archive** (`docs/research/prototype/`). K
   `#8B7E74`, **never red**); success is **one calm gold DONE** signal — no confetti.
 - The **exact-time execution cue is the core lever** — deliberately **NOT** minimized (ordinary opt-in reminders
   stay quiet; the lock-screen cue does not).
+- **The words are 성공 · 미스 · 휴식.** "실패" was tried and reverted (D78): *the colour already says a miss is
+  neutral (taupe, never red) — a judging word undoes what the colour refuses to do.*
+- **Only the execution moment is addressed to ONE phone** (D70), *because only it takes the screen.* Notifications
+  — including the 아침 요약 — go to **every** phone (D77). **Silencing a device to hide a sync gap is a cover-up.**
+- **Never claim more than is true.** The 처리방침 lists only what the code actually collects; a 약관 is an
+  instrument, not a message; and **an obligation written on the 기관's behalf is a promise someone can hold it to**
+  (D71/D72/D76). A test fails the build if this slips.
 
 ## Build / test / run
 

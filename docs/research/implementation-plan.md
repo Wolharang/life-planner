@@ -183,15 +183,32 @@ in onboarding, and 돌아보기 as a reachable destination.
 induces "it was decided this way, so it must be right" — and four of today's data-destroying defects were in code
 that matched its spec exactly.
 
-### Headline (2026-07-14) — **SHIPPED. v0.4.0 runs standalone on the founder's phone. The only thing left is to use it.**
+### Headline (2026-07-14, evening) — **SHIPPED (v0.5.0). It is now a service someone else could use — and the pieces that make it one were the ones with no code behind them.**
 
-**Every phase is built. F0 is done and device-verified.** The audit's findings are closed, the two-device test
-is done and rewrote the core model (D62–D70), and the **release APK (v0.4.0, versionCode 6)** runs with **no
-Metro and no laptop**. **Day zero was created deliberately** — device reinstalled, Firestore wiped — so **S1
-starts from an honest zero**.
+**Every phase is built and device-verified.** Since v0.4.0 the work has not been features but **the promises the
+app was already making**: it had 약관 with no consent flow, a 회원 탈퇴 clause with no implementation, and a sync
+engine whose correctness quietly assumed the app was open.
 
-**The product's survival now turns on S1 (execution rate) and S3 (does the founder actually plan the next
-day). Neither is a coding question, and no further build can answer them.**
+**What changed (D71–D78), and why each one mattered:**
+- **The app IS the policy document** (D71/D72). The founder's drafts described an app we never built (결제 기록,
+  IMEI, 체중, 사진) and then I filled them with reassurance prose. A 약관 is **normative**; a 처리방침 states the
+  statutory items of 개인정보보호법 제30조. *Neither is a place to comfort the reader.* Every 수집항목 is checked
+  against the code that collects it, and a test fails the build if a never-collected term appears outside a
+  denial.
+- **Consent is evidence, kept per-tick, on the account** (D73/D74) — create-only on the server. *A consent record
+  the client can rewrite is not a record of anything.* Login never re-asks; only signup does.
+- **Leaving actually works** (D75/D76). 회원 탈퇴 destroys the account and its data — **data first, account
+  second** — and **134 orphaned meal documents** proved that a write already handed to Firestore *cannot be
+  recalled*. 탈퇴 on one phone now sticks on **all** of them, enforced by a server-side **account tombstone**
+  that no client can remove.
+- **Sync runs while the app is closed** (D77). It never did, and 아침 요약 exposed it: a phone rebooted and never
+  opened would brief you from a plan that no longer exists.
+- **아침 요약** (D78) — one silent notification a day, per-block opt-out, previewed in the calendar.
+- **The screens speak Korean to a person, not to us** (D78) — every internal name that had escaped onto a button
+  is gone.
+
+**Still: the product's survival turns on S1 (execution rate) and S3 (does he actually plan tomorrow). Neither is
+a coding question, and no further build can answer them.**
 
 #### What the model became (read this before touching anything)
 - **One unit: the TimeBlock. `ImportantEvent` is retired (D67).** The **alert tier says what the thing IS**:

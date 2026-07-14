@@ -1,39 +1,31 @@
 # On-device verification — full app
 
-## ⚠ FIRST, WHEN A PHONE IS NEXT ATTACHED (2026-07-14) — the consent gate (D71–D73)
+## ⚠ STILL UNVERIFIED (2026-07-14, evening · v0.5.0)
 
-v0.5.0 is **built but never installed**: the phone was disconnected mid-session. **A56 is currently LOGGED
-OUT** (it was logged out to see the signup screen, then never logged back in — ticking "만 19세 이상" is the
-user's own statement to make, not mine).
+Everything else below has passed on the A56. These need **two phones**, or a clock, and each one would fail
+**silently**:
 
-The consent gate is new code on the login path, and **its failures are silent**. Run these first:
+### Two phones, same account
+- [ ] **Propagation.** A block added on A appears on B within seconds — **and B arms its alert**, not just the row.
+- [ ] **모든 기록 삭제 on A (logged in)** → B's records disappear too, and B's alarms are cancelled. *(This was
+      broken until D75: a hard delete left no trace, so B pushed the whole account back.)*
+- [ ] **회원 탈퇴 on A → "기기 기록도 함께 지우기"** → B, on its next connection: signs out, **erases its records**,
+      returns to the main screen, and says so. Then again with **"기기 기록은 남기기"** → B keeps its rows. (D76)
+- [ ] **Afterwards, query Firestore** (`users/{uid}` and the collection-group scan) → **zero orphaned documents**.
+      This is the check that caught the 134 meals; do not skip it.
+- [ ] **D70 device picker** — an `실행` block takes the screen **only** on the phone(s) it names; the others get
+      one buzz + a notification at the same moment.
 
-- [ ] **로그인 tab → Google로 계속하기 → signs straight in. No tick boxes.** (This is the founder's bug: an
-      existing account was being bounced to 가입 and asked to consent again.) A56 is logged out, so this is
-      exactly the case.
-- [ ] **After that login, sync actually turns on** — the account card shows the email, and a block added here
-      reaches Firestore. **`holdSync()`/`releaseSync()` is brand-new: a hold that never releases leaves sync
-      off with the app saying nothing.** Watch 아직 올라가지 못한 기록 N건 — it must not sit above zero.
-- [ ] **가입 tab, nothing ticked → 가입하고 동기화 켜기** → one short **black** line: "필수 항목에 모두 체크해 주세요."
-      (It used to be grey — indistinguishable from the placeholder text, so the button looked broken.)
-- [ ] **전체 동의 ticks all four**, including 만 19세 이상. Each 약관 row's **보기** opens the document.
-- [ ] 계정 → the four quiet links at the bottom; after consenting, **약관 및 개인정보 처리 동의 내역** shows today's
-      date on each row.
-- [ ] The three documents render as 조·항·호 with a **26. 07. 14. 시행** chip — no `##`, no `(초안)`.
+### The briefing (D78)
+- [ ] **07:00** — one **silent** notification listing the day's blocks. No sound, no vibration, no lock screen.
+- [ ] A block with **아침 요약에 넣기 off** is absent from it; the calendar's preview matches what actually arrived.
+- [ ] **A day with no included blocks gets NO notification** (not an empty one).
+- [ ] Edit today's plan **after** 07:00 → **no second briefing today**; tomorrow's reflects the change.
 
-## ⚠ WHAT IS STILL UNVERIFIED (2026-07-14) — needs BOTH phones at once
-
-Everything else has passed on a real device. These three need two phones connected and logged into the same
-account, and they are the ones that would bite silently, weeks in:
-
-1. **Propagation.** Add a block on phone A → it appears on phone B within seconds (and B **arms its alert**,
-   not just the row).
-2. **The resurrection scenarios (D53 / D54 / D64)** — each was a real bug, each was fixed, none has been run
-   end-to-end:
-   - **B deletes X · A is offline and edits X · A reconnects** → X must **stay deleted**, alarm gone.
-   - **Delete X while LOGGED OUT, then log in** → X must **not come back** (this one actually happened).
-3. **D70 device picker.** With two phones registered, an `실행` block must take the screen **only on the phone(s)
-   it names** — and the others must still get **one buzz + a notification** at the same moment.
+### The one that cannot be rushed (D77)
+- [ ] **Phone B: reboot, do NOT open the app.** Change tomorrow's plan on A. Leave B overnight. Does B's 07:00
+      briefing show A's change? **This is best-effort by design** — Android decides when background work runs — so
+      a failure here is a *known limit*, not a bug. Record what actually happened either way.
 
 ---
 

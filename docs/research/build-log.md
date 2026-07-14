@@ -7,6 +7,74 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find
+
+**v0.5.0.** No new "features" in the product sense. What got built is everything the app was **already
+promising** and had no code behind.
+
+### The documents were describing an app we never built
+The founder's three drafts sat in `reference/` and were reachable from nowhere. Wiring them up exposed two
+layers of wrongness. First, the drafts leaked their own scaffolding onto the screen (`(초안)`, `## 8.` on *two*
+different clauses) and claimed collection we do not perform: 결제 기록, IMEI, Mac Address, 체중, 프로필 사진,
+협력회사로부터의 제공. **A privacy policy that claims collection we do not perform is not caution — it is a false
+statement about the user's data.** Second, correcting for that, I wrote *reassurance prose* into the instrument:
+"서비스는 의료 목적의 도구가 아닙니다", "최소한만 모읍니다". The founder cut it: **"그건 약관이 아니라 전달하는
+메시지이다."** He was right. The substance survived, as clauses — 「의료기기법」 in 이용약관 제14조, 자동 수집 장치를
+설치·운영하지 아니합니다 in 처리방침 제10조 — and the messages moved to where messages belong: the consent row and
+공지사항. (D71/D72)
+
+He corrected me three more times on the same file, each time on the same instinct: **do not claim more than is
+true.** The party is **기관**, not a person by name. Parentheses hold headings and single words, never clauses —
+*a qualification hidden in brackets is one nobody reads.* The 국외 이전 country is **미국**, not "미국 등 Google이
+데이터센터를 운영하는 국가" — I checked the Firestore region (`nam5`) rather than hedge. And I had invented, twice,
+obligations nobody asked for (a "성인 대상 서비스" declaration; a duty to hunt down and delete an under-age
+account). **Every obligation written on the 기관's behalf is a promise someone can later hold it to.**
+
+### Leaving — and 134 rows that came back from the dead
+탈퇴 and 파기 were already promised by 이용약관 제6조 and 처리방침 제7조. There was **no implementation**. Built it —
+and then queried Firestore directly rather than trust the "탈퇴했어요" the app had just printed.
+
+**134 meal documents sat under a uid with no Auth user**, written *during* the withdrawal test. The cause was not
+the delete. It was **Firestore's outbox**: rows this phone had already handed to the SDK flushed *after* the wipe,
+re-creating what we had just destroyed, and then the account vanished out from under them. **A write already
+handed to Firestore cannot be recalled** — only the SDK's entire local state can be discarded. Hence
+`purgeFirestoreCache()` and the restart after 탈퇴. ***"We deleted your data" must not be a race we sometimes
+lose.*** (D75)
+
+Then the founder asked the question that found the rest of it: *"다른 기기에서 탈퇴를 한다면?"* The other phone's ID
+token stays valid for **up to an hour** after the user is deleted, and its reconcile's rule is *"a row the cloud has
+never seen is pushed up"* — after the wipe, the cloud has seen nothing. **It would have restored the entire deleted
+account.** No client fix reaches another phone, so the door is shut in the **security rules**: an account tombstone,
+written first, awaited, and impossible for any client to remove. It carries the user's wipe choice to the phones
+that were not in their hand when they made it. (D76)
+
+And he corrected me once more, on the law: **the uid we keep is not 개인정보.** 결합 용이성 is the test, and by the
+time the tombstone exists there is no mapping left — the Auth user is gone, no Firestore document ever held an
+email, nothing is sent anywhere but Firebase. *Declaring it as retained data would have told the user we kept
+something about them, which is exactly what we did not do.*
+
+### The briefing that found the sync gap
+아침 요약 — one silent notification a day. Trivial on its face. But a notification's text is fixed **when it is
+scheduled**, and that turned a hidden assumption into a visible bug: **sync only ran while the app was open.** A
+phone rebooted and never opened would brief you from a plan another phone had already changed. Two phones, two
+different mornings, and nothing to say which was true.
+
+My first answer was to make **one** phone the briefing device. The founder cut it, correctly: **the briefing is a
+notification, and notifications go to every phone — only the execution moment is addressed to one, because only it
+takes the screen.** *Silencing a phone to hide a sync gap is a cover-up, not a fix.* So: a background task
+(`startOnBoot: true`) that pulls server state, re-arms alarms, and re-cuts the briefings — **best-effort, and said
+so in the code.** Android decides when it runs. Nothing depends on it: the lever is a native exact alarm that
+re-arms itself at boot and never needed the app to be open. (D77/D78)
+
+### And the screens, which had been written for us
+*"무슨 기능 버튼인지 이해할 수 없다."* 실행 준비 상태. 기본 리드 시간. 측정 (S1–S5). "what-the-hell 붕괴". "대용값".
+JSON. Every one an internal name that had escaped onto a button. **A number nobody can read is not a measurement,
+it is a decoration.** All rewritten.
+
+The one word we changed and changed back: **미스**. I renamed it 실패 on request; the founder then agreed with the
+objection and reverted it himself. *A miss is neutral data — taupe, never red.* The colour was already obeying
+that. **The word was doing the judging the colour refuses to do.**
+
 ## 2026-07-14 (small hours) — the two-device test, and the model it broke
 
 The release was cut, so the founder did the thing we had been unable to do all along: **he used two phones.**

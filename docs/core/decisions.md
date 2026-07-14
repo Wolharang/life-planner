@@ -12,6 +12,113 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-14 (later) — leaving, and the day it must survive
+
+### D78. 아침 요약 — a briefing, not a cue · and the words on the screen are not our words
+- **아침 요약 (founder).** One notification each morning at **07:00**, listing what the day holds. **Silent by
+  construction** — its own channel with `sound: null`, `vibrationPattern: null`, never the lock screen. It is a
+  **briefing, not a cue**: *every needless buzz spends the budget that keeps the one loud thing loud* (C1/D30),
+  and the one loud thing is the execution moment, never this.
+- **Per-block opt-out** (`inBrief`, default in). *A briefing that lists a standing 강의 and the commute every
+  morning is a briefing nobody reads by the third day.* The calendar previews **the exact text that will
+  arrive** and lets you add/remove a block right there — *a preview that is not the real thing is just another
+  promise to check later.*
+- **Scheduled per day, never as a repeat.** A local notification's text is fixed when it is scheduled, so a
+  daily repeat could only say something generic ("오늘 일정을 확인하세요") — a notification carrying no
+  information, which is exactly what we refuse to be. 14 days are cut individually and rebuilt on every plan
+  change. **A day with nothing in it gets no briefing**: an empty notification at 7am is worse than none.
+- ***A briefing is a statement about the morning it was sent.*** Edit today's plan at 09:00 and today's briefing
+  does **not** go out again — 07:00 has been and gone. Tomorrow's is re-cut immediately. (Pinned by test.)
+- **The screens were written for us, not for him** (founder: *"무슨 기능 버튼인지 이해할 수 없다"*). Every hard
+  label was an internal name that escaped: 실행 준비 상태 → **알람 권한 4가지** · 기본 리드 시간 → **미리 알림 시간** ·
+  측정 (S1–S5) → **나의 실행 기록** ("S1–S5" are *our* hypotheses) · "what-the-hell 붕괴", "대용값", "JSON".
+  **A number nobody can read is not a measurement, it is a decoration.**
+- **Vocabulary: 해냄 → 성공 · 쉼 → 휴식. 미스 STAYS 미스.** "실패" was tried and reverted, by the founder, on the
+  product's own grounds: *a miss is neutral data* — taupe, never red, no guilt anywhere. The colour was already
+  obeying that; **the word was doing the judging the colour refuses to do.**
+
+### D77. Sync must run while the app is CLOSED — the briefing exposed a hidden precondition
+- **The founder's question:** *"재부팅 후 앱을 한 번도 켜지 않은 기기는 동기화가 되는가?"* It did not. **Sync only ran
+  while a screen was up** — a hidden precondition of being *correct*, invisible until 아침 요약 needed it.
+- Edit tomorrow on phone A, leave phone B rebooted and unopened, and **B briefs you from a plan that no longer
+  exists.** Two phones, two different mornings, and nothing in either to say which is true.
+- **The wrong fix, tried and cut (by the founder):** make ONE phone the briefing device. **The briefing is a
+  notification, and notifications go to every phone** — only the execution moment is addressed to one (D70),
+  *because only it takes the screen*. **Silencing a phone to hide a sync gap is not a fix, it is a cover-up.**
+- **The fix:** `syncPullOnce()` (reconcile against the server, no listeners) driven by a **periodic background
+  task** (`expo-background-fetch`, `startOnBoot: true`). It pulls, **re-arms alarms** (a headless task has no
+  `startSync` hooks, so a block another phone moved would land in storage and never re-arm), and re-cuts the
+  briefings. **`startOnBoot` is the whole point: the phone that most needs repairing is exactly the one that was
+  rebooted and never opened.**
+- **Best-effort, and said so.** Android decides when background work runs (Doze, standby). It is a **repair, not
+  a guarantee** — what it buys is that "what this phone last knew" is usually minutes old instead of days.
+  **Nothing depends on it:** the execution alarm is a native exact alarm that re-arms itself at boot and never
+  needed the app to be open.
+
+### D76. 탈퇴 on one phone must stick on ALL of them — the account tombstone
+- **The founder's question:** *"다른 기기에서 동기화가 시작될 때쯤 또 다른 기기에서 탈퇴를 한다면?"* The hole was real
+  and worse than a race. The other phone is still logged in, still holds every row, and — the part that bites —
+  **its Firebase ID token stays valid for up to an hour after the user is deleted.** Its reconcile's own rule is
+  *"a row the cloud has never seen is pushed up"*, and after the wipe the cloud has seen nothing. **It would push
+  the entire deleted account back**, under a uid with no user behind it: data nobody can read, nobody can delete.
+- **No client fix reaches it** — the offending device is another phone, possibly an older build, acting in good
+  faith. So the door is shut where it cannot be argued with: **the security rules**.
+- **The account tombstone** (`users/{uid}.closedAt`) is written **first**, before a single row is deleted, and is
+  **awaited** — if it cannot land, 탈퇴 **fails**: *better to tell the user to retry than to destroy an account we
+  cannot keep shut.* Rules refuse every write to a closed account, and the tombstone can never be edited away or
+  deleted — a client that could remove it would simply resume the resurrection it prevents.
+- **It carries the user's choice** (`wipeDevices`). "기기 기록도 함께 지우기" is a decision about the **account**, but
+  only one handset is in your hand when you make it. Every device honours it: signs out, erases if asked, returns
+  to the main screen, **and says which of the two happened**. *"모든 기기에서 지웠다" must not quietly mean "지운
+  폰에서만 지웠다".*
+- **Readable without a login** (`allow get: if true`, `list` denied). A phone offline longer than a token lives is
+  signed out by **Firebase itself** on reconnect — *an owner-only read is unreadable exactly when it is needed.*
+  `checkClosedWhileSignedOut()` asks on its behalf with the uid it last synced as.
+- **The tombstone is permanent, and it is NOT 개인정보** (founder, and he was right — I had written the opposite
+  into the 처리방침). 개인정보보호법 제2조 제1호 나목 turns on **결합 용이성**: by the time it exists, the Auth user is
+  deleted (the only place an email ever lived), every Firestore document of that account is gone, and the app
+  sends data nowhere but Firebase. **No mapping from the uid back to a person survives**, so there is nothing to
+  combine it with. ***Writing "we retain this" into a 처리방침 is not caution — it tells the user we kept something
+  about them, which is exactly what we did not do.***
+
+### D75. Leaving — 회원 탈퇴 and 모든 기록 삭제 (the clauses that had no code behind them)
+- 이용약관 제6조 and 처리방침 제7조 **already promised** 탈퇴 and 파기. **There was no implementation.** *The emptiest
+  kind of clause, because the user cannot discover it is empty.*
+- **회원 탈퇴: data first, account second.** Delete the Firebase user first and the rules stop recognising the
+  owner — the documents become unreachable **and undeletable**, stranded forever while the app claims 파기.
+  `deleteCurrentUser()` now **throws** instead of quietly signing out: swallowing the failure is fine for undoing
+  an empty signup and **a lie for 탈퇴**.
+- **Alarms are cancelled before storage.** An alarm lives in the OS, not in our data. *A moment firing for a task
+  that no longer exists, seconds after the user asked us to erase everything, is the app failing in the one place
+  it must be trusted.*
+- **Whether this phone's records go is the user's choice.** *Leaving the service is not the same as giving up what
+  you wrote.*
+- **모든 기록 삭제 TOMBSTONES; it must not hard-delete.** It did, and **the button was quietly undoing itself**: a
+  hard delete leaves no trace, so the other phone saw rows *"the cloud has never heard of"* and **pushed the whole
+  account back**. A tombstone is how a deletion travels. (회원 탈퇴 keeps the hard delete — the account is being
+  destroyed and the tombstone refuses every write anyway.)
+- **`purgeFirestoreCache()` — a verified data leak, not a theory.** After the founder's 탈퇴, the server held **134
+  meal documents under a uid with no Auth user**, written *during* the withdrawal. The cause was not the delete:
+  it was **Firestore's outbox**. A write already handed to the SDK **cannot be recalled** — only the SDK's whole
+  local state can be discarded (`terminate()` + `clearPersistence()`). Hence the app restarts after 탈퇴.
+  ***"We deleted your data" must not be a race we sometimes lose.***
+- **The UI is a sheet, not `Alert.alert`.** The OS dialog is one-word buttons in whatever order the platform
+  likes — the format least likely to be read, for the question most in need of reading. **Each option says what
+  SURVIVES.** Destructive rows use `warn` (#B5533C), never alarm-red.
+
+### D74. Consent belongs to the ACCOUNT, and it is evidence — not state
+- **Per-tick seconds** (founder): the four ticks are four separate acts. *One timestamp stamped over all four at
+  submit would be a record of the **submit**, not of the consents.* Unticking clears the time.
+- **It goes to the server with the account.** It lived only in AsyncStorage, so logging in on a second phone
+  showed an empty 동의 내역 — same person, same account, no consent in sight. It carries the **device** (D70's id +
+  label) and the **version of the words they saw**; a `LEGAL_VERSION` bump is what re-asks them.
+- **It is NOT a synced row.** `sync.ts` is last-write-wins with tombstones — right for a block you edit, **wrong
+  for evidence**, which a later write must never overwrite. Its own `consents` collection, **create-only** by the
+  rules. ***A consent record the client can rewrite is not a record of anything.*** (Firestore rules are
+  OR-evaluated, so the wildcard's `update` had to be *explicitly withheld* — being "more specific" was not enough.)
+- **The age is asked, and kept.** 이용약관 제5조 lets the 기관 refuse 만 18세 이하, but *a discretion with no way to
+  exercise it is a discretion in name only* — so there is a fourth tick, and it is recorded (처리방침 제2조 ④).
+
 ## 2026-07-14 — the app becomes a service someone else could use
 
 ### D73. Consent gates SIGNUP, never LOGIN — and an account we refuse must leave nothing behind
