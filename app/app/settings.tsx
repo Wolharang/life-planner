@@ -43,7 +43,6 @@ export default function Settings() {
   const [battery, setBattery] = useState(true);
   const [lead, setLead] = useState(0);
   const [briefOn, setBriefOn] = useState(true);
-  const [briefTime, setBriefTime] = useState("07:00");
   const [leadOpen, setLeadOpen] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,14 +64,14 @@ export default function Settings() {
     const st = await getSettings();
     setLead(st.defaultLeadMinutes);
     setBriefOn(st.morningBriefOn);
-    setBriefTime(st.morningBriefTime);
   }, []);
 
   // Any change to the briefing must re-cut the next two weeks of notifications — they carry the day's actual
   // list, so a stale one would describe a day that no longer exists.
-  const saveBrief = async (patch: { morningBriefOn?: boolean; morningBriefTime?: string }) => {
+  // The briefing is fixed at 07:00 (founder). Changing it must re-cut the next two weeks — they carry each
+  // day's actual list, so a stale one would describe a day that no longer exists.
+  const saveBrief = async (patch: { morningBriefOn?: boolean }) => {
     if (patch.morningBriefOn !== undefined) setBriefOn(patch.morningBriefOn);
-    if (patch.morningBriefTime !== undefined) setBriefTime(patch.morningBriefTime);
     await updateSettings(patch);
     await rescheduleMorningBrief();
   };
@@ -427,45 +426,24 @@ export default function Settings() {
           {/* **아침 요약** — one silent notification a day, listing what the day holds. A briefing, not a cue:
               no sound, no vibration, never the lock screen. Every needless buzz spends the budget that keeps the
               one loud thing loud (C1/D30). */}
-          <View style={{ paddingVertical: 12 }}>
-            <View className="flex-row items-center">
-              <View className="flex-1 pr-3">
-                <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  아침 요약
-                </Text>
-                <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  아침에 그날 일정을 한 번에 조용히 알려줘요
-                </Text>
-              </View>
-              <Switch
-                value={briefOn}
-                onValueChange={(v) => saveBrief({ morningBriefOn: v })}
-                trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
-                thumbColor="#FFFFFF"
-              />
+          {/* Same `Row` as every sibling — it was a bare View, so it had no horizontal padding and the title
+              and the switch were flung to the two edges of the card. */}
+          <Row>
+            <View className="flex-1 pr-3">
+              <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                아침 요약
+              </Text>
+              <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
+                {briefOn ? "아침 7시에 그날 일정을 조용히 알려줘요" : "꺼져 있어요"}
+              </Text>
             </View>
-
-            {briefOn && (
-              <View className="flex-row items-center" style={{ marginTop: 10, gap: 10 }}>
-                <Text className="text-grey" style={{ fontSize: 13 }}>
-                  보내는 시각
-                </Text>
-                <TextInput
-                  value={briefTime}
-                  onChangeText={setBriefTime}
-                  onEndEditing={() => {
-                    const ok = /^([01]?\d|2[0-3]):[0-5]\d$/.test(briefTime.trim());
-                    if (ok) void saveBrief({ morningBriefTime: briefTime.trim() });
-                    else setBriefTime("07:00");
-                  }}
-                  placeholder="07:00"
-                  placeholderTextColor="#B0B8C1"
-                  className="bg-group text-ink text-center"
-                  style={{ borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, minWidth: 84 }}
-                />
-              </View>
-            )}
-          </View>
+            <Switch
+              value={briefOn}
+              onValueChange={(v) => saveBrief({ morningBriefOn: v })}
+              trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
+              thumbColor="#FFFFFF"
+            />
+          </Row>
 
           <Divider />
           <Pressable onPress={requestBattery}>

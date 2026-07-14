@@ -534,10 +534,10 @@ export default function AddBlock() {
             what the thing IS (D67); describing two of them identically undoes that. */}
         <Text className="text-grey mt-2" style={{ fontSize: 12.5, lineHeight: 18 }}>
           {alert === "execution"
-            ? "그 시각에 잠금화면을 뚫고 실행 화면이 떠요. 미루기 쉬운 일(운동)에 쓰세요."
+            ? "그 시각에 잠금화면 위로 실행 화면이 떠요"
             : alert === "soft"
-              ? "알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."
-              : "아무 알림도 오지 않아요. 캘린더에 시간만 잡아둬요. 그 시각이 지나면 지난 기록으로 알아서 넘어가요."}
+              ? "알림만 와요. 화면은 뜨지 않아요"
+              : "알림이 오지 않아요. 시간만 잡아둬요"}
         </Text>
 
         {/* **아침 요약에 넣을지.** Independent of the alert tier: a 없음 block still belongs in the day's briefing
@@ -560,7 +560,7 @@ export default function AddBlock() {
               아침 요약에 넣기
             </Text>
             <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
-              {inBrief ? "그날 아침 요약 알림에 이 일정이 들어가요" : "아침 요약 알림에서 빼요"}
+              {inBrief ? "아침 요약에 들어가요" : "아침 요약에서 빼요"}
             </Text>
           </View>
           <Switch
@@ -583,8 +583,8 @@ export default function AddBlock() {
             <Text className="text-grey mt-0.5 mb-2" style={{ fontSize: 12.5 }}>
               {loudness === "silent"
                 ? alert === "execution"
-                  ? "화면만 떠요 — 소리도 진동도 없어요"
-                  : "알림만 남아요 — 소리도 진동도 없어요"
+                  ? "화면만 떠요. 소리도 진동도 없어요"
+                  : "소리도 진동도 없어요"
                 : loudness === "sound"
                   ? "소리 + 진동"
                   : "진동만"}
