@@ -81,24 +81,34 @@ export async function purgeFirestoreCache(): Promise<void> {
  * the other phone is free to push the whole account back the moment it reconnects. So it is awaited, and if it
  * fails, 탈퇴 fails — better to tell the user "다시 시도해 주세요" than to destroy an account we cannot keep shut.
  */
-export async function closeAccount(uid: string): Promise<void> {
+export async function closeAccount(uid: string, wipeDevices: boolean): Promise<void> {
   const database = db();
   if (!database) return;
+  // **`wipeDevices` carries the user's choice to the phones that were not there when they made it.** "기기
+  // 기록도 함께 지우기" is a decision about the *account*, but only one handset is in your hand when you take
+  // it. The others must hear it — and they can only hear it from here.
   await database
     .collection("users")
     .doc(uid)
-    .set({ uid, closedAt: Date.now() }, { merge: true });
+    .set({ uid, closedAt: Date.now(), wipeDevices }, { merge: true });
+}
+
+export interface AccountClosure {
+  closed: boolean;
+  /** The user asked for every device's records to go, not just the one they were holding. */
+  wipeDevices: boolean;
 }
 
 /** Is this account closed? Read from the **server** — a cached "no" is exactly the answer we cannot trust. */
-export async function accountIsClosed(uid: string): Promise<boolean> {
+export async function accountClosure(uid: string): Promise<AccountClosure> {
   const database = db();
-  if (!database) return false;
+  if (!database) return { closed: false, wipeDevices: false };
   try {
     const snap = await database.collection("users").doc(uid).get({ source: "server" });
-    return !!snap?.data?.()?.closedAt;
+    const data = snap?.data?.();
+    return { closed: !!data?.closedAt, wipeDevices: !!data?.wipeDevices };
   } catch {
-    return false; // offline or refused — never guess an account into oblivion
+    return { closed: false, wipeDevices: false }; // offline or refused — never guess an account into oblivion
   }
 }
 

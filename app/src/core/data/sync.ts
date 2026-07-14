@@ -34,7 +34,7 @@
 // block on two phones at once, it is a non-event, and field-level merging is complexity with no buyer.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { accountIsClosed, currentAccount, db, onAccountChanged, signOut } from "./firebase";
+import { accountClosure, currentAccount, db, onAccountChanged, signOut } from "./firebase";
 import { deletedIds, rememberDeletion } from "./tombstones";
 
 /** Everything we sync is identified and versioned the same way. */
@@ -388,8 +388,10 @@ async function applySnapshot(uid: string, name: CollectionName, snap: any): Prom
  * stops and signs out. **Local rows are kept** — logging out never deletes them (D20), and the choice to erase
  * this phone was never made *on* this phone.
  */
-let closedNotice: (() => void) | null = null;
-export function onAccountClosed(fn: () => void): void {
+let closedNotice: ((wipeDevices: boolean) => void) | null = null;
+
+/** @param fn receives the user's choice: did they ask for **every** device's records to go, or only theirs? */
+export function onAccountClosed(fn: (wipeDevices: boolean) => void): void {
   closedNotice = fn;
 }
 
@@ -401,11 +403,11 @@ function checkClosedNow(): Promise<void> {
   if (!uid) return Promise.resolve();
   if (closedCheck) return closedCheck;
 
-  closedCheck = accountIsClosed(uid)
-    .then((closed) => {
+  closedCheck = accountClosure(uid)
+    .then(({ closed, wipeDevices }) => {
       if (!closed || syncingFor !== uid) return;
       disable();
-      closedNotice?.();
+      closedNotice?.(wipeDevices);
       void signOut();
     })
     .finally(() => {
@@ -419,10 +421,10 @@ function enable(uid: string): void {
   disable();
   syncingFor = uid;
 
-  void accountIsClosed(uid).then((closed) => {
+  void accountClosure(uid).then(({ closed, wipeDevices }) => {
     if (!closed || syncingFor !== uid) return;
     disable();
-    closedNotice?.();
+    closedNotice?.(wipeDevices);
     void signOut(); // there is no account to sync to; staying "logged in" to it is a fiction
   });
 

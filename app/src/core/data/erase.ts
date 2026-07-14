@@ -19,7 +19,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
 import {
-  accountIsClosed,
   closeAccount,
   currentAccount,
   db,
@@ -155,7 +154,7 @@ export async function deleteAccount(keepLocal: boolean): Promise<{ deleted: numb
   // No client fix reaches them: they are a different device, possibly an older build, acting in good faith.
   // So the door is shut where they cannot argue with it — in the security rules, which refuse every write to a
   // closed account. It goes first, so it is already shut while we clean.
-  if (uid) await closeAccount(uid);
+  if (uid) await closeAccount(uid, !keepLocal);
 
   const stats = uid ? await eraseCloud(uid) : { deleted: 0, failed: 0 };
 

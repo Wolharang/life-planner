@@ -459,7 +459,7 @@ export default function AccountScreen() {
               </Text>
             </Pressable>
             <Text className="text-faint" style={{ fontSize: 11, lineHeight: 17, marginTop: 3 }}>
-              계정과 서버의 기록을 지워요. 이 기기의 기록을 남길지는 고를 수 있어요.
+              계정과 서버의 기록을 지워요. 기기에 저장된 기록을 남길지는 고를 수 있어요.
             </Text>
           </View>
         )}
@@ -518,12 +518,12 @@ export default function AccountScreen() {
       <Sheet
         visible={leaveOpen}
         title="회원 탈퇴"
-        message="계정과 서버에 저장된 기록이 지워져요. 이 기기에 있는 기록은 어떻게 할까요?"
+        message="계정과 서버에 저장된 기록이 지워져요. 기기에 저장된 기록은 어떻게 할까요?"
         onClose={() => setLeaveOpen(false)}
         actions={[
           {
             label: "기기 기록은 남기기",
-            desc: "계정만 지워요. 이 기기의 일정·지출·식사·실행 기록은 그대로 쓸 수 있어요.",
+            desc: "계정과 서버의 기록만 지워요. 기기에 저장된 기록은 어느 기기에서든 그대로 쓸 수 있어요.",
             onPress: () => {
               setLeaveOpen(false);
               setConfirmLeave({ keepLocal: true });
@@ -531,7 +531,7 @@ export default function AccountScreen() {
           },
           {
             label: "기기 기록도 함께 지우기",
-            desc: "계정과 서버, 그리고 이 기기의 기록까지 모두 지워요.",
+            desc: "계정과 서버는 물론, 로그인된 모든 기기의 기록까지 지워요. 다른 기기는 인터넷에 연결되는 순간 지워져요.",
             danger: true,
             onPress: () => {
               setLeaveOpen(false);
@@ -546,8 +546,8 @@ export default function AccountScreen() {
         title="정말 탈퇴할까요?"
         message={
           confirmLeave?.keepLocal
-            ? "계정과 서버의 기록이 지워져요. 이 기기의 기록은 남아요. 되돌릴 수 없어요."
-            : "계정과 서버의 기록, 그리고 이 기기의 기록까지 모두 지워져요. 되돌릴 수 없어요."
+            ? "계정과 서버의 기록이 지워져요. 기기에 저장된 기록은 남아요. 되돌릴 수 없어요."
+            : "계정과 서버의 기록, 그리고 로그인된 모든 기기의 기록까지 지워져요. 되돌릴 수 없어요."
         }
         confirmLabel={busy ? "지우는 중…" : "탈퇴하기"}
         busy={busy}

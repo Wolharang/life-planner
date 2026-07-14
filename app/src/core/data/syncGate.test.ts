@@ -19,7 +19,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
   default: { getItem: async () => null, setItem: async () => undefined },
 }));
-const mockClosed = new Set<string>();
+const mockClosed = new Map<string, "keep" | "wipe">();
 const mockEvents: string[] = [];
 
 jest.mock("./firebase", () => ({
@@ -29,7 +29,10 @@ jest.mock("./firebase", () => ({
     listeners.push(cb);
     return () => undefined;
   },
-  accountIsClosed: async (uid: string) => mockClosed.has(uid),
+  accountClosure: async (uid: string) => ({
+    closed: mockClosed.has(uid),
+    wipeDevices: mockClosed.get(uid) === "wipe",
+  }),
   signOut: async () => {
     mockEvents.push("sign-out");
   },
@@ -112,7 +115,7 @@ describe("the consent gate on sync", () => {
 
   it("refuses to sync to an account that was closed on another device", async () => {
     auth(null);
-    mockClosed.add("gone-1");
+    mockClosed.set("gone-1", "keep");
     mockEvents.length = 0;
 
     auth("gone-1");
@@ -126,7 +129,7 @@ describe("the consent gate on sync", () => {
 
   it("tells the user — a phone that silently logs itself out is a phone they assume is broken", async () => {
     auth(null);
-    mockClosed.add("gone-2");
+    mockClosed.set("gone-2", "keep");
     let told = false;
     onAccountClosed(() => {
       told = true;
@@ -137,6 +140,41 @@ describe("the consent gate on sync", () => {
 
     expect(told).toBe(true);
     mockClosed.delete("gone-2");
+    auth(null);
+  });
+
+  it("carries the wipe choice to the other phones — it was a decision about the ACCOUNT", async () => {
+    // "기기 기록도 함께 지우기" is chosen on one handset, but it is a decision about the account. If the
+    // tombstone did not carry it, "모든 기기에서 지웠다" would quietly mean "지운 폰에서만 지웠다".
+    auth(null);
+    mockClosed.set("gone-3", "wipe");
+    let wipeAsked: boolean | null = null as boolean | null;
+    onAccountClosed((wipe) => {
+      wipeAsked = wipe;
+    });
+
+    auth("gone-3");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(wipeAsked).toBe(true);
+    expect(syncEnabled()).toBe(false);
+    mockClosed.delete("gone-3");
+    auth(null);
+  });
+
+  it("...and does not wipe the other phones when the user chose to keep them", async () => {
+    auth(null);
+    mockClosed.set("gone-4", "keep");
+    let wipeAsked: boolean | null = null as boolean | null;
+    onAccountClosed((wipe) => {
+      wipeAsked = wipe;
+    });
+
+    auth("gone-4");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(wipeAsked).toBe(false); // leaving the service is not giving up what you wrote — on any phone
+    mockClosed.delete("gone-4");
     auth(null);
   });
 

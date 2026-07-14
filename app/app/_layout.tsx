@@ -8,6 +8,8 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { onAccountClosed, startSync } from "@/core/data/sync";
 import { Sheet } from "@/ui/Sheet";
+import { eraseLocal } from "@/core/data/erase";
+import { router } from "expo-router";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
 import { registerSelf } from "@/core/data/deviceRepository";
 
@@ -75,13 +77,23 @@ export default function RootLayout() {
       .finally(() => setIdentified(true));
   }, []);
 
-  // **The account was closed on another phone** (D76). This device signs out and keeps its rows (D20 — logging
-  // out never deletes them, and the choice to erase *this* phone was never made on this phone). But it must be
-  // told: a phone that silently logs itself out is a phone the user assumes is broken.
-  const [closed, setClosed] = useState(false);
+  // **The account was closed on another phone** (D76). This device finds out the moment it next talks to the
+  // server, signs itself out, and says so — *a phone that silently logs itself out is a phone the user assumes
+  // is broken.*
+  //
+  // **And it honours the choice that was made on the other phone.** "기기 기록도 함께 지우기" is a decision about
+  // the account, not about the handset that happened to be in your hand — so the tombstone carries it, and
+  // every device does the same thing. Otherwise "모든 기기에서 지웠다" would quietly mean "지운 폰에서만 지웠다".
+  const [closed, setClosed] = useState<null | { wiped: boolean }>(null);
   useEffect(() => {
     if (!identified) return;
-    onAccountClosed(() => setClosed(true));
+    onAccountClosed(async (wipeDevices) => {
+      if (wipeDevices) {
+        await eraseLocal();
+        router.replace("/"); // whatever screen they were on is about to be a list of things that no longer exist
+      }
+      setClosed({ wiped: wipeDevices });
+    });
     return startSync({
       blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
     });
@@ -99,10 +111,14 @@ export default function RootLayout() {
         }}
       />
       <Sheet
-        visible={closed}
+        visible={!!closed}
         title="계정이 탈퇴되었어요"
-        message="다른 기기에서 회원 탈퇴가 이루어졌어요. 이 기기는 로그아웃했고, 여기에 저장된 기록은 그대로 남아 있어요."
-        onClose={() => setClosed(false)}
+        message={
+          closed?.wiped
+            ? "다른 기기에서 회원 탈퇴하면서 모든 기기의 기록을 지우기로 했어요. 이 기기의 기록도 지웠고, 로그아웃했어요."
+            : "다른 기기에서 회원 탈퇴가 이루어졌어요. 이 기기는 로그아웃했고, 여기에 저장된 기록은 그대로 남아 있어요."
+        }
+        onClose={() => setClosed(null)}
         actions={[]}
         cancelLabel="확인"
       />
