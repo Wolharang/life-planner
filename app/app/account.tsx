@@ -17,6 +17,9 @@ import {
   firebaseAvailable,
   googleAvailable,
   onAccountChanged,
+  refreshVerification,
+  resendVerification,
+  sendPasswordReset,
   signIn,
   signInWithGoogle,
   signOut,
@@ -195,6 +198,78 @@ export default function AccountScreen() {
     }
   };
 
+  // ── 준회원 → 정회원 (이메일 인증) ─────────────────────────────────────────────────────────────────────
+  // An email/password account starts **준회원**: it works in full, but the address is only claimed. The link in
+  // the signup mail promotes it to **정회원**, which is what unlocks password reset. A Google account skips all of
+  // this — `verified` arrives true. This banner is **never a wall** (D20): it explains a benefit, it blocks
+  // nothing, and it is taupe-neutral, never a warning (R14).
+  const [note, setNote] = useState("");
+
+  // Catch a link that was clicked in the browser: `emailVerified` is cached, so a fresh `reload` is the only way
+  // to see it. Runs once per login while still 준회원 — never for Google, never once already verified.
+  useEffect(() => {
+    if (!account || account.google || account.verified) return;
+    refreshVerification().then((fresh) => {
+      if (fresh?.verified) setAccount(fresh);
+    });
+  }, [account?.uid, account?.verified, account?.google]);
+
+  const resend = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote("");
+    try {
+      await resendVerification();
+      setNote("인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.");
+    } catch (e) {
+      setNote(authErrorMessage(e) || "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkVerified = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote("");
+    try {
+      const fresh = await refreshVerification();
+      if (fresh?.verified) {
+        setAccount(fresh); // the banner disappears on its own — 정회원 now
+      } else {
+        setNote("아직 인증되지 않았어요. 메일의 링크를 누른 뒤 다시 눌러 주세요.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── 비밀번호 재설정 (로그아웃 상태 · 로그인 탭) ───────────────────────────────────────────────────────
+  // You reach for this because you cannot sign in, so it runs logged out. The message stays neutral and does not
+  // reveal whether the email is registered — standard practice, and it costs us nothing here.
+  const [resetInfo, setResetInfo] = useState<string | null>(null);
+
+  const forgotPassword = async () => {
+    if (busy) return;
+    if (!email.trim()) {
+      setError("이메일을 입력한 뒤 눌러 주세요.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await sendPasswordReset(email);
+      setResetInfo(
+        "가입한 이메일이라면 재설정 링크를 보냈어요. 메일함을 확인해 주세요.\n\nGoogle로 가입했다면 'Google로 계속하기'로 로그인해 주세요.",
+      );
+    } catch (e) {
+      // A real error (network, rate limit) is worth saying; anything else stays neutral.
+      setError(authErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ── Leaving ────────────────────────────────────────────────────────────────────────────────────────
   // 이용약관 제6조 and 처리방침 제7조 already promise 탈퇴 and 파기. Until now they had **no implementation
   // behind them** — the worst kind of clause, because the user cannot discover it is empty.
@@ -282,6 +357,42 @@ export default function AccountScreen() {
               <Text className="text-miss" style={{ fontSize: 13, fontWeight: "600", marginBottom: 12 }}>
                 아직 올라가지 못한 기록 {pending}건 — 연결되면 자동으로 올라가요.
               </Text>
+            )}
+
+            {/* 준회원 → 정회원. Only for an email account that has not clicked the link. Google is already verified;
+                a verified email needs nothing. Blocks nothing — it names a benefit, in neutral tones. */}
+            {!account.google && !account.verified && (
+              <View className="bg-group" style={{ borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "600", marginBottom: 4 }}>
+                  이메일 인증을 하면 비밀번호를 되찾을 수 있어요
+                </Text>
+                <Text className="text-grey" style={{ fontSize: 12.5, lineHeight: 19, marginBottom: 12 }}>
+                  가입할 때 보낸 메일의 링크를 누르면 인증돼요. 인증하지 않아도 앱은 그대로 쓸 수 있어요.
+                </Text>
+                {note ? (
+                  <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600", marginBottom: 12 }}>
+                    {note}
+                  </Text>
+                ) : null}
+                <View className="flex-row">
+                  <Pressable
+                    onPress={checkVerified}
+                    disabled={busy}
+                    className="bg-brand items-center"
+                    style={{ borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16, marginRight: 8, opacity: busy ? 0.5 : 1 }}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>인증했어요</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={resend}
+                    disabled={busy}
+                    className="bg-surface items-center"
+                    style={{ borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16, borderWidth: 1, borderColor: "#E5E8EB", opacity: busy ? 0.5 : 1 }}
+                  >
+                    <Text className="text-ink" style={{ fontSize: 13, fontWeight: "600" }}>메일 다시 보내기</Text>
+                  </Pressable>
+                </View>
+              </View>
             )}
             <Pressable
               onPress={leave}
@@ -404,6 +515,21 @@ export default function AccountScreen() {
                 </Text>
               )}
             </Pressable>
+
+            {/* Forgot-password lives only on the 로그인 tab — it is the answer to "I cannot get in". It reads the
+                email already typed above; the reset link, once used, is itself the proof of ownership. */}
+            {mode === "signIn" && (
+              <Pressable
+                onPress={forgotPassword}
+                disabled={busy}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ marginTop: 14, alignSelf: "center" }}
+              >
+                <Text className="text-faint" style={{ fontSize: 12, textDecorationLine: "underline" }}>
+                  비밀번호를 잊으셨나요?
+                </Text>
+              </Pressable>
+            )}
 
             {withGoogle && (
               <>
@@ -553,6 +679,15 @@ export default function AccountScreen() {
         busy={busy}
         onConfirm={() => withdraw(!!confirmLeave?.keepLocal)}
         onClose={() => setConfirmLeave(null)}
+      />
+
+      <Sheet
+        visible={!!resetInfo}
+        title="비밀번호 재설정"
+        message={resetInfo ?? undefined}
+        onClose={() => setResetInfo(null)}
+        actions={[]}
+        cancelLabel="확인"
       />
 
       <Sheet

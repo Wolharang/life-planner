@@ -14,6 +14,34 @@ type Unsubscribe = () => void;
 export interface Account {
   uid: string;
   email: string | null;
+  /**
+   * The email is proven to belong to this user — 정회원. An email/password signup starts `false` (준회원): the
+   * account is usable in full, but the address is only *claimed*, not shown to be theirs, until they click the
+   * link. **A Google sign-in arrives `true`** — Google already verified it, so there is nothing for us to ask.
+   */
+  verified: boolean;
+  /**
+   * Signed in through Google. Their password is Google's, not ours, so we neither ask them to verify an email nor
+   * offer to reset a password we do not hold. (D-log: 준회원/정회원, 2026-07-14.)
+   */
+  google: boolean;
+}
+
+/**
+ * A Firebase user → our `Account`. Pure and exported so the membership rule can be tested without the native SDK.
+ *
+ * The two derived facts ARE the 준회원/정회원 model:
+ *   · `verified` = `emailVerified`. Nothing we store — read live from Auth, so it can never drift from the truth.
+ *   · `google`   = the user carries the google.com provider. Such a user is `emailVerified` from the start, so the
+ *                  same rule that gates 정회원 on `verified` makes every Google user a 정회원 with no extra step.
+ */
+export function accountFromUser(u: any): Account {
+  return {
+    uid: u.uid,
+    email: u.email ?? null,
+    verified: !!u.emailVerified,
+    google: Array.isArray(u.providerData) && u.providerData.some((p: any) => p?.providerId === "google.com"),
+  };
 }
 
 let authMod: any;
@@ -134,7 +162,7 @@ export async function accountClosure(uid: string): Promise<AccountClosure> {
 export function currentAccount(): Account | null {
   if (!load()) return null;
   const u = authMod().currentUser;
-  return u ? { uid: u.uid, email: u.email ?? null } : null;
+  return u ? accountFromUser(u) : null;
 }
 
 export function onAccountChanged(fn: (account: Account | null) => void): Unsubscribe {
@@ -142,14 +170,66 @@ export function onAccountChanged(fn: (account: Account | null) => void): Unsubsc
     fn(null);
     return () => {};
   }
-  return authMod().onAuthStateChanged((u: any) =>
-    fn(u ? { uid: u.uid, email: u.email ?? null } : null),
-  );
+  return authMod().onAuthStateChanged((u: any) => fn(u ? accountFromUser(u) : null));
 }
 
 export async function signUp(email: string, password: string): Promise<void> {
   if (!load()) throw new Error("cloud-unavailable");
-  await authMod().createUserWithEmailAndPassword(email.trim(), password);
+  const cred = await authMod().createUserWithEmailAndPassword(email.trim(), password);
+  // **준회원 from this instant.** The account exists and every feature works; the email is only *claimed*. Send
+  // the link that proves it and promotes them to 정회원 — but do not let a failed send fail the signup. Firebase
+  // rate-limits these, and an offline signup still has to succeed; 계정 offers "인증 메일 다시 보내기" for both.
+  try {
+    await cred?.user?.sendEmailVerification();
+  } catch {
+    // Rate-limited, offline, or a build without email templates — the account still stands. Resend from 계정.
+  }
+}
+
+/**
+ * Re-send the 정회원 link to the signed-in email user. Throws `no-user` if nobody is signed in and lets
+ * Firebase's own `auth/too-many-requests` surface — the send is deliberately rate-limited, and saying "잠시 후
+ * 다시" is the honest response to it.
+ */
+export async function resendVerification(): Promise<void> {
+  if (!load()) throw new Error("cloud-unavailable");
+  const user = authMod().currentUser;
+  if (!user) throw new Error("no-user");
+  await user.sendEmailVerification();
+}
+
+/**
+ * Ask Firebase whether the link has been clicked **since we last looked**. `emailVerified` is cached on the
+ * client, so a verification done in the browser is invisible until the user object is `reload()`ed. Returns the
+ * freshened account (or null) so the screen can update without waiting for an auth-state event that may not fire
+ * for a mere verification flip.
+ */
+export async function refreshVerification(): Promise<Account | null> {
+  if (!load()) return null;
+  const user = authMod().currentUser;
+  if (!user) return null;
+  try {
+    await user.reload();
+  } catch {
+    // Offline — the cached value is the best we have; report it rather than guess.
+  }
+  const fresh = authMod().currentUser;
+  return fresh ? accountFromUser(fresh) : null;
+}
+
+/**
+ * Send a password-reset link to an email address. **This is a logged-OUT action** — you use it precisely because
+ * you cannot sign in — so we cannot read the account's 정회원 status here, and Firebase's email-enumeration
+ * protection will not tell us either. That is fine, and it is *why the model holds*: the link goes only to that
+ * inbox, and **completing the reset requires reading it — which is the same proof that makes someone 정회원.** A
+ * 준회원 who resets their password has, by that act, shown the address is theirs.
+ *
+ * Google accounts are not served here (their password is Google's) — the calling screen says so in plain Korean.
+ * Firebase rate-limits the send; `auth/too-many-requests` surfaces through `authErrorMessage`.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  if (!load()) throw new Error("cloud-unavailable");
+  await authMod().sendPasswordResetEmail(email.trim());
 }
 
 export async function signIn(email: string, password: string): Promise<void> {

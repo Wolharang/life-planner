@@ -7,6 +7,43 @@ Newest entries at the top. Working language English; UI copy stays Korean.
 
 ---
 
+## 2026-07-14 (later) — a security review, and the account you could lose forever
+
+The founder ran the app through a standard service-security checklist — twice. The first pass (unauthenticated
+page access · per-user DB isolation · admin-page exposure) was a category mismatch: **we have no server, no URLs,
+no admin path.** Translated to where those threats actually live — the Firestore rules — all three were already
+shut: logged-out reads denied, every document gated on `request.auth.uid == uid`, and no privileged branch exists
+to climb (single-user app, D3). The one deliberately public read is the account tombstone (`allow get: if true`),
+and it holds nothing that identifies a person and cannot be enumerated (`list` denied).
+
+The second pass found the real hole, and it was an **absence**: the app offered email/password signup but **no
+password reset**. Forget the password and the account is gone. The checklist's "리셋 메일 발송 제한" was moot —
+there was no reset to rate-limit.
+
+**The founder asked for 인증번호 (a typed numeric code) for both signup verification and reset. I said no before
+building it** — not a preference, a constraint. Firebase Auth does email by **link**, not code; a real email OTP
+needs a server to mint/store/verify the code and a store an *unauthenticated* client may write to (our rules
+forbid it). Both break free-services-only. He agreed, and chose the shape that reaches the same two goals — prove
+the email is real, recover a lost password — for free: **준회원/정회원 by link.**
+
+- Email signup → **준회원**: uid issued, every feature works, `sendEmailVerification()` sent best-effort. The link
+  makes them **정회원**, which is what unlocks reset. **Google → 정회원 from the first moment** (Google already
+  verified the address); we never ask them to verify and never offer to reset a password that is Google's, not
+  ours.
+- Membership is **derived, not stored** (`accountFromUser`: `verified = emailVerified`, `google` = the provider).
+  So it cannot drift, **and nothing new leaves the phone — the 처리방침 does not change.** Guarded by
+  `firebase.account.test.ts` (four cases = the whole model).
+- **The subtle part, stated honestly.** Password reset is a *logged-out* action, so we cannot check 정회원 status
+  when it runs (not authenticated; email-enumeration protection hides it anyway). That is not a gap — it is *why
+  the model holds*: the link goes only to that inbox, and completing the reset requires reading it, which is the
+  same proof that makes someone 정회원. A 준회원 who resets has, by that act, proven the address is theirs.
+- The 준회원 banner **blocks nothing** (D20/R14) — a benefit named in neutral taupe, auto-rechecking once per login
+  for a link clicked in the browser. (D79)
+
+No native change, no prebuild. Typecheck clean; **12 suites / 111 tests** (was 11/107).
+
+---
+
 ## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find
 
 **v0.5.0.** No new "features" in the product sense. What got built is everything the app was **already

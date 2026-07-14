@@ -12,6 +12,39 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-14 (later) — the security review, and account recovery
+
+### D79. 준회원/정회원 — email verification and password reset, by LINK (the constraint chose the mechanism)
+- **The gap a security review found.** The app exposed email/password signup but had **no password reset** —
+  forget the password and the account is lost forever. The checklist item "비밀번호 리셋 발송 제한" was moot because
+  the *feature did not exist*; the finding was the absence, not a rate limit.
+- **인증번호(numeric OTP) was asked for; it is not free-tier-feasible, and I said so before building** (a request
+  can conflict with the constraints — surface it, don't silently diverge). Firebase Auth's email verification and
+  password reset are **link-based**, not code-based. A typed 6-digit email OTP needs a server to generate/store/
+  verify the code (Cloud Function = paid Blaze, or an external mail service) **and** a place an *unauthenticated*
+  client may write — which our rules forbid. Both break **free-services-only**. The founder chose the **link**
+  mechanism, which achieves the actual goals (recover a password · prove the email is real) for free, no backend,
+  no native change, no prebuild.
+- **준회원 → 정회원.** An email/password signup issues a uid and is **fully usable immediately** — 준회원. Signup
+  fires `sendEmailVerification()` (best-effort: a failed send must never fail the signup). Clicking the link makes
+  them **정회원**. **A Google sign-in is 정회원 from the first moment** — Google already verified the address, so the
+  same `verified` gate that unlocks reset makes every Google user a full member with nothing to click.
+- **Membership is DERIVED, never stored** (`accountFromUser`): `verified = emailVerified`, `google` = carries the
+  google.com provider. Read live from Auth, so it cannot drift — **and nothing new leaves the phone, so the
+  처리방침 is unchanged** (no new 수집항목). Pinned by `firebase.account.test.ts`.
+- **Password reset is offered only to email accounts, and it is a logged-OUT action** — you use it *because* you
+  cannot sign in, so we cannot read 정회원 status there (not authenticated; email-enumeration protection hides it).
+  **That is not a hole, it is why the model holds: the reset link goes only to that inbox, and completing the reset
+  requires reading it — the very proof that makes someone 정회원.** A 준회원 who resets has thereby shown the address
+  is theirs. Google accounts are told, in plain Korean, to sign in with Google (their password is Google's, not
+  ours). Firebase rate-limits the send; the message stays neutral and never reveals whether an email is registered.
+- **The 준회원 banner blocks nothing** (D20/R14): it names a benefit ("이메일 인증을 하면 비밀번호를 되찾을 수 있어요"),
+  in neutral taupe, never a warning; it auto-checks once per login for a link clicked in the browser (`reload`,
+  because `emailVerified` is cached), and offers 인증했어요 / 메일 다시 보내기.
+- **The security review's other five items already passed** (verified against the deployed ruleset, not asserted):
+  unauthenticated data access denied · per-user isolation by `request.auth.uid == uid` · no admin path exists
+  (single-user app, D3) · 처리방침 page ships (`legal.ts`) · 회원 탈퇴 destroys the account and its data (D75/D76).
+
 ## 2026-07-14 (later) — leaving, and the day it must survive
 
 ### D78. 아침 요약 — a briefing, not a cue · and the words on the screen are not our words
