@@ -147,7 +147,7 @@ export default function Settings() {
     })();
   };
   // ── 기록 삭제 ──────────────────────────────────────────────────────────────────────────────────────
-  // **Two different acts, one door.** 기록 초기화 wipes the *evidence* (성공·실패·발화) and leaves the plan —
+  // **Two different acts, one door.** 기록 초기화 wipes the *evidence* (성공·미스·발화) and leaves the plan —
   // it is how day zero is made, and a false record is worse than none because we would reason from it.
   // 모든 기록 삭제 wipes everything you ever wrote, and on the server too.
   //
@@ -527,7 +527,7 @@ export default function Settings() {
                   기록 삭제
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  성공·실패 기록만 지우거나, 모든 기록을 지울 수 있어요. 로그인했다면 다른 기기의 기록도 함께 지워져요
+                  성공·미스 기록만 지우거나, 모든 기록을 지울 수 있어요. 로그인했다면 다른 기기의 기록도 함께 지워져요
                 </Text>
               </View>
               <Text className="text-faint" style={{ fontSize: 18 }}>
@@ -576,7 +576,7 @@ export default function Settings() {
             desc:
               evidenceN === 0
                 ? "지울 실행 기록이 없어요. 이미 0일차예요."
-                : `성공·실패·발화 ${evidenceN}건을 지우고 0일차부터 다시 세요. 일정·지출·식사는 그대로 남아요.`,
+                : `성공·미스·발화 ${evidenceN}건을 지우고 0일차부터 다시 세요. 일정·지출·식사는 그대로 남아요.`,
             disabled: evidenceN === 0,
             onPress: () => {
               setEraseOpen(false);
@@ -605,7 +605,7 @@ export default function Settings() {
             ? account
               ? "일정·지출·식사·실행 기록이 모두 지워져요. 같은 계정으로 로그인한 다른 기기에서도, 인터넷에 연결되는 순간 함께 지워져요. 계정 자체는 남아요. 되돌릴 수 없어요."
               : "이 기기에 저장된 일정·지출·식사·실행 기록이 모두 지워져요. 되돌릴 수 없어요."
-            : "성공·실패·발화 기록이 지워지고 0일차부터 다시 세요. 계획은 그대로 남아요. 되돌릴 수 없어요."
+            : "성공·미스·발화 기록이 지워지고 0일차부터 다시 세요. 계획은 그대로 남아요. 되돌릴 수 없어요."
         }
         confirmLabel={busy ? "지우는 중…" : confirmErase === "all" ? "모두 지우기" : "초기화하기"}
         busy={busy}

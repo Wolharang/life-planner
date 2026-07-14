@@ -192,7 +192,7 @@ export default function DayPlan() {
                         : b.alert === "soft"
                           ? "알림"
                           : "알림 없음",
-                    b.status === "success" ? "성공" : b.status === "fail" ? "실패" : null,
+                    b.status === "success" ? "성공" : b.status === "fail" ? "미스" : null,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "계획"}

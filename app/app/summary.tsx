@@ -87,7 +87,7 @@ export default function Summary() {
             <View className="bg-group rounded-card" style={{ padding: 16 }}>
               <View className="flex-row" style={{ gap: 18 }}>
                 <Tally label="성공" value={agg.blocksSuccess} tone="gold" />
-                <Tally label="실패" value={agg.blocksFail} tone="miss" />
+                <Tally label="미스" value={agg.blocksFail} tone="miss" />
                 <Tally label="휴식" value={agg.blocksSkipped} tone="faint" />
                 <Tally label="남음" value={agg.blocksPlanned} tone="ink" />
               </View>
@@ -220,7 +220,7 @@ function StatusBadge({ status }: { status: TimeBlock["status"] }) {
     return (
       <View className="bg-miss-soft rounded-full px-2.5 py-1">
         <Text className="text-miss" style={{ fontSize: 11, fontWeight: "700" }}>
-          실패
+          미스
         </Text>
       </View>
     );

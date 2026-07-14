@@ -57,7 +57,7 @@ export default function Metrics() {
   //
   // **The denominator is the LEVER's universe, not every outcome.** It used to be every outcome in the
   // store — so a 강의 or 점심 block carrying a plain `알림` (soft) alert, which the execution moment never
-  // touched, could be ticked 성공/실패 from home or 돌아보기 and land in S1. Blocks the lever never
+  // touched, could be ticked 성공/미스 from home or 돌아보기 and land in S1. Blocks the lever never
   // intervened on were grading the lever. Worse, they drag it DOWN (a soft block can never produce an
   // `execution-screen` done), and PRD §4's falsification condition is "if S1 is no better than a plain
   // reminder, the lever has failed → stop and redesign". A working lever could have been thrown away on a
@@ -215,7 +215,7 @@ export default function Metrics() {
                 }
                 style={{ fontSize: 12, fontWeight: "600" }}
               >
-                {o.status === "done" ? "성공" : o.status === "skipped" ? "휴식" : "실패"}
+                {o.status === "done" ? "성공" : o.status === "skipped" ? "휴식" : "미스"}
               </Text>
             </View>
           ))

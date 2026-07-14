@@ -790,7 +790,7 @@ export default function Home() {
                 ) : item.started ? (
                   // The moment has passed → OFFER to record it, never nag. This must not be mistaken for a
                   // *state*: it used to be a filled pill reading "성공" (a noun) sitting exactly where the
-                  // settled badges 됨/실패 sit, so an unanswered block looked like the app had decided you
+                  // settled badges 됨/미스 sit, so an unanswered block looked like the app had decided you
                   // did it. That silently corrupts S1 — the founder read it as "the app says I did it" and
                   // moved on. It is now an outlined button in the first person ("했어요"), which reads as an
                   // answer you give, not a verdict you receive.
@@ -897,7 +897,7 @@ function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" 
   return (
     <View className="bg-miss-soft rounded-full px-3 py-1">
       <Text className="text-miss" style={{ fontSize: 12, fontWeight: "700" }}>
-        실패
+        미스
       </Text>
     </View>
   );

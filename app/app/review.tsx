@@ -142,7 +142,7 @@ export default function Review() {
           {/* Spread across the width: four numbers crammed to the left read as a list, not as a summary. */}
           <View className="flex-row mt-3">
             <Tally label="성공" value={success.length} color="#B0862A" />
-            <Tally label="실패" value={fail.length} color="#8B7E74" />
+            <Tally label="미스" value={fail.length} color="#8B7E74" />
             <Tally label="휴식" value={skipped.length} color="#B0B8C1" />
             <Tally label="계획" value={monthBlocks.length} color="#191F28" />
           </View>
@@ -152,7 +152,7 @@ export default function Review() {
             것이었어요.
           </Text>
           <Text className="text-grey" style={{ fontSize: 12, marginTop: 6, lineHeight: 18 }}>
-            성공인지 실패인지는 <Text style={{ fontWeight: "700" }}>전날 세운 계획</Text>을 기준으로 봐요. 당일에
+            성공인지 미스인지는 <Text style={{ fontWeight: "700" }}>전날 세운 계획</Text>을 기준으로 봐요. 당일에
             시간을 바꿨더라도, 원래 하기로 했던 그 계획과 견줘요.
           </Text>
         </View>
@@ -203,7 +203,7 @@ export default function Review() {
         <SectionTitle>못 한 이유들</SectionTitle>
         {fail.length === 0 ? (
           <Text className="text-grey" style={{ fontSize: 13.5, paddingVertical: 10 }}>
-            이 달엔 실패가 없어요.
+            이 달엔 미스가 없어요.
           </Text>
         ) : (
           fail.map((b) => (

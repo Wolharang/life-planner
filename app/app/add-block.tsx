@@ -390,19 +390,22 @@ export default function AddBlock() {
         {/* dates */}
         <SectionLabel>{editId ? "날짜" : "언제 (여러 날 선택 가능)"}</SectionLabel>
         {editId ? (
-          // The arrows nudge a day; **tapping the date opens a calendar**. Moving a block to 9월 2일 used to
-          // mean tapping › fifty times.
+          // The arrows nudge a day; the calendar reaches anywhere. Moving a block to 9월 2일 used to mean
+          // tapping › fifty times.
+          <>
           <View className="flex-row items-center justify-between bg-group" style={{ borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6 }}>
             <Pressable onPress={() => setDateStr((s) => shiftYmd(s, -1))} hitSlop={10} className="px-3 py-1">
               <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
             </Pressable>
             <Pressable onPress={() => setCalOpen(true)} hitSlop={8} className="px-2 py-1">
-              <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>{dateLabel(dateStr)} ▾</Text>
+              <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>{dateLabel(dateStr)}</Text>
             </Pressable>
             <Pressable onPress={() => setDateStr((s) => shiftYmd(s, 1))} hitSlop={10} className="px-3 py-1">
               <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
             </Pressable>
-          </View>
+            </View>
+            <CalendarButton onPress={() => setCalOpen(true)} />
+          </>
         ) : (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
@@ -429,22 +432,10 @@ export default function AddBlock() {
             {/* **The far future has to be reachable.** The chips only run 3 weeks out (they are for "soon" —
                 tonight, this weekend), so 9월 개강 or 12월 시험 simply could not be entered. The app *is* a
                 calendar; it just never handed one to the editor. */}
-            <View className="flex-row items-center" style={{ marginTop: 10, gap: 10 }}>
-              <Pressable
-                onPress={() => setCalOpen(true)}
-                className="bg-group"
-                style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 }}
-              >
-                <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
-                  📅 달력에서 고르기
-                </Text>
-              </Pressable>
-              {farDates.length > 0 && (
-                <Text className="text-brand" style={{ fontSize: 12.5, fontWeight: "700" }}>
-                  +{farDates.length}개 (먼 날짜)
-                </Text>
-              )}
-            </View>
+            <CalendarButton
+              onPress={() => setCalOpen(true)}
+              badge={farDates.length > 0 ? `먼 날짜 ${farDates.length}개` : undefined}
+            />
             <Text className="text-grey mt-2" style={{ fontSize: 12.5 }}>
               {dates.length > 1
                 ? `${dates.length}개의 날에 각각 하나씩 만들어요 (반복이 아니라 각각 따로예요)`
@@ -766,6 +757,43 @@ function HmInput({ value, onChange }: { value: string; onChange: (v: string) => 
       className="bg-group text-ink text-center"
       style={{ fontSize: 18, width: 58, paddingVertical: 10, borderRadius: 10 }}
     />
+  );
+}
+
+/**
+ * **달력에서 고르기** — the way to any date, not just the next three weeks.
+ *
+ * It was a small grey pill tucked under the chips, easy to miss and easy to mistake for a label. It is the
+ * only door to 9월 개강 or 12월 시험, so it now reads as a door: full width, white, a hairline border. The chips
+ * are for *soon*; this is for *anywhere*.
+ */
+function CalendarButton({ onPress, badge }: { onPress: () => void; badge?: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="bg-surface flex-row items-center"
+      style={{
+        marginTop: 10,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#E5E8EB",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+      }}
+    >
+      <Text style={{ fontSize: 16, marginRight: 10 }}>🗓️</Text>
+      <Text className="text-ink" style={{ flex: 1, fontSize: 14.5, fontWeight: "700" }}>
+        달력에서 고르기
+      </Text>
+      {badge ? (
+        <Text className="text-brand" style={{ fontSize: 12.5, fontWeight: "700", marginRight: 8 }}>
+          {badge}
+        </Text>
+      ) : null}
+      <Text className="text-faint" style={{ fontSize: 16 }}>
+        ›
+      </Text>
+    </Pressable>
   );
 }
 
