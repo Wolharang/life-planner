@@ -22,6 +22,7 @@ import {
 } from "@/core/data/blockRepository";
 import { onSyncApplied } from "@/core/data/sync";
 import { blockFireAt, blockStartAt, isSkipped, pastUnfiredBlocks, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
+import { applyGeoEval } from "@/core/schedule/applyGeoEval";
 import { recordOutcome, removeOutcome, listOutcomes, type OutcomeRecord } from "@/core/data/outcomeRepository";
 import { notificationPermissionGranted } from "@/core/notifications/plainReminders";
 import { listFires, setFires, appendFires, type FireRecord } from "@/core/data/firedRepository";
@@ -280,6 +281,9 @@ export default function Home() {
     for (const o of alarm.consumePendingOutcomes()) {
       await settle(o.taskId, o.date, o.title, o.status === "done" ? "done" : "miss", "execution-screen", o.at);
     }
+    // GPS auto-eval runs AFTER the self-report settle, so a workout/run 실행 block's verdict is decided by where
+    // the phone actually was — overriding a self-report, never a manual override (D-log auto-eval).
+    await applyGeoEval();
     const fires = alarm.consumePendingFires();
     if (fires.length > 0) {
       // Stamp each fire with the block's creation time so the commit→fire gap is measurable (S2).

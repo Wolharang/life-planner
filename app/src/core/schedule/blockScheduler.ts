@@ -85,6 +85,20 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
   // here would silently delete the follow-up whenever the user opened the app within those 5 minutes.
   if (block.status !== "planned") alarm.cancel(`${block.id}#recheck`);
 
+  // GPS auto-evaluation is armed here (native reads it at commit): a workout/run block that takes the screen on
+  // THIS phone (only the phone showing the moment can capture where you went). Re-run on every open keeps it
+  // current — a block switched to 없음, or to another phone, clears itself.
+  try {
+    alarm.setAutoEval(
+      block.id,
+      isExecution(block) &&
+        takesTheScreenHere(block) &&
+        (block.kind === "workout" || block.kind === "run"),
+    );
+  } catch {
+    // native a step ahead of JS — auto-eval just stays off until the rebuild
+  }
+
   const fireAt = blockFireAt(block);
   if (fireAt == null || fireAt <= now) return;
 

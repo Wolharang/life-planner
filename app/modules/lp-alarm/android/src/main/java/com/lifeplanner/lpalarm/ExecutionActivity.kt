@@ -220,6 +220,22 @@ class ExecutionActivity : Activity() {
     )
   }
 
+  /**
+   * "응, 할게" — the commit. For a workout/run 실행 block (AutoEvalRegistry), this is t=0 of auto-evaluation:
+   * grab a fix now and arm two more (+5m ≈ the re-check, +15m). Three fixes → JS decides 성공/실패 on next open.
+   * Everything is best-effort and silent; the moment dismisses exactly as it always did.
+   */
+  private fun onCommitYes() {
+    if (AutoEvalRegistry.isOn(this, taskId)) {
+      val date = occurrenceYmd()
+      val now = System.currentTimeMillis()
+      GeoCapture.captureInto(applicationContext, taskId, date) // t=0
+      GeoScheduler.schedule(this, taskId, date, now + 5 * 60_000L, 1) // t≈5 (re-check)
+      GeoScheduler.schedule(this, taskId, date, now + 15 * 60_000L, 2) // t≈15
+    }
+    dismiss()
+  }
+
   /** End the current occurrence: show the next queued one, or finish if none (R2 sequential). */
   private fun dismiss() {
     stopSound()
@@ -489,7 +505,7 @@ class ExecutionActivity : Activity() {
     // flow became commit → re-check, so it lives here now — the one thing to do in the next 5 seconds.
     if (note.isNotEmpty()) addView(label("딱 첫 동작 — $note", 17, soft, top = 14))
     // v1: commit only acknowledges — the "진짜 했어?" re-check comes ~5 min later (already armed).
-    addView(brandButton("응, 할게") { dismiss() })
+    addView(brandButton("응, 할게") { onCommitYes() })
   }
 
   private fun recheckView(): View = column().apply {

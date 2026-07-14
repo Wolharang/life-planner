@@ -147,6 +147,22 @@ class LpAlarmModule : Module() {
       AlarmScheduler.cancel(context, id)
     }
 
+    // --- GPS auto-evaluation (workout/run 실행 blocks) ---
+
+    // JS marks which blocks auto-evaluate; the native commit handler reads it with no JS alive.
+    Function("setAutoEval") { id: String, on: Boolean ->
+      AutoEvalRegistry.set(context, id, on)
+    }
+
+    // Snapshot the captured fixes (does NOT clear — JS clears each occurrence after it applies a verdict).
+    Function("getGeoSamples") {
+      PendingGeo.snapshot(context)
+    }
+
+    Function("clearGeoSamples") { blockId: String, date: String ->
+      PendingGeo.clear(context, blockId, date)
+    }
+
     // §11 layers 3+5: run a synchronous backup scan now. Past-due alarms become R6 misses, not late FSI.
     Function("catchUp") {
       AlarmBackupWorker.runOnce(context)

@@ -24,6 +24,12 @@
       android:name="com.lifeplanner.lpalarm.AlarmReceiver"
       android:exported="false" />
 
+    <!-- Grabs one GPS fix at +5m / +15m for a committed workout/run 실행 block (auto-evaluation). Not
+         exported: only our own PendingIntent triggers it. -->
+    <receiver
+      android:name="com.lifeplanner.lpalarm.GeoReceiver"
+      android:exported="false" />
+
     <!-- Re-registers alarms from the native mirror after reboot / time / timezone change. -->
     <receiver
       android:name="com.lifeplanner.lpalarm.BootReceiver"

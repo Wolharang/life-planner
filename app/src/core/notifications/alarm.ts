@@ -56,6 +56,12 @@ export type MissedMarker = {
   missedAt: number;
 };
 
+export type GeoSampleGroup = {
+  blockId: string;
+  date: string;
+  samples: { lat: number; lng: number; at: number }[];
+};
+
 /**
  * Untyped native surface, resolved **lazily**.
  *
@@ -165,6 +171,21 @@ export const alarm = {
   },
   cancel(id: string): void {
     Native().cancelAlarm(id);
+  },
+
+  // --- GPS auto-evaluation (workout/run 실행 blocks) ---
+  /** Mark whether this block auto-evaluates by location. Read natively at commit, so it must be set at
+   *  schedule time — before any moment fires. Silent no-op if the native module is a step behind. */
+  setAutoEval(id: string, on: boolean): void {
+    Native().setAutoEval?.(id, on);
+  },
+  /** The GPS fixes captured natively at commit / +5m / +15m, grouped per occurrence. Cleared via
+   *  `clearGeoSamples` once JS has turned them into a verdict — the raw coordinates never persist. */
+  getGeoSamples(): { blockId: string; date: string; samples: { lat: number; lng: number; at: number }[] }[] {
+    return (Native().getGeoSamples?.() as GeoSampleGroup[] | undefined) ?? [];
+  },
+  clearGeoSamples(blockId: string, date: string): void {
+    Native().clearGeoSamples?.(blockId, date);
   },
   /** Kick a one-shot backup scan that fires any missed alarm — call on app open (§11 layers 3+5). */
   catchUp(): void {
