@@ -19,6 +19,9 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
   default: { getItem: async () => null, setItem: async () => undefined },
 }));
+const mockClosed = new Set<string>();
+const mockEvents: string[] = [];
+
 jest.mock("./firebase", () => ({
   currentAccount: () => null,
   db: () => null, // no Firestore under Jest — `col()` optional-chains to undefined, which is fine here
@@ -26,9 +29,13 @@ jest.mock("./firebase", () => ({
     listeners.push(cb);
     return () => undefined;
   },
+  accountIsClosed: async (uid: string) => mockClosed.has(uid),
+  signOut: async () => {
+    mockEvents.push("sign-out");
+  },
 }));
 
-import { startSync, syncEnabled, holdSync, releaseSync } from "./sync";
+import { startSync, syncEnabled, holdSync, releaseSync, onAccountClosed } from "./sync";
 
 startSync({});
 
@@ -93,5 +100,51 @@ describe("the consent gate on sync", () => {
     expect(syncEnabled()).toBe(true);
     auth(null);
     expect(syncEnabled()).toBe(false);
+  });
+
+  // ── D76: the other phone, after 회원 탈퇴 ────────────────────────────────────────────────────────────
+  //
+  // 탈퇴 happens on ONE phone. This one is still logged in, still holding every row, and its ID token stays
+  // valid for up to an hour after Firebase deletes the user. Its reconcile's own rule is "a row the cloud has
+  // never seen is pushed up" — and after the wipe, the cloud has seen nothing. Left alone it would push the
+  // entire deleted account back, under a uid with no user behind it: data nobody can read and nobody can
+  // delete. The server refuses those writes; this is the client half — it must not even try.
+
+  it("refuses to sync to an account that was closed on another device", async () => {
+    auth(null);
+    mockClosed.add("gone-1");
+    mockEvents.length = 0;
+
+    auth("gone-1");
+    await new Promise((r) => setTimeout(r, 0)); // the closed-check is one server read away
+
+    expect(syncEnabled()).toBe(false);
+    expect(mockEvents.includes("sign-out")).toBe(true); // staying "logged in" to a deleted account is a fiction
+    mockClosed.delete("gone-1");
+    auth(null);
+  });
+
+  it("tells the user — a phone that silently logs itself out is a phone they assume is broken", async () => {
+    auth(null);
+    mockClosed.add("gone-2");
+    let told = false;
+    onAccountClosed(() => {
+      told = true;
+    });
+
+    auth("gone-2");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(told).toBe(true);
+    mockClosed.delete("gone-2");
+    auth(null);
+  });
+
+  it("a LIVE account is untouched by the check", async () => {
+    auth(null);
+    auth("alive");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(syncEnabled()).toBe(true);
+    auth(null);
   });
 });

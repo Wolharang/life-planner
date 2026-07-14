@@ -20,7 +20,28 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == uid;
       }
 
-      allow read, write: if isOwner();
+      // **The account tombstone (D76), and why the server has to be the one enforcing it.**
+      //
+      // 회원 탈퇴 happens on ONE phone. The others are still logged in, still holding rows, and — this is the
+      // part that bites — **still holding a valid ID token for up to an hour after the user is deleted.**
+      // Firebase does not revoke it mid-flight; the rules will happily accept their writes.
+      //
+      // And they *will* write: the reconcile's own rule is "a row the cloud has never seen is pushed up".
+      // After the wipe the cloud has seen nothing, so the second phone would **push the whole account back**,
+      // under a uid whose user no longer exists — data nobody can read and nobody can delete, forever.
+      //
+      // No client fix can close this: the offending client is another device, possibly an older build, acting
+      // in good faith. So the last act of 탈퇴 is to leave a marker the server itself checks on every write.
+      function accountClosed() {
+        return exists(/databases/$(database)/documents/users/$(uid))
+               && get(/databases/$(database)/documents/users/$(uid)).data.get('closedAt', null) != null;
+      }
+
+      // The tombstone may be written (once, by its owner) and read. It can never be edited away or deleted —
+      // if a client could remove it, the resurrection it exists to prevent would simply resume.
+      allow read: if isOwner();
+      allow create: if isOwner() && request.resource.data.get('closedAt', null) != null;
+      allow update, delete: if false;
 
       // **Consent is evidence, not state.** (D73/D74) One document per LEGAL_VERSION, carrying the second it
       // was given, per tick, and the device it was given on. It may be created and read — never rewritten,
@@ -32,7 +53,7 @@ service cloud.firestore {
       // match denies.
       match /consents/{docId} {
         allow read: if isOwner();
-        allow create: if isOwner() && request.resource.data.id == docId;
+        allow create: if isOwner() && !accountClosed() && request.resource.data.id == docId;
         allow update: if false;
         // Deletable **only** as part of 회원 탈퇴: the 처리방침 (제7조) promises 파기, and 파기 cannot mean
         // "kept forever, unreadable". A consent that outlives the account it was given to is not evidence of
@@ -47,7 +68,9 @@ service cloud.firestore {
 
         // The document's own id must match its path — the client-generated id is the join key everywhere
         // else (§0), so a row whose `id` disagrees with its document name would break the local projection.
-        allow create: if isOwner() && request.resource.data.id == docId;
+        // **Nothing may be written to a closed account** — not by this phone, not by the other one that is
+        // still logged in and still believes the account exists. See `accountClosed()` above.
+        allow create: if isOwner() && !accountClosed() && request.resource.data.id == docId;
 
         // **A tombstone is TERMINAL: once dead, a row can never come back to life.** (D54)
         //
@@ -59,6 +82,7 @@ service cloud.firestore {
         //
         // There is no "undelete" in this app: a block you re-create gets a new id.
         allow update: if isOwner()
+                      && !accountClosed()
                       && collection != 'consents'   // evidence is append-only — see the match above
                       && request.resource.data.id == docId
                       && !(resource.data.get('deletedAt', null) != null

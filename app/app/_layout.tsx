@@ -6,7 +6,8 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
-import { startSync } from "@/core/data/sync";
+import { onAccountClosed, startSync } from "@/core/data/sync";
+import { Sheet } from "@/ui/Sheet";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
 import { registerSelf } from "@/core/data/deviceRepository";
 
@@ -74,8 +75,13 @@ export default function RootLayout() {
       .finally(() => setIdentified(true));
   }, []);
 
+  // **The account was closed on another phone** (D76). This device signs out and keeps its rows (D20 — logging
+  // out never deletes them, and the choice to erase *this* phone was never made on this phone). But it must be
+  // told: a phone that silently logs itself out is a phone the user assumes is broken.
+  const [closed, setClosed] = useState(false);
   useEffect(() => {
     if (!identified) return;
+    onAccountClosed(() => setClosed(true));
     return startSync({
       blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
     });
@@ -91,6 +97,14 @@ export default function RootLayout() {
           headerShown: false,
           contentStyle: { backgroundColor: "#FFFFFF" }, // token: bg (v5)
         }}
+      />
+      <Sheet
+        visible={closed}
+        title="계정이 탈퇴되었어요"
+        message="다른 기기에서 회원 탈퇴가 이루어졌어요. 이 기기는 로그아웃했고, 여기에 저장된 기록은 그대로 남아 있어요."
+        onClose={() => setClosed(false)}
+        actions={[]}
+        cancelLabel="확인"
       />
     </SafeAreaProvider>
   );

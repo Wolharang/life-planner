@@ -56,6 +56,10 @@ jest.mock("./firebase", () => ({
   purgeFirestoreCache: async () => {
     events.push("purge-outbox");
   },
+  closeAccount: async () => {
+    events.push("close-account");
+  },
+  accountIsClosed: async () => false,
   db: () => ({
     collection: () => ({
       doc: () => ({
@@ -120,6 +124,18 @@ describe("leaving", () => {
     expect(events.indexOf("stop-sync") < events.indexOf("cloud-delete:meals/m1")).toBe(true);
     expect(events.indexOf("cloud-delete:meals/m1") < events.indexOf("purge-outbox")).toBe(true);
     expect(events.includes("delete-account")).toBe(false);
+  });
+
+  it("shuts the door on the OTHER phones before deleting anything (D76)", async () => {
+    // 탈퇴 happens on one phone. The others are still logged in, still hold every row, and their ID token
+    // stays valid for up to an hour after the user is deleted. Their reconcile's rule is "a row the cloud has
+    // never seen is pushed up" — after our wipe, the cloud has seen nothing. They would push the whole
+    // account back, under a uid with no user behind it. The tombstone goes down FIRST, so the door is already
+    // shut while we clean.
+    reset();
+    await deleteAccount(false);
+    expect(events.indexOf("close-account") < events.indexOf("cloud-delete:blocks/b1")).toBe(true);
+    expect(events.indexOf("stop-sync") < events.indexOf("close-account")).toBe(true);
   });
 
   it("회원 탈퇴 deletes the DATA FIRST and the ACCOUNT SECOND", async () => {

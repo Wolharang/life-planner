@@ -74,6 +74,34 @@ export async function purgeFirestoreCache(): Promise<void> {
   }
 }
 
+/**
+ * Mark the account closed, on the server, and **wait for the server to say so**.
+ *
+ * This is the only part of 탈퇴 that other devices can see. It must not be fire-and-forget: if it never lands,
+ * the other phone is free to push the whole account back the moment it reconnects. So it is awaited, and if it
+ * fails, 탈퇴 fails — better to tell the user "다시 시도해 주세요" than to destroy an account we cannot keep shut.
+ */
+export async function closeAccount(uid: string): Promise<void> {
+  const database = db();
+  if (!database) return;
+  await database
+    .collection("users")
+    .doc(uid)
+    .set({ uid, closedAt: Date.now() }, { merge: true });
+}
+
+/** Is this account closed? Read from the **server** — a cached "no" is exactly the answer we cannot trust. */
+export async function accountIsClosed(uid: string): Promise<boolean> {
+  const database = db();
+  if (!database) return false;
+  try {
+    const snap = await database.collection("users").doc(uid).get({ source: "server" });
+    return !!snap?.data?.()?.closedAt;
+  } catch {
+    return false; // offline or refused — never guess an account into oblivion
+  }
+}
+
 /** The signed-in user, or `null` (logged out **or** no Firebase). Sync is off in both cases. */
 export function currentAccount(): Account | null {
   if (!load()) return null;

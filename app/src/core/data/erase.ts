@@ -18,7 +18,14 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { alarm } from "@/core/notifications/alarm";
-import { db, deleteCurrentUser, currentAccount, purgeFirestoreCache } from "./firebase";
+import {
+  accountIsClosed,
+  closeAccount,
+  currentAccount,
+  db,
+  deleteCurrentUser,
+  purgeFirestoreCache,
+} from "./firebase";
 import { stopSync } from "./sync";
 
 /** Every store the app owns. `lp.device.self.v1` is deliberately absent — see below. */
@@ -138,6 +145,17 @@ export async function deleteAccount(keepLocal: boolean): Promise<{ deleted: numb
   // way, left orphaned under a uid whose user we had just destroyed. Nobody could ever read them, and nobody
   // could ever delete them.
   stopSync();
+
+  // **Close the account on the server before deleting a single row** (D76). 탈퇴 happens on one phone; the
+  // others are still logged in, still holding rows, and — the part that bites — **still holding a valid ID
+  // token for up to an hour after the user is deleted**. Their reconcile's own rule is *"a row the cloud has
+  // never seen is pushed up"*, and after our wipe the cloud has seen nothing. They would push the entire
+  // account back, under a uid with no user behind it.
+  //
+  // No client fix reaches them: they are a different device, possibly an older build, acting in good faith.
+  // So the door is shut where they cannot argue with it — in the security rules, which refuse every write to a
+  // closed account. It goes first, so it is already shut while we clean.
+  if (uid) await closeAccount(uid);
 
   const stats = uid ? await eraseCloud(uid) : { deleted: 0, failed: 0 };
 

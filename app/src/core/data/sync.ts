@@ -34,7 +34,7 @@
 // block on two phones at once, it is a non-event, and field-level merging is complexity with no buyer.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { currentAccount, db, onAccountChanged } from "./firebase";
+import { accountIsClosed, currentAccount, db, onAccountChanged, signOut } from "./firebase";
 import { deletedIds, rememberDeletion } from "./tombstones";
 
 /** Everything we sync is identified and versioned the same way. */
@@ -372,10 +372,32 @@ async function applySnapshot(uid: string, name: CollectionName, snap: any): Prom
 }
 
 /** Turn sync on for `uid`. Idempotent per uid, so the auth listener can call it freely. */
+/**
+ * **The other phone, after 탈퇴** (D76). Its ID token stays valid for up to an hour, its rows are still local,
+ * and its reconcile's rule is *"a row the cloud has never seen is pushed up"* — so it would push the whole
+ * deleted account back. The rules refuse those writes, but a client that keeps hammering a door it cannot open
+ * is not a fix; it is a phone whose 아직 올라가지 못한 기록 count climbs forever with no explanation.
+ *
+ * So before syncing anything, ask the server whether the account is still there. If it is closed, this device
+ * stops and signs out. **Local rows are kept** — logging out never deletes them (D20), and the choice to erase
+ * this phone was never made *on* this phone.
+ */
+let closedNotice: (() => void) | null = null;
+export function onAccountClosed(fn: () => void): void {
+  closedNotice = fn;
+}
+
 function enable(uid: string): void {
   if (syncingFor === uid) return;
   disable();
   syncingFor = uid;
+
+  void accountIsClosed(uid).then((closed) => {
+    if (!closed || syncingFor !== uid) return;
+    disable();
+    closedNotice?.();
+    void signOut(); // there is no account to sync to; staying "logged in" to it is a fiction
+  });
 
   for (const name of NAMES) {
     // 1) Reconcile against the SERVER first — the only source that knows what actually arrived. Until it
