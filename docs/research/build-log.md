@@ -62,6 +62,18 @@ local data injection, and I hardened the one local file path (`backup.ts`): a **
 an imported file can only write the app's own keys — it used to accept any key. Both live in a leaf
 `backupGuards.ts` and are pinned by `backupGuards.test.ts`. Typecheck clean; **14 suites / 119 tests**. (D80)
 
+**Fourth security pass — API & keys (a review, not a change).** No server, no browser: the only external APIs are
+Firebase and Google Sign-In, and grep found nothing else — no analytics, no crash reporter, no third key. The
+embedded Firebase API key and OAuth client id are **public identifiers, not secrets** — access is gated by
+Firestore rules + Auth (already reviewed), not by hiding the key — and there is **no service-account key / admin
+path at all**. `google-services.json` is gitignored anyway. Failure handling is thorough and surfaced (writes never
+awaited → offline-safe; reconcile reads `source:server` and skips on failure; a pending/failed counter; auth
+errors → calm Korean). Spark limits (≈50k reads / 20k writes a day) sit orders of magnitude above one founder's
+usage; **live numbers are the founder's to read in the console.** Version check against the npm registry:
+`@react-native-firebase` **25.1.0** and `@react-native-google-signin` **16.1.2** are **exactly latest** — but
+**`expo` is 52.0.49 vs 57.x latest, five SDK majors behind.** Flagged as tracked debt; **not** upgraded in a
+security pass, because an Expo bump drags RN + every expo-* package + a native rebuild and on-device re-test. (D81)
+
 ---
 
 ## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find

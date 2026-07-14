@@ -14,6 +14,35 @@
 
 ## 2026-07-14 (later) — the security review, and account recovery
 
+### D81. API/keys review — the embedded Firebase key is a public identifier, not a secret (and Expo SDK is behind)
+- **There is no server and no browser** — this is a serverless mobile app, so "keep the key server-side" does not
+  translate. The only external APIs are **Firebase (Auth + Firestore)** and **Google Sign-In**; grep found **no
+  other API, no analytics, no crash reporter, no Maps key.**
+- **No secret is embedded, because the app holds none.** The Firebase API key (`AIza…`) and the OAuth **client id**
+  live in `google-services.json` — and both are **public identifiers by design**, not credentials. Google's own
+  guidance: a Firebase API key identifies the project, it does not authorise data access; **access is controlled by
+  Firestore rules + Auth** (reviewed), and the key may additionally be restricted by package name + SHA-1 in the
+  Cloud console. There is **no service-account key, no admin SDK, no bearer token** anywhere — the privileged path
+  simply does not exist (it would be a Cloud Function, which the free plan and our design do not have).
+  `google-services.json` is nonetheless **gitignored** — good hygiene keeps project identifiers out of the public
+  repo — and its absence degrades gracefully (email/password only). **A future "fix" that tries to hide this key is
+  pointless: it is meant to ship in the binary.**
+- **Failure handling is thorough and user-visible** (reviewed in `sync.ts` / `firebase.ts`): Firestore **writes are
+  never awaited** (offline = queued, the save button never hangs — R11), the reconcile **read** uses
+  `source: "server"` and, if it fails, simply skips that session (local storage stands); a **pending/failed
+  counter** is surfaced so "we don't wait" never becomes "we don't know"; every auth call is caught and turned into
+  calm Korean by `authErrorMessage`.
+- **Free-tier limits (Spark) and usage.** Firestore ≈ **50k reads / 20k writes / 20k deletes per day, 1 GiB
+  stored, no card**; Auth is free and effectively unlimited; email sends are Firebase-throttled and now also
+  device-capped (D79). At **one founder + a handful of devices** usage is orders of magnitude under every limit.
+  **Live numbers require the Firebase console** — the founder's to read; the app cannot self-report them.
+- **Version currency (checked against the npm registry, 2026-07-14):** `@react-native-firebase` **25.1.0 = latest**
+  and `@react-native-google-signin` **16.1.2 = latest** — the actual external-API SDKs are **current**. **`expo` is
+  52.0.49 while latest is 57.x — five SDK majors behind.** This is real maintenance debt (old SDKs eventually stop
+  getting patches), **but not a quick fix**: an Expo upgrade drags the RN version, every `expo-*` package, and a
+  full native rebuild + on-device re-test with it. **Deliberately NOT done here** — it is a migration the founder
+  schedules, not a change to slip into a security pass. Recorded so it is tracked, not forgotten.
+
 ### D80. File upload/storage review — there is no storage, and the one local file path is hardened
 - **The app has no remote file storage at all.** No Firebase Storage (package uninstalled, no `storage.rules`, no
   storage target in `firebase.json`), because **D19 dropped meal photos to stay on the free plan.** So the
