@@ -11,6 +11,7 @@ import { Sheet } from "@/ui/Sheet";
 import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
+import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { registerSelf } from "@/core/data/deviceRepository";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
@@ -102,6 +103,10 @@ export default function RootLayout() {
     // uid it last synced as — otherwise a device that reconnects a day later never learns, never wipes, and
     // never explains its own logout.
     void checkClosedWhileSignedOut();
+
+    // The briefings carry each day's actual list, so they are re-cut at every launch — after a reboot, a
+    // reinstall, or a day simply passing.
+    void rescheduleMorningBrief();
 
     return stop;
   }, [identified]);

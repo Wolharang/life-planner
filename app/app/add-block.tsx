@@ -87,6 +87,7 @@ export default function AddBlock() {
   const baseDate = params.date || todayYmd();
 
   const [orig, setOrig] = useState<TimeBlock | null>(null);
+  const [inBrief, setInBrief] = useState(true); // 아침 요약에 넣을지 — 기본은 넣음 (undefined = 포함)
   const [dates, setDates] = useState<string[]>([baseDate]); // add mode: one block per ticked date
   const [dateStr, setDateStr] = useState(baseDate); // edit mode: the single date
   const [title, setTitle] = useState("");
@@ -169,6 +170,7 @@ export default function AddBlock() {
       setLocation(b.location ?? "");
       setMemo(b.memo ?? "");
       setColor(b.color ?? "");
+      setInBrief(b.inBrief !== false);
       setAlert(b.alert);
       setLoudness(loudnessOf(b));
       setLeads(b.alertLeads?.length ? b.alertLeads : [b.alarmLeadMinutes]);
@@ -242,6 +244,7 @@ export default function AddBlock() {
       executeOn: alert === "execution" && executeOn.length > 0 ? executeOn : undefined,
       alert,
       alertLoudness: loudness,
+      inBrief: inBrief ? undefined : false, // undefined = included; only the exclusion is worth storing
       alertLeads: alert === "soft" ? sortedLeads : undefined,
       alarmLeadMinutes: alert === "soft" ? (sortedLeads[0] ?? 0) : effectiveLead,
       microStartNote: note.trim() || undefined,
@@ -526,11 +529,47 @@ export default function AddBlock() {
             );
           })}
         </View>
+        {/* **Three tiers, three sentences.** This branched only on `execution`, so 없음 and 알림 shared one line
+            — and it said "알림만 와요" for the tier whose entire point is that **nothing arrives**. The tier is
+            what the thing IS (D67); describing two of them identically undoes that. */}
         <Text className="text-grey mt-2" style={{ fontSize: 12.5, lineHeight: 18 }}>
           {alert === "execution"
             ? "그 시각에 잠금화면을 뚫고 실행 화면이 떠요. 미루기 쉬운 일(운동)에 쓰세요."
-            : "알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."}
+            : alert === "soft"
+              ? "알림만 와요. 화면을 뚫지 않고, 아무것도 강요하지 않아요."
+              : "아무 알림도 오지 않아요. 캘린더에 시간만 잡아둬요. 그 시각이 지나면 지난 기록으로 알아서 넘어가요."}
         </Text>
+
+        {/* **아침 요약에 넣을지.** Independent of the alert tier: a 없음 block still belongs in the day's briefing
+            (that is often the whole reason it exists), and a standing 강의 may not — a briefing that lists
+            everything is a briefing nobody reads by the third day. */}
+        <Pressable
+          onPress={() => setInBrief((v) => !v)}
+          className="bg-surface flex-row items-center"
+          style={{
+            marginTop: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "#E5E8EB",
+            paddingHorizontal: 16,
+            paddingVertical: 13,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text className="text-ink" style={{ fontSize: 14.5, fontWeight: "700" }}>
+              아침 요약에 넣기
+            </Text>
+            <Text className="text-grey mt-0.5" style={{ fontSize: 12.5 }}>
+              {inBrief ? "그날 아침 요약 알림에 이 일정이 들어가요" : "아침 요약 알림에서 빼요"}
+            </Text>
+          </View>
+          <Switch
+            value={inBrief}
+            onValueChange={setInBrief}
+            trackColor={{ true: "#3182F6", false: "#E5E8EB" }}
+            thumbColor="#FFFFFF"
+          />
+        </Pressable>
 
         {/* 무음 / 진동 / 소리 (D65) — independent of the tier (D43): the moment can be silent, an alert can ring.
             무음 exists because a buzz is not free: a block added only so the day is honest (강의, 이동) must be

@@ -13,7 +13,13 @@ import { View, Text, Pressable, ScrollView, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
-import { listBlocks, blocksOn, groupByDate as groupBlocksByDate, type TimeBlock } from "@/core/data/blockRepository";
+import {
+  listBlocks,
+  blocksOn,
+  groupByDate as groupBlocksByDate,
+  updateBlock,
+  type TimeBlock,
+} from "@/core/data/blockRepository";
 import { isSkipped } from "@/core/schedule/blockScheduler";
 import { onSyncApplied } from "@/core/data/sync";
 import { isExecution, todayYmd } from "@/core/schedule/blockScheduler";
@@ -102,6 +108,13 @@ export default function Calendar() {
     [view.y, view.m]
   );
   const selBlocks = blocksOn(blocks, selected);
+  const briefBlocks = selBlocks.filter((b) => b.inBrief !== false).slice().sort((a, b) => a.start.localeCompare(b.start));
+
+  // One fact, two places to reach it: this is the same flag the block editor sets.
+  const toggleBrief = async (b: TimeBlock) => {
+    await updateBlock({ ...b, inBrief: b.inBrief === false ? undefined : false, updatedAt: Date.now() });
+    setBlocks(await listBlocks());
+  };
   const [sy, sm, sd] = selected.split("-").map(Number);
   const selWeekday = WD[new Date(sy, sm - 1, sd).getDay()];
 
@@ -218,6 +231,33 @@ export default function Calendar() {
         </View>
 
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 24 }}>
+          {/* **아침 요약 미리보기.** The exact text that will arrive that morning — not a description of it. A
+              preview that is not the real thing is just another promise to check later. Tap a row below to put
+              it in or take it out; the block's own toggle is the same switch. */}
+          {selBlocks.length > 0 && (
+            <View className="bg-group rounded-card mb-3" style={{ padding: 14 }}>
+              <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
+                아침 요약 미리보기
+              </Text>
+              {briefBlocks.length === 0 ? (
+                <Text className="text-grey mt-1.5" style={{ fontSize: 12.5, lineHeight: 19 }}>
+                  이 날은 요약 알림이 오지 않아요. 아래에서 넣을 일정을 골라 주세요.
+                </Text>
+              ) : (
+                <>
+                  <Text className="text-ink-soft mt-1.5" style={{ fontSize: 12.5, fontWeight: "600" }}>
+                    오늘 일정 {briefBlocks.length}개
+                  </Text>
+                  {briefBlocks.map((b) => (
+                    <Text key={b.id} className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 19 }}>
+                      {b.start} {b.title}
+                    </Text>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
+
           {selBlocks.length === 0 ? (
             <Text className="text-grey" style={{ fontSize: 14, paddingVertical: 18 }}>
               이 날은 아무것도 없어요.
@@ -257,6 +297,22 @@ export default function Calendar() {
                     {b.memo ? ` · ${b.memo}` : ""}
                   </Text>
                 </View>
+
+                {/* In or out of that morning's briefing. The same switch as the block editor's — one fact, two
+                    places to reach it. */}
+                <Pressable
+                  onPress={() => toggleBrief(b)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  className={b.inBrief === false ? "bg-surface" : "bg-brand"}
+                  style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 }}
+                >
+                  <Text
+                    className={b.inBrief === false ? "text-faint" : ""}
+                    style={{ fontSize: 11, fontWeight: "700", color: b.inBrief === false ? undefined : "#FFFFFF" }}
+                  >
+                    요약
+                  </Text>
+                </Pressable>
               </Pressable>
             ))
           )}

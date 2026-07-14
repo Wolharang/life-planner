@@ -12,6 +12,7 @@ import { Link, Stack, useRouter, useFocusEffect } from "expo-router";
 import { alarm } from "@/core/notifications/alarm";
 import { notificationPermissionGranted } from "@/core/notifications/plainReminders";
 import { getSettings, updateSettings } from "@/core/data/settingsRepository";
+import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup";
 import { onAccountChanged, type Account } from "@/core/data/firebase";
 import { evidenceCount, resetEvidence } from "@/core/data/evidence";
@@ -41,6 +42,8 @@ export default function Settings() {
   });
   const [battery, setBattery] = useState(true);
   const [lead, setLead] = useState(0);
+  const [briefOn, setBriefOn] = useState(true);
+  const [briefTime, setBriefTime] = useState("07:00");
   const [leadOpen, setLeadOpen] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,8 +62,20 @@ export default function Settings() {
       notif: await notificationPermissionGranted(),
       overlay: safeBool(() => alarm.canDrawOverlays()),
     });
-    setLead((await getSettings()).defaultLeadMinutes);
+    const st = await getSettings();
+    setLead(st.defaultLeadMinutes);
+    setBriefOn(st.morningBriefOn);
+    setBriefTime(st.morningBriefTime);
   }, []);
+
+  // Any change to the briefing must re-cut the next two weeks of notifications — they carry the day's actual
+  // list, so a stale one would describe a day that no longer exists.
+  const saveBrief = async (patch: { morningBriefOn?: boolean; morningBriefTime?: string }) => {
+    if (patch.morningBriefOn !== undefined) setBriefOn(patch.morningBriefOn);
+    if (patch.morningBriefTime !== undefined) setBriefTime(patch.morningBriefTime);
+    await updateSettings(patch);
+    await rescheduleMorningBrief();
+  };
 
   // Re-read on focus so returning from onboarding / a system settings screen shows fresh status.
   useFocusEffect(

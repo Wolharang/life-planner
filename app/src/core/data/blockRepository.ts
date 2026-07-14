@@ -232,10 +232,23 @@ export async function addBlock(block: TimeBlock): Promise<void> {
   await addBlocks([block]);
 }
 
+/** The 아침 요약 is built from the plan, so it is rebuilt whenever the plan moves. A briefing made from
+ *  yesterday's plan describes a day that no longer exists. Lazy require: morningBrief reads settings + blocks,
+ *  and importing it at module scope would be a cycle. */
+function refreshBrief(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    void require("@/core/notifications/morningBrief").rescheduleMorningBrief();
+  } catch {
+    // notifications unavailable — the briefing is a convenience, never a dependency
+  }
+}
+
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
   await writeBlocks([...(await listBlocks()), ...blocks]);
   for (const b of blocks) await scheduleBlock(b); // write-through (architecture §9-2)
   syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
+  refreshBrief();
 }
 
 /**
@@ -274,6 +287,7 @@ export async function updateBlock(block: TimeBlock): Promise<void> {
   await writeBlocks(blocks.map((b) => (b.id === next.id ? next : b)));
   await scheduleBlock(next); // re-arms the block's ONE alert, or cancels every path
   syncPut("blocks", next);
+  refreshBrief();
 }
 
 /** Was this block part of the plan of record — i.e. committed on an EARLIER day than the one it sits on? */
@@ -315,6 +329,7 @@ export async function deleteBlock(id: string): Promise<void> {
   await writeBlocks(blocks.filter((x) => x.id !== id));
   unscheduleBlock(id); // eviction — no ghost fire behind a deleted block
   syncRemove("blocks", id); // soft-delete tombstone, so the OTHER phone evicts its alarm too (§6)
+  refreshBrief();
 }
 
 /**
@@ -348,6 +363,7 @@ export async function rearmBlockAlarms(): Promise<void> {
   }
 
   for (const b of blocks) await scheduleBlock(b);
+  refreshBrief();
 }
 
 /** A day's blocks in clock order — the day view and My Day both read the day this way. */

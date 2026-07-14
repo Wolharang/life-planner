@@ -207,6 +207,14 @@ export interface TimeBlock {
   alertLeads?: number[];
   /** the 5-second first move (A2) — shown on the execution moment's commit card */
   microStartNote?: string;
+  /**
+   * Include this block in the **아침 요약** — the day's one silent briefing?
+   *
+   * **Undefined means yes**: a block you put in the day is, by default, part of what the day holds. Set false
+   * for the ones that are always there and tell you nothing (a standing 강의, the commute) — *a briefing that
+   * lists everything is a briefing nobody reads by the third day.*
+   */
+  inBrief?: boolean;
   /** calendar bar color (hex). Falls back to the tier's own color. (Absorbed from ImportantEvent, D67.) */
   color?: string;
   memo?: string;
