@@ -14,7 +14,7 @@ import { WebView } from "react-native-webview";
 import { addGym, listGyms } from "@/core/data/gymRepository";
 import { getCurrentFix } from "@/core/geo/location";
 import { KakaoMap, kakaoMapAvailable } from "@/core/geo/KakaoMap";
-import { searchPlaces, kakaoSearchAvailable, type Place } from "@/core/geo/kakaoSearch";
+import { searchPlaces, coordToAddress, formatDistance, kakaoSearchAvailable, type Place } from "@/core/geo/kakaoSearch";
 import { newId } from "@/core/data/id";
 import type { GeoPoint } from "@/core/schedule/autoEval";
 
@@ -49,12 +49,31 @@ export default function PickGym() {
   const [busy, setBusy] = useState(false);
   const [kakaoFailed, setKakaoFailed] = useState(false); // Kakao auth (401) etc. → fall back to OSM, never a blank map
 
-  const [query, setQuery] = useState(""); // 헬스장 이름 검색
+  const [query, setQuery] = useState(""); // 장소/주소 검색
   const [results, setResults] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [centerAddress, setCenterAddress] = useState(""); // what the map is currently looking at (reverse-geocoded)
+  const [phShowAddr, setPhShowAddr] = useState(false); // placeholder alternates: address ↔ guide text
 
   const useKakaoNow = USE_KAKAO && !kakaoFailed;
+
+  // Reverse-geocode the map centre (debounced) so the placeholder can show where the map is looking.
+  useEffect(() => {
+    if (!kakaoSearchAvailable) return;
+    const t = setTimeout(() => {
+      coordToAddress(center).then((a) => a && setCenterAddress(a));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [center]);
+
+  // Alternate the (empty-field) placeholder between the current address and the search hint.
+  useEffect(() => {
+    const i = setInterval(() => setPhShowAddr((v) => !v), 2600);
+    return () => clearInterval(i);
+  }, []);
+
+  const placeholder = phShowAddr && centerAddress ? centerAddress : "장소, 주소 검색";
 
   // Move whichever map is showing — Kakao via the camera prop, OSM via injected JS. Shared by "go to me" and
   // by tapping a search result.
@@ -71,7 +90,7 @@ export default function PickGym() {
     setSearching(true);
     setSearched(true);
     try {
-      setResults(await searchPlaces(q));
+      setResults(await searchPlaces(q, center)); // nearest-first around what the map is looking at
     } finally {
       setSearching(false);
     }
@@ -190,7 +209,7 @@ export default function PickGym() {
                 onChangeText={setQuery}
                 onSubmitEditing={runSearch}
                 returnKeyType="search"
-                placeholder="헬스장 이름으로 검색"
+                placeholder={placeholder}
                 placeholderTextColor="#B0B8C1"
                 className="text-ink"
                 style={{ flex: 1, paddingVertical: 12, fontSize: 15 }}
@@ -231,16 +250,24 @@ export default function PickGym() {
                       <Pressable
                         key={i}
                         onPress={() => pickResult(p)}
+                        className="flex-row items-center"
                         style={{ paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: "#F1F3F5" }}
                       >
-                        <Text className="text-ink" numberOfLines={1} style={{ fontSize: 14.5, fontWeight: "600" }}>
-                          {p.name}
-                        </Text>
-                        {p.address ? (
-                          <Text className="text-grey" numberOfLines={1} style={{ fontSize: 12, marginTop: 2 }}>
-                            {p.address}
+                        <View className="flex-1 pr-2">
+                          <Text className="text-ink" numberOfLines={1} style={{ fontSize: 14.5, fontWeight: "600" }}>
+                            {p.name}
                           </Text>
-                        ) : null}
+                          {p.address ? (
+                            <Text className="text-grey" numberOfLines={1} style={{ fontSize: 12, marginTop: 2 }}>
+                              {p.address}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {p.distanceM != null && (
+                          <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
+                            {formatDistance(p.distanceM)}
+                          </Text>
+                        )}
                       </Pressable>
                     ))}
                   </ScrollView>

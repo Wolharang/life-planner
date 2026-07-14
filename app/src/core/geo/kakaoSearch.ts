@@ -1,9 +1,11 @@
-// Kakao Local — keyword place search (헬스장 이름으로 검색). Separate from the map SDK: a plain REST call to
-// dapi.kakao.com with the REST key, returning places with coordinates. Works no matter which map renders them.
+// Kakao Local — keyword place search (장소/주소 검색) and reverse-geocode (좌표 → 주소). Separate from the map
+// SDK: plain REST calls to dapi.kakao.com with the REST key. Work no matter which map renders the results.
 //
-// The query the user types goes to Kakao; nothing about the account does. Free-tier quota covers personal use.
+// The query the user types (and the map's centre, for sorting) go to Kakao; nothing about the account does.
+// Free-tier quota covers personal use.
 
 import Constants from "expo-constants";
+import type { GeoPoint } from "@/core/schedule/autoEval";
 
 const REST_KEY: string =
   (Constants.expoConfig?.extra as { kakaoRestApiKey?: string } | undefined)?.kakaoRestApiKey ?? "";
@@ -16,32 +18,71 @@ export type Place = {
   address: string;
   lat: number;
   lng: number;
+  /** Metres from the search centre (only when a centre was given, i.e. sorted by distance). */
+  distanceM: number | null;
 };
 
+async function kakaoGet(url: string): Promise<any | null> {
+  try {
+    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${REST_KEY}` } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Search places by keyword. Returns [] on any failure (no key, network, non-OK, malformed) — the caller just
- * shows "결과 없음" rather than an error, so a flaky search never breaks the picker.
+ * Search places by keyword. When `center` is given, results come back **nearest-first** (Kakao `sort=distance`
+ * around the map's centre) with a distance — otherwise a nationwide list is unsortable noise. Returns [] on any
+ * failure, so a flaky search never breaks the picker.
  */
-export async function searchPlaces(query: string): Promise<Place[]> {
+export async function searchPlaces(query: string, center?: GeoPoint): Promise<Place[]> {
   const q = query.trim();
   if (!q || !REST_KEY) return [];
-  try {
-    const res = await fetch(
-      `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=15`,
-      { headers: { Authorization: `KakaoAK ${REST_KEY}` } },
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
-    return docs
-      .map((d) => ({
-        name: String(d.place_name ?? ""),
-        address: String(d.road_address_name || d.address_name || ""),
-        lat: parseFloat(d.y), // Kakao: y = latitude, x = longitude
-        lng: parseFloat(d.x),
-      }))
-      .filter((p) => p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng));
-  } catch {
-    return [];
-  }
+  let url = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=15`;
+  if (center) url += `&x=${center.lng}&y=${center.lat}&sort=distance`;
+  const data = await kakaoGet(url);
+  const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
+  return docs
+    .map((d) => ({
+      name: String(d.place_name ?? ""),
+      address: String(d.road_address_name || d.address_name || ""),
+      lat: parseFloat(d.y), // Kakao: y = latitude, x = longitude
+      lng: parseFloat(d.x),
+      distanceM: d.distance ? parseInt(d.distance, 10) : null,
+    }))
+    .filter((p) => p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng));
+}
+
+function shorten(region1: string): string {
+  return region1
+    .replace("특별자치시", "시")
+    .replace("특별자치도", "도")
+    .replace("특별시", "시")
+    .replace("광역시", "시");
+}
+
+/**
+ * Reverse-geocode a coordinate to a 3-part administrative address ("서울시 마포구 동교동") — what the map is
+ * currently looking at. Prefers the 행정동 (region_type "H"). "" on any failure.
+ */
+export async function coordToAddress(point: GeoPoint): Promise<string> {
+  if (!REST_KEY) return "";
+  const data = await kakaoGet(
+    `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${point.lng}&y=${point.lat}`,
+  );
+  const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
+  const d = docs.find((x) => x.region_type === "H") ?? docs[0];
+  if (!d) return "";
+  const parts = [shorten(String(d.region_1depth_name ?? "")), d.region_2depth_name, d.region_3depth_name].filter(
+    Boolean,
+  );
+  return parts.join(" ");
+}
+
+/** "350m" / "1.2km" for display. */
+export function formatDistance(m: number | null): string {
+  if (m == null) return "";
+  return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
 }
