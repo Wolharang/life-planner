@@ -8,6 +8,7 @@
 //    creation values (data-model §2.3, spec §3.6).
 
 import { loudnessOf, type TimeBlock } from "@/core/data/types";
+import { selfDeviceIdSync } from "@/core/data/deviceId";
 import { alarm } from "@/core/notifications/alarm";
 import { cancelBlockSoftAlert, scheduleBlockSoftAlert } from "@/core/notifications/plainReminders";
 
@@ -51,6 +52,24 @@ export function blockFireAt(block: TimeBlock): number | null {
 }
 
 /**
+ * Does the execution moment belong to **this** phone? (D70)
+ *
+ * `executeOn` is undefined on every block written before D70 — those keep the old behaviour (**every** device),
+ * so nothing silently loses its lever. A block that names nobody (`[]`) would be a block with no lever at all,
+ * which is never what anyone meant, so it too falls back to everywhere.
+ *
+ * If the device id isn't loaded yet (`registerSelf()` hasn't run), we say **yes**. An alarm that fires on the
+ * wrong phone is an annoyance; an alarm that fires on **no** phone is the product failing. Err loud.
+ */
+export function takesTheScreenHere(block: TimeBlock): boolean {
+  const named = block.executeOn;
+  if (!named || named.length === 0) return true;
+  const me = selfDeviceIdSync();
+  if (!me) return true;
+  return named.includes(me);
+}
+
+/**
  * Arm the block's ONE alert (D40), or cancel everything if it has none / is skipped / is already past.
  * The two mechanisms are kept strictly apart (R15): `execution` → the native exact alarm + full-screen
  * moment; `soft` → an ordinary local notification on the quiet channel, which never pierces the lock
@@ -72,6 +91,17 @@ export async function scheduleBlock(block: TimeBlock, now: number = Date.now()):
   if (block.alert === "none") return; // both paths were already cancelled above — that is all a `none` needs
 
   if (block.alert === "execution") {
+    if (!takesTheScreenHere(block)) {
+      // **This phone was not the one named** (D70). Sync means the block is on every device, but the *takeover*
+      // belongs to one: a cue that goes off in three rooms is not a cue, it is a question — "where am I
+      // supposed to do this?" So the other phones **tell** you instead: one buzz and a notification, at the
+      // same moment. Being unaware is a different failure from being interrupted three times.
+      await scheduleBlockSoftAlert(
+        { ...block, alertLeads: [block.alarmLeadMinutes] },
+        blockStartAt(block)
+      );
+      return;
+    }
     alarm.schedule({
       id: block.id,
       fireAt,

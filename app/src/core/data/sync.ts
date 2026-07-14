@@ -49,6 +49,7 @@ interface Syncable {
 const KEYS = {
   // `events` is gone (D67): an "important event" was always just a block that holds an hour. One unit.
   blocks: "lp.blocks.v1",
+  devices: "lp.devices.v1", // which phones this account has (D70) — a block names the one that takes the screen
   expenses: "lp.expenses.v1",
   meals: "lp.meals.v1",
 } as const;

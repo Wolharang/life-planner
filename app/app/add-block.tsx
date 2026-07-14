@@ -17,6 +17,7 @@ import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler"
 import { getSettings } from "@/core/data/settingsRepository";
 import { newId } from "@/core/data/id";
 import { MonthPicker } from "@/ui/MonthPicker";
+import { listDevices, selfDeviceId, type DeviceRecord } from "@/core/data/deviceRepository";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { alarm } from "@/core/notifications/alarm";
 import { loudnessOf, type BlockAlert, type BlockKind, type BlockLoudness } from "@/core/data/types";
@@ -109,6 +110,19 @@ export default function AddBlock() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [calOpen, setCalOpen] = useState(false);
+  // D70 — which phone(s) take the screen. Defaults to this one: you are planning on the phone you are holding.
+  const [devices, setDevices] = useState<DeviceRecord[]>([]);
+  const [selfId, setSelfId] = useState<string | null>(null);
+  const [executeOn, setExecuteOn] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const me = await selfDeviceId();
+      setSelfId(me);
+      setDevices(await listDevices());
+      if (!editId) setExecuteOn([me]);
+    })();
+  }, [editId]);
 
   // New block: pre-fill the cue lead from the personal default (R13/D28).
   useEffect(() => {
@@ -158,6 +172,9 @@ export default function AddBlock() {
       setAlert(b.alert);
       setLoudness(loudnessOf(b));
       setLeads(b.alertLeads?.length ? b.alertLeads : [b.alarmLeadMinutes]);
+      // A pre-D70 block names nobody → it fires everywhere. Show that honestly rather than pretending it was
+      // scoped to a phone the user never chose.
+      setExecuteOn(b.executeOn?.length ? b.executeOn : []);
       setLead(b.alarmLeadMinutes);
       if (!LEAD_PRESET_VALUES.includes(b.alarmLeadMinutes)) {
         setLeadCustomOn(true);
@@ -221,6 +238,8 @@ export default function AddBlock() {
       location: location.trim() || undefined,
       memo: memo.trim() || undefined,
       color: color || undefined,
+      // Empty = every device (the pre-D70 behaviour). Only meaningful for `execution`.
+      executeOn: alert === "execution" && executeOn.length > 0 ? executeOn : undefined,
       alert,
       alertLoudness: loudness,
       alertLeads: alert === "soft" ? sortedLeads : undefined,
@@ -556,6 +575,50 @@ export default function AddBlock() {
                   </Text>
                 </Pressable>
               ))}
+            </View>
+          </View>
+        )}
+
+        {/* 어느 기기에서 실행할까 (D70). Only the execution tier takes a screen, and this only matters once the
+            account has more than one phone. Everything still SYNCS everywhere — only the takeover is addressed;
+            the phones you don't pick still tell you, with one buzz and a notification, at the same moment. */}
+        {alert === "execution" && devices.length > 1 && (
+          <View style={{ marginTop: 22 }}>
+            <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700" }}>
+              어느 기기에서 실행할까요
+            </Text>
+            <Text className="text-grey mt-0.5 mb-2" style={{ fontSize: 12.5, lineHeight: 18 }}>
+              고르지 않은 기기에서도 알림은 와요 (1회 진동). 화면을 뚫고 뜨는 건 고른 기기에서만이에요.
+            </Text>
+            <View style={{ gap: 8 }}>
+              {devices.map((d) => {
+                const on = executeOn.length === 0 || executeOn.includes(d.id);
+                return (
+                  <Pressable
+                    key={d.id}
+                    onPress={() =>
+                      setExecuteOn((prev) => {
+                        const cur = prev.length === 0 ? devices.map((x) => x.id) : prev;
+                        const next = cur.includes(d.id) ? cur.filter((x) => x !== d.id) : [...cur, d.id];
+                        // Naming nobody would be a block with no lever at all — never what anyone meant.
+                        return next.length === 0 ? [d.id] : next;
+                      })
+                    }
+                    className={on ? "bg-brand-soft" : "bg-group"}
+                    style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }}
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <Text className={on ? "text-brand" : "text-grey"} style={{ fontSize: 14, fontWeight: "700" }}>
+                        {d.label}
+                        {d.id === selfId ? " (이 기기)" : ""}
+                      </Text>
+                      <Text className={on ? "text-brand" : "text-faint"} style={{ fontSize: 15, fontWeight: "700" }}>
+                        {on ? "✓" : ""}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         )}

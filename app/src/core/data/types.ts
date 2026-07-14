@@ -210,6 +210,19 @@ export interface TimeBlock {
   /** calendar bar color (hex). Falls back to the tier's own color. (Absorbed from ImportantEvent, D67.) */
   color?: string;
   memo?: string;
+  /**
+   * **Which phones may take the screen** (D70). Only meaningful for `alert: "execution"`.
+   *
+   * Sync made the lever fire on *every* logged-in device at once, and a cue that goes off in three places is
+   * not a cue — it is a question: **"where am I supposed to do this?"** The moment's whole power is that it is
+   * unambiguous. So a block names its phone(s); by default, the one it was created on.
+   *
+   * The phones **not** named still hear about it — one buzz and a notification — because being unaware is a
+   * different failure from being interrupted in three rooms at once.
+   *
+   * `undefined` = **every** device (how blocks behaved before D70; nothing silently loses its lever).
+   */
+  executeOn?: string[];
   // — D-1 snapshot (D23): mirrors the live values while `date` is still in the future, then freezes
   //   on its own once `date` arrives (no midnight job). Evaluation compares against THIS, never the
   //   live values; the alarm always follows the LIVE start − lead.

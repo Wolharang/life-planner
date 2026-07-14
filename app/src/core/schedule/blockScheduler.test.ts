@@ -1,4 +1,5 @@
-import { blockFireAt, freeSlots, pastUnfiredBlocks, scheduleBlock, snapshotFor, todayYmd, unscheduleBlock } from "./blockScheduler";
+import { blockFireAt, freeSlots, pastUnfiredBlocks, scheduleBlock, snapshotFor, takesTheScreenHere, todayYmd, unscheduleBlock } from "./blockScheduler";
+import { setSelfDeviceId } from "@/core/data/deviceId";
 import { alarm } from "@/core/notifications/alarm";
 import type { TimeBlock } from "@/core/data/types";
 
@@ -159,5 +160,27 @@ describe("the tier says what a block IS (D62/D67)", () => {
     scheduleBlock(b, at(2026, 8, 1, 9, 0));
     const scheduled = (alarm.schedule as unknown as { mock: { calls: unknown[][] } }).mock.calls;
     expect(scheduled.some((c) => (c[0] as { id?: string })?.id === "none-block")).toBe(false);
+  });
+});
+
+describe("only the named phone takes the screen (D70)", () => {
+  it("a block that names nobody fires everywhere — nothing silently loses its lever", () => {
+    // Every block written before D70 has no `executeOn`. If that read as "no phone", the lever would vanish on
+    // every device at once — the one failure that is worse than firing in three rooms.
+    expect(takesTheScreenHere(block())).toBe(true);
+    expect(takesTheScreenHere(block({ executeOn: [] }))).toBe(true);
+  });
+
+  it("before this phone knows who it is, it fires anyway", () => {
+    // registerSelf() hasn't run: an alarm on the wrong phone is an annoyance; an alarm on NO phone is the
+    // product failing. Err loud.
+    expect(takesTheScreenHere(block({ executeOn: ["some-other-phone"] }))).toBe(true);
+  });
+
+  it("once identified, only the named phones take over", () => {
+    setSelfDeviceId("phone-a");
+    expect(takesTheScreenHere(block({ executeOn: ["phone-a"] }))).toBe(true);
+    expect(takesTheScreenHere(block({ executeOn: ["phone-b"] }))).toBe(false);
+    expect(takesTheScreenHere(block({ executeOn: ["phone-a", "phone-b"] }))).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import "../global.css";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Text as RNText } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { startSync } from "@/core/data/sync";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
+import { registerSelf } from "@/core/data/deviceRepository";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
 // don't have to thread fontFamily through each node. Instance styles are placed AFTER the base in the
@@ -60,13 +61,25 @@ export default function RootLayout() {
   // is exactly the local-first app it was (D20/R11). The hooks are what make a REMOTE change real on this
   // device: a block created on the other phone must arm its alarm here, or sync would move rows without
   // moving the lever. Alarm reconciliation stays in the repository, as architecture §9-2 requires.
-  useEffect(
-    () =>
-      startSync({
-        blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
-      }),
-    [],
-  );
+  // **Identify this phone BEFORE any alarm is armed** (D70). `scheduleBlock` has to know which device it is on
+  // to decide whether the moment belongs to it; if it doesn't know, it errs loud (fires everywhere) — an alarm
+  // on the wrong phone is an annoyance, an alarm on *no* phone is the product failing. Registering first turns
+  // that fallback from a routine occurrence into the emergency it is meant to be.
+  const [identified, setIdentified] = useState(false);
+  useEffect(() => {
+    registerSelf()
+      .catch(() => {
+        // storage refused — the app still runs; blocks simply fall back to firing everywhere
+      })
+      .finally(() => setIdentified(true));
+  }, []);
+
+  useEffect(() => {
+    if (!identified) return;
+    return startSync({
+      blocks: rearmBlockAlarms, // one unit now (D67) — a remote block arms its own alert here
+    });
+  }, [identified]);
 
   if (!loaded && !error) return null;
 

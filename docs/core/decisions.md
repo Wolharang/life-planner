@@ -14,6 +14,24 @@
 
 ## 2026-07-13 (late) — the two-device test, and what it exposed
 
+### D70. A cue that goes off in three rooms is not a cue — the moment is addressed to ONE phone
+- **The founder, on the two-device test:** with sync working, an `실행` block **fired the full-screen moment on
+  every logged-in phone at once**. Three phones lighting up together does not say *"do it now"* — it asks
+  **"where am I supposed to do this?"** The intervention's entire power is that it is **unambiguous**; three of
+  it is none of it.
+- **Decision.** The account remembers its **devices**, and an `실행` block **names the phone(s) that may take the
+  screen**. Default = **the phone you were holding when you planned it** — you plan on the phone you use.
+  Editable: pick another, or several, or all.
+- **Everything still syncs. Only the takeover is addressed.** The phones you did *not* name still **tell** you —
+  **one buzz + a notification**, at the same moment, on the quiet channel. *Being unaware is a different failure
+  from being interrupted in three rooms at once*, and we refuse both.
+- **Two fallbacks, both deliberately LOUD.** A block with no `executeOn` (everything written before D70) fires
+  **everywhere**; so does a block whose phone hasn't identified itself yet. **An alarm on the wrong phone is an
+  annoyance; an alarm on *no* phone is the product failing.** The device is therefore registered **before any
+  alarm is armed**, so that fallback stays the emergency it is meant to be and never becomes routine.
+- (Confirmed while here: the quiet channel's vibration is `[0, 220, 120, 220]` — **two short buzzes, once**. It
+  does not drone.)
+
 ### D69. The far future has to be reachable — the editor gets a calendar
 - **The gap.** The block editor offered a **21-day chip row** (add mode) and a **‹ › that moved one day at a
   time** (edit mode). So anything genuinely *ahead* — 9월 2일 개강, 12월의 시험, 두 달 뒤의 결혼식 — was in
