@@ -14,7 +14,7 @@
 // comfort the reader.** The comfort belongs on the consent row and in 공지사항; the document must bind. So the
 // tests below hold the documents to the form of an instrument, not just to the truth of their contents.
 
-import { LEGAL_DOCS, LEGAL_ORDER, LEGAL_VERSION, shortDate } from "./legal";
+import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, LEGAL_VERSION, shortDate } from "./legal";
 
 const flatten = (key: (typeof LEGAL_ORDER)[number]) =>
   LEGAL_DOCS[key].blocks.map((b) => (b.t === "list" ? b.items.join(" ") : b.text)).join("\n");
@@ -129,6 +129,24 @@ describe("the policy documents", () => {
       // The location terms' 8세 이하 clause presupposed an account holder the 기관 may refuse.
       expect(text.includes("8세 이하의 아동")).toBe(false);
     }
+
+    // The discretion is exercised by ASKING — at signup, as a tick, recorded with the consent (처리방침 제2조 ④).
+    expect(AGE_CONSENT.startsWith("[필수]")).toBe(true);
+    expect(AGE_CONSENT.includes("만 19세 이상")).toBe(true);
+    expect(flatten("privacy").includes("연령 확인 사실")).toBe(true);
+  });
+
+  it("does not restate in the location terms what the 이용약관 already governs", () => {
+    // 면책 · 손해배상 · 분쟁의 조정 · 기관의 표시 live in 이용약관 제14조–제17조 and govern the whole service, of
+    // which the location feature is a part. **A clause repeated in two documents is a clause that will one day
+    // disagree with itself** — and then the user is bound by whichever half is worse for them.
+    const location = flatten("location");
+    for (const dup of ["(면책)", "(손해배상)", "(분쟁의 조정)", "(기관의 표시)"]) {
+      expect(location.includes(dup)).toBe(false);
+    }
+    const terms = flatten("terms");
+    expect(terms.includes("(서비스의 성격 및 면책)")).toBe(true);
+    expect(terms.includes("(손해배상)")).toBe(true);
   });
 
   it("names the country the data actually goes to — 미국, not a hedge", () => {

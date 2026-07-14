@@ -21,6 +21,8 @@ export interface ConsentRecord {
   version: string;
   /** When each document was agreed to (ms). */
   agreedAt: Partial<Record<LegalKey, number>>;
+  /** They confirmed 만 19세 이상 at signup — 이용약관 제5조's discretion, exercised. Recorded, or it was never asked. */
+  ageConfirmedAt?: number;
   /** Which account it was given for, when there was one. */
   uid?: string;
 }
@@ -36,13 +38,13 @@ export async function getConsent(): Promise<ConsentRecord | null> {
   }
 }
 
-/** Stamp every document as agreed, now, against the version they were shown. */
+/** Stamp every document as agreed, and the age as confirmed, now, against the version they were shown. */
 export async function recordConsent(uid?: string): Promise<ConsentRecord> {
   const now = Date.now();
   const agreedAt: Partial<Record<LegalKey, number>> = {};
   for (const key of LEGAL_ORDER) agreedAt[key] = now;
 
-  const record: ConsentRecord = { version: LEGAL_VERSION, agreedAt, uid };
+  const record: ConsentRecord = { version: LEGAL_VERSION, agreedAt, ageConfirmedAt: now, uid };
   await AsyncStorage.setItem(KEY, JSON.stringify(record));
   return record;
 }

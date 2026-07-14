@@ -22,7 +22,7 @@ import {
   type Account,
 } from "@/core/data/firebase";
 import { syncStats } from "@/core/data/sync";
-import { LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
+import { AGE_CONSENT, LEGAL_DOCS, LEGAL_ORDER, type LegalKey } from "@/content/legal";
 import { consentIsCurrent, recordConsent } from "@/core/data/consentRepository";
 
 type Mode = "signIn" | "signUp";
@@ -48,14 +48,18 @@ export default function AccountScreen() {
     privacy: false,
     location: false,
   });
+  // 이용약관 제5조 lets the 기관 refuse an applicant who is 만 18세 이하 — but a discretion it has no way to
+  // exercise is one in name only. So the applicant confirms it, and the answer is kept with the consent.
+  const [ageOk, setAgeOk] = useState(false);
   const [alreadyConsented, setAlreadyConsented] = useState(false);
   useEffect(() => {
     consentIsCurrent().then(setAlreadyConsented);
   }, []);
 
-  const allTicked = LEGAL_ORDER.every((k) => agreed[k]);
+  const allTicked = ageOk && LEGAL_ORDER.every((k) => agreed[k]);
   const toggleAll = () => {
     const next = !allTicked;
+    setAgeOk(next);
     setAgreed({ terms: next, privacy: next, location: next });
   };
 
@@ -79,7 +83,7 @@ export default function AccountScreen() {
     // consent on file, send them to the 가입 tab rather than quietly minting an account behind the tick boxes.
     if (!alreadyConsented && !allTicked) {
       setMode("signUp");
-      setError("Google로 가입하려면 아래 약관에 모두 동의해 주세요.");
+      setError("Google로 가입하려면 아래 항목에 모두 체크해 주세요.");
       return;
     }
     setBusy(true);
@@ -104,7 +108,7 @@ export default function AccountScreen() {
       return;
     }
     if (mode === "signUp" && !allTicked) {
-      setError("약관에 모두 동의해야 가입할 수 있어요.");
+      setError("필수 항목에 모두 체크해야 가입할 수 있어요.");
       return;
     }
     setBusy(true);
@@ -233,20 +237,35 @@ export default function AccountScreen() {
 
                 <View className="bg-group" style={{ height: 1, marginVertical: 6 }} />
 
+                {/* A statement, not a document — nothing to open, so no 보기 link. */}
+                <Pressable
+                  onPress={() => setAgeOk((v) => !v)}
+                  className="flex-row items-center"
+                  style={{ paddingVertical: 7 }}
+                  hitSlop={{ top: 6, bottom: 6 }}
+                >
+                  <Box on={ageOk} />
+                  <Text className="text-grey" style={{ fontSize: 13.5, marginLeft: 10, flex: 1 }}>
+                    {AGE_CONSENT}
+                  </Text>
+                </Pressable>
+
                 {LEGAL_ORDER.map((key) => (
-                  <View key={key} className="flex-row items-center" style={{ paddingVertical: 7 }}>
+                  // Top-aligned, not centred: the summary wraps to two lines, and a vertically centred 보기
+                  // lands in the middle of the sentence it is meant to open.
+                  <View key={key} className="flex-row items-start" style={{ paddingVertical: 7 }}>
                     <Pressable
                       onPress={() => setAgreed((a) => ({ ...a, [key]: !a[key] }))}
-                      className="flex-row items-center"
+                      className="flex-row items-start"
                       style={{ flex: 1 }}
                       hitSlop={{ top: 6, bottom: 6 }}
                     >
                       <Box on={agreed[key]} />
-                      <View style={{ marginLeft: 10, flex: 1 }}>
-                        <Text className="text-grey" style={{ fontSize: 13.5 }}>
+                      <View style={{ marginLeft: 10, flex: 1, paddingRight: 8 }}>
+                        <Text className="text-grey" style={{ fontSize: 13.5, lineHeight: 20 }}>
                           {LEGAL_DOCS[key].consent}
                         </Text>
-                        <Text className="text-faint" style={{ fontSize: 11.5, marginTop: 2 }}>
+                        <Text className="text-faint" style={{ fontSize: 11.5, lineHeight: 17, marginTop: 2 }}>
                           {LEGAL_DOCS[key].summary}
                         </Text>
                       </View>

@@ -325,7 +325,7 @@ const PRIVACY: LegalDoc = {
       t: "p",
       text: "③ 제2항의 기기 정보는 실행 알람을 표시할 기기를 지정하는 목적으로만 이용하며, 그 밖의 목적으로 이용하지 아니합니다.",
     },
-    { t: "p", text: "④ 약관 동의 이력 : 동의한 문서, 문서의 버전, 동의 일시" },
+    { t: "p", text: "④ 약관 동의 이력 : 동의한 문서, 문서의 버전, 동의 일시, 연령 확인 사실" },
     {
       t: "p",
       text: "⑤ 서비스 이용 과정에서 접속 일시 및 접속 IP 주소가 자동으로 생성·수집됩니다. 이는 제5조의 수탁자가 제공하는 인증 서비스에서 인증 및 보안의 목적으로 생성됩니다.",
@@ -555,26 +555,9 @@ const LOCATION: LegalDoc = {
     },
     { t: "p", text: "⑤ 회원은 기기의 설정에서 위치 접근 권한을 철회함으로써 언제든지 위치정보의 수집을 중단시킬 수 있습니다." },
 
-    { t: "article", text: "제8조 (면책)" },
-    {
-      t: "p",
-      text: "기관은 천재지변, 정전, 위성신호의 오류, 기기의 위치 기능의 장애 등 기관의 귀책사유 없는 사정으로 위치기반서비스가 제공되지 아니하거나 위치정보가 부정확한 경우 그로 인한 손해에 대하여 책임을 지지 아니합니다.",
-    },
-
-    { t: "article", text: "제9조 (손해배상)" },
-    {
-      t: "p",
-      text: "기관이 이 약관에서 정한 보호 조치를 위반하여 회원에게 손해가 발생한 경우, 기관은 그 손해를 배상할 책임을 부담합니다.",
-    },
-
-    { t: "article", text: "제10조 (분쟁의 조정)" },
-    {
-      t: "p",
-      text: "위치정보와 관련된 분쟁에 대하여 당사자 간 협의가 이루어지지 아니한 경우, 회원은 「개인정보 보호법」 제43조에 따라 개인정보분쟁조정위원회에 조정을 신청할 수 있습니다.",
-    },
-
-    { t: "article", text: "제11조 (기관의 표시)" },
-    ...OPERATOR,
+    // 면책 · 손해배상 · 분쟁의 조정 · 기관의 표시 are NOT restated here. 이용약관 제14조부터 제17조까지가 서비스
+    // 전체를 규율하고, 이 약관은 그 일부인 위치기반서비스에 적용됩니다. **A clause repeated in two documents is
+    // a clause that will one day disagree with itself.**
 
     { t: "article", text: "부칙" },
     { t: "p", text: "이 약관은 2026년 7월 14일부터 시행합니다." },
@@ -589,6 +572,16 @@ export const LEGAL_DOCS: Record<LegalKey, LegalDoc> = {
 
 /** The order they are shown in, at signup and in the consent list. */
 export const LEGAL_ORDER: LegalKey[] = ["terms", "privacy", "location"];
+
+/**
+ * **The age check, asked at signup.** 이용약관 제5조 lets the 기관 refuse an applicant who is 만 18세 이하 — but a
+ * discretion it has no way to exercise is a discretion in name only, so the applicant confirms it themselves.
+ *
+ * It is a **statement**, not a document: there is nothing to open and read, so it carries no 보기 link. And it
+ * is recorded with the consent (처리방침 제2조 ④) — an age we asked about and did not keep is one we cannot say
+ * we ever asked about.
+ */
+export const AGE_CONSENT = "[필수] 만 19세 이상입니다";
 
 /** "2026-07-14" → "26. 07. 14." — the form the consent list and the version chip use. */
 export function shortDate(ymd: string): string {
