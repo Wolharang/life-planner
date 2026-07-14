@@ -136,10 +136,16 @@ function fire(work: () => Promise<unknown> | undefined): void {
       () => {
         stats.acked++;
       },
-      () => {
+      (err: any) => {
         // The row is safe locally, and the next session's server reconcile offers it again. This must never
         // reach the user as an error — but it must not vanish from OUR books either.
         stats.failed++;
+
+        // **A refusal can mean the account is gone** (D76). If 탈퇴 happens on the other phone while this one is
+        // mid-sync, nothing here re-runs `enable()` — this device would go on pushing into a closed account
+        // forever, its "아직 올라가지 못한 기록 N건" climbing with no explanation on offer. A permission error is
+        // the first moment we can find out, so we ask.
+        if (String(err?.code ?? "").includes("permission-denied")) void checkClosedNow();
       },
     );
   } catch {
@@ -385,6 +391,27 @@ async function applySnapshot(uid: string, name: CollectionName, snap: any): Prom
 let closedNotice: (() => void) | null = null;
 export function onAccountClosed(fn: () => void): void {
   closedNotice = fn;
+}
+
+/** Ask once, act once. A denied write can also just be a rules mistake — it must not be able to spam the user. */
+let closedCheck: Promise<void> | null = null;
+
+function checkClosedNow(): Promise<void> {
+  const uid = syncingFor;
+  if (!uid) return Promise.resolve();
+  if (closedCheck) return closedCheck;
+
+  closedCheck = accountIsClosed(uid)
+    .then((closed) => {
+      if (!closed || syncingFor !== uid) return;
+      disable();
+      closedNotice?.();
+      void signOut();
+    })
+    .finally(() => {
+      closedCheck = null;
+    });
+  return closedCheck;
 }
 
 function enable(uid: string): void {
