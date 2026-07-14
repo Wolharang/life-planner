@@ -74,6 +74,17 @@ usage; **live numbers are the founder's to read in the console.** Version check 
 **`expo` is 52.0.49 vs 57.x latest, five SDK majors behind.** Flagged as tracked debt; **not** upgraded in a
 security pass, because an Expo bump drags RN + every expo-* package + a native rebuild and on-device re-test. (D81)
 
+**Fifth security pass — notifications (a review, no code change).** Grep found exactly three sources, each with its
+own channel: the **execution alarm** (native, IMPORTANCE_HIGH, bypassDnd, full-screen — the one loud thing, and the
+only one that pierces the lock screen), the **soft reminders** (DEFAULT, never a heads-up, ≤3 per block), and the
+**아침 요약** (silent DEFAULT channel, exactly 1/day at 07:00). **The app sends no advertising at all**, so the
+정보통신망법 야간(21–08) 광고 차단 has no surface — stated precisely because the 07:00 brief *is* inside that window
+and is fine only because it is not an ad. Consent to notify = the OS `POST_NOTIFICATIONS` permission (onboarding;
+graceful denial). Every send is bounded (execution 1 + re-check + ≤3 re-summons; reminders ≤3/block; brief 1/day)
+and there is **no server push**, so no mass-send vector exists. Email SPF/DKIM ride on Firebase's own authenticated
+domain (we run no custom sender domain). Two forward guardrails recorded: adding any promotional notification needs
+a separate opt-in + a 21–08 block, and a custom email domain would make SPF/DKIM/DMARC ours. (D82)
+
 ---
 
 ## 2026-07-14 (day) — the app becomes a service: consent, leaving, and the sync gap that only a briefing could find

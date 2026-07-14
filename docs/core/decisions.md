@@ -14,6 +14,38 @@
 
 ## 2026-07-14 (later) — the security review, and account recovery
 
+### D82. Notifications review — three channels, zero advertising, and the guardrails for the day that changes
+- **Every situation the app posts a notification in, and its channel** (grep-verified, three sources only):
+  - **실행 순간 알람** — native `lp-alarm`, channel **실행 알람**, `IMPORTANCE_HIGH`, `bypassDnd=true`,
+    full-screen intent. **The one loud thing, on purpose** (the lever). Fires at the user's own block time
+    (`start − lead`); one per occurrence + the ~5-min "진짜 했어?" re-check (R7); the moment re-summons itself
+    **bounded at `RESUMMON_MAX = 3` per departure** (D47 "insist, never trap"), then the notification is the way
+    back. Only source that pierces the lock screen (D70/R15).
+  - **부드러운 리마인더** — `plainReminders`, channels **lp-soft-silent/-v1/-sound-v1**, `DEFAULT` importance,
+    `bypassDnd=false`, PRIVATE, **never a heads-up, never the lock screen** (R15 enforced by the channel, not by
+    hope). The block **알림** tier: **up to 3 chosen moments** before a block, user-configured.
+  - **아침 요약** — `morningBrief`, channel **lp-brief-v1**, `DEFAULT`, `sound:null`+`vibration:null` (silence is
+    structural — Android freezes it at channel creation), PRIVATE. **Exactly one per day at 07:00**, empty days
+    produce nothing, a past morning is never re-sent (D78).
+- **야간(21–08) 광고 차단 — N/A, because the app sends NO advertising at all.** All three sources are functional /
+  user-initiated (a cue the user set, reminders the user set, a brief of the user's own day they opted each block
+  into). 정보통신망법 제50조's night rule binds **광고성 정보**, which we do not transmit. **Stated precisely so it
+  is not a surprise later:** the 아침 요약 fires at **07:00 — inside the window — and that is fine because it is not
+  an ad**; likewise an execution alarm may fire at any hour the user scheduled. **The guardrail for the future:**
+  the first time anyone adds a promotional/re-engagement notification, it needs a **separate opt-in AND a 21:00–
+  08:00 block** — that is a legal line, not a preference.
+- **Consent to notify = the OS runtime permission** (`POST_NOTIFICATIONS`, requested at onboarding via
+  `requestNotificationPermission`; denial degrades gracefully — the lever still shows via full-screen intent). No
+  separate 광고 수신 동의 exists **because there is nothing to consent to** — see the guardrail above for when that
+  changes.
+- **Send-count / anti-spam — bounded everywhere, and there is no server push** (so no mass-send vector at all):
+  execution = 1 + one re-check + ≤3 re-summons; reminders = ≤3 per block; brief = 1/day. No loop can run away.
+- **Email SPF/DKIM — rides on Firebase's authenticated domain.** The app sends email **only** through Firebase
+  Auth's built-in templates (verification · reset · email change), from Google's own sending domain
+  (`…@<project>.firebaseapp.com`), for which **Google maintains SPF/DKIM.** We run **no custom sender domain**, so
+  there is nothing for us to configure and deliverability rides on already-authenticated infrastructure. **The day
+  a custom sender domain (or any third-party mail service) is introduced, SPF/DKIM/DMARC on it become ours to set.**
+
 ### D81. API/keys review — the embedded Firebase key is a public identifier, not a secret (and Expo SDK is behind)
 - **There is no server and no browser** — this is a serverless mobile app, so "keep the key server-side" does not
   translate. The only external APIs are **Firebase (Auth + Firestore)** and **Google Sign-In**; grep found **no
