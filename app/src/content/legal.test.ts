@@ -111,18 +111,23 @@ describe("the policy documents", () => {
     expect(location.includes("스스로 부담합니다")).toBe(true);
   });
 
-  it("is an adults-only service, and says so everywhere it must", () => {
-    // 이용약관 제5조: 만 18세 이하 cannot sign up. That single rule deleted a whole article elsewhere — the
-    // location terms' 8세 이하의 아동 등의 보호 clause, whose subject cannot hold an account at all.
-    // **A protection for someone the service refuses to serve is padding, and padding is what makes a document
-    // go unread.**
-    expect(LEGAL_DOCS.terms.consent.includes("만 19세 이상")).toBe(true);
-    expect(flatten("terms").includes("만 18세 이하인 자의 가입을 받지 아니하며")).toBe(true);
-    expect(flatten("privacy").includes("만 18세 이하인 자의 개인정보를 처리하지 아니합니다")).toBe(true);
+  it("keeps the age rule a discretion, and invents no duty out of it", () => {
+    const terms = flatten("terms");
 
+    // 제5조 lets the 기관 **승낙하지 아니할 수 있다**. It does not vow to refuse, and it does not bind itself to
+    // hunt down and delete such an account.
+    expect(terms.includes("만 18세 이하인 경우")).toBe(true);
+    expect(terms.includes("승낙하지 아니할 수 있습니다")).toBe(true);
+
+    // **Do not invent obligations on the 기관's behalf.** Every one of these was written by me, asked for by
+    // nobody, and is a promise someone could later hold the 기관 to.
     for (const key of LEGAL_ORDER) {
-      expect(flatten(key).includes("8세 이하의 아동")).toBe(false);
-      expect(flatten(key).includes("만 14세")).toBe(false);
+      const text = flatten(key);
+      expect(text.includes("성인을 대상으로")).toBe(false);
+      expect(text.includes("가입을 받지 아니하며")).toBe(false);
+      expect(text.includes("만 18세 이하임이 확인된 경우")).toBe(false); // the deletion duty I made up
+      // The location terms' 8세 이하 clause presupposed an account holder the 기관 may refuse.
+      expect(text.includes("8세 이하의 아동")).toBe(false);
     }
   });
 

@@ -35,8 +35,10 @@ export default function NoticesScreen() {
         <Text className="text-ink" style={{ fontSize: 26, fontWeight: "700", marginBottom: 6 }}>
           공지사항
         </Text>
+        {/* A notice board says what is new — it does not introduce itself, and it is not a lobby for the
+            terms. (The terms' 제3조 ③ duty to post changes here is met by posting them, not by advertising it.) */}
         <Text className="text-grey" style={{ fontSize: 14, lineHeight: 21, marginBottom: 20 }}>
-          약관이 바뀌면 시행 전에 여기에 먼저 알려드려요.
+          새로 바뀐 것을 여기에 적어요.
         </Text>
 
         {NOTICES.length === 0 ? (

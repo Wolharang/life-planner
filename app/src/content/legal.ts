@@ -24,10 +24,12 @@
 //     not safer for being broad; it is simply **wrong**. If the database is ever moved to another region, 제6조
 //     changes in the same commit and `LEGAL_VERSION` bumps — the user consented to *where their data goes*.
 //
-// **Adults only (founder, 2026-07-14).** 이용약관 제5조: the service is for adults, and **만 18세 이하** cannot
-// sign up. That one rule collapses a whole clause elsewhere — the location terms' **8세 이하의 아동 등의 보호**
-// article is gone, because an 8-year-old cannot hold an account in the first place. *A protection for someone
-// the service refuses to serve is not protection; it is padding, and padding is what makes a document unread.*
+// **Age: a discretion, not a vow (founder, 2026-07-14).** 이용약관 제5조 lets the 기관 **승낙하지 아니할 수
+// 있다** when the applicant is 만 18세 이하. I first wrote it as "성인 대상 서비스" plus a duty to *지체 없이
+// 파기* such an account — **neither of which anyone asked for.** *Do not invent obligations on the 기관's behalf:
+// every one of them is a promise someone can later hold it to.* The location terms' **8세 이하의 아동 등의 보호**
+// article is still gone, because that clause presupposes an 8-year-old account holder — which the 기관 may
+// refuse, and which the feature does not exist for.
 //
 // **On 위치정보 (founder, 2026-07-14):** 위치정보법 제9조's 신고 duty binds those who provide such a service
 // **사업으로 영위** — as a business. This service is free and is not one, so it **cannot** file, and the
@@ -80,8 +82,8 @@ const TERMS: LegalDoc = {
   key: "terms",
   title: "서비스 이용약관",
   effectiveDate: EFFECTIVE,
-  consent: "[필수] 만 19세 이상이며, 서비스 이용약관에 동의합니다",
-  summary: "성인 대상 서비스예요. 어떤 조건으로 제공하고, 알림에 대해 무엇을 책임지는지",
+  consent: "[필수] 서비스 이용약관에 동의합니다",
+  summary: "서비스를 어떤 조건으로 제공하고, 알림에 대해 무엇을 책임지는지",
   blocks: [
     { t: "chapter", text: "제1장 총칙" },
 
@@ -134,12 +136,8 @@ const TERMS: LegalDoc = {
       text: "③ 계정은 동기화 기능의 제공을 위한 것입니다. 회원이 아닌 이용자도 동기화 기능을 제외한 서비스의 모든 기능을 이용할 수 있습니다.",
     },
 
-    { t: "article", text: "제5조 (성인 대상 서비스 및 가입의 제한)" },
-    {
-      t: "p",
-      text: "① 서비스는 성인을 대상으로 제공됩니다. 기관은 만 18세 이하인 자의 가입을 받지 아니하며, 만 18세 이하인 자의 개인정보를 처리하지 아니합니다.",
-    },
-    { t: "p", text: "② 기관은 다음 각 호에 해당하는 경우 가입 신청을 승낙하지 아니할 수 있습니다." },
+    { t: "article", text: "제5조 (가입의 제한)" },
+    { t: "p", text: "기관은 다음 각 호에 해당하는 경우 가입 신청을 승낙하지 아니할 수 있습니다." },
     {
       t: "list",
       items: [
@@ -148,10 +146,6 @@ const TERMS: LegalDoc = {
         "3. 이 약관을 위반하여 이용계약이 해지된 사실이 있는 경우",
         "4. 서비스의 기술적 사정으로 승낙이 곤란한 경우",
       ],
-    },
-    {
-      t: "p",
-      text: "③ 가입 후 회원이 만 18세 이하임이 확인된 경우 기관은 이용계약을 해지하고 해당 회원의 개인정보를 지체 없이 파기합니다.",
     },
 
     { t: "article", text: "제6조 (탈퇴 및 이용계약의 해지)" },
@@ -460,11 +454,8 @@ const PRIVACY: LegalDoc = {
       ],
     },
 
-    { t: "article", text: "제13조 (아동 및 청소년의 개인정보)" },
-    {
-      t: "p",
-      text: "서비스는 성인을 대상으로 제공됩니다. 기관은 만 18세 이하인 자의 가입을 받지 아니하며, 만 18세 이하인 자의 개인정보를 처리하지 아니합니다.",
-    },
+    { t: "article", text: "제13조 (아동의 개인정보)" },
+    { t: "p", text: "기관은 만 14세 미만 아동의 개인정보를 처리하지 아니합니다." },
 
     { t: "article", text: "제14조 (개인정보 처리방침의 변경)" },
     {
