@@ -17,6 +17,9 @@ import { exportBackup, importBackup, type ImportMode } from "@/core/data/backup"
 import { onAccountChanged, type Account } from "@/core/data/firebase";
 import { evidenceCount, resetEvidence } from "@/core/data/evidence";
 import { eraseAllRecords } from "@/core/data/erase";
+import { listGyms, addGym, removeGym } from "@/core/data/gymRepository";
+import { getCurrentFix, requestBackgroundLocationPermission, backgroundLocationGranted } from "@/core/geo/location";
+import type { Gym } from "@/core/schedule/autoEval";
 import { Sheet, ConfirmSheet } from "@/ui/Sheet";
 
 const LEADS = [
@@ -43,6 +46,42 @@ export default function Settings() {
   const [battery, setBattery] = useState(true);
   const [lead, setLead] = useState(0);
   const [briefOn, setBriefOn] = useState(true);
+
+  // 운동 자동 판정 (GPS). Saved gyms are device-local (coordinates never sync); the raw fixes are compared and
+  // discarded, so only the derived 성공/미스 leaves the phone.
+  const [gyms, setGyms] = useState<Gym[]>([]);
+  const [bgGranted, setBgGranted] = useState(true);
+  const [gymBusy, setGymBusy] = useState(false);
+  const [gymNote, setGymNote] = useState("");
+  useEffect(() => {
+    listGyms().then(setGyms);
+    backgroundLocationGranted().then(setBgGranted);
+  }, []);
+  const addHereAsGym = async () => {
+    if (gymBusy) return;
+    setGymBusy(true);
+    setGymNote("");
+    try {
+      const fix = await getCurrentFix();
+      if (!fix) {
+        setGymNote("현재 위치를 가져오지 못했어요. 위치 권한과 GPS를 확인해 주세요.");
+        return;
+      }
+      const next = await addGym({ id: String(Date.now()), label: `헬스장 ${gyms.length + 1}`, ...fix });
+      setGyms(next);
+      // Setting up auto-eval → nudge the "항상 허용" the t=15 sample needs, but only if not already granted.
+      if (!(await backgroundLocationGranted())) {
+        setBgGranted(await requestBackgroundLocationPermission());
+      } else {
+        setBgGranted(true);
+      }
+    } finally {
+      setGymBusy(false);
+    }
+  };
+  const dropGym = async (id: string) => {
+    setGyms(await removeGym(id));
+  };
   const [leadOpen, setLeadOpen] = useState(false);
   const [leadCustom, setLeadCustom] = useState("");
   const [busy, setBusy] = useState(false);
@@ -466,6 +505,80 @@ export default function Settings() {
               )}
             </Row>
           </Pressable>
+        </View>
+
+        {/* 운동 자동 판정 (GPS). Only workout/run 실행 blocks. Coordinates stay on the phone (device-local),
+            the raw fixes are compared then discarded — only the derived 성공/미스 ever syncs. */}
+        <GroupLabel>운동 자동 판정</GroupLabel>
+        <View className="bg-surface" style={{ borderRadius: 18, overflow: "hidden" }}>
+          <Row>
+            <View className="flex-1 pr-3">
+              <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
+                헬스장 위치
+              </Text>
+              <Text className="text-grey mt-0.5" style={{ fontSize: 13, lineHeight: 19 }}>
+                헬스·러닝 실행 블록에서, 실제로 움직였는지 위치로 자동 판정해요. 헬스장은 가만히 있어도 성공이에요. 위치는 이 기기에만 저장돼요.
+              </Text>
+            </View>
+          </Row>
+
+          {gyms.map((g) => (
+            <View key={g.id}>
+              <Divider />
+              <Row>
+                <View className="flex-1 pr-3">
+                  <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600" }}>
+                    {g.label}
+                  </Text>
+                  <Text className="text-faint mt-0.5" style={{ fontSize: 12 }}>
+                    {g.lat.toFixed(4)}, {g.lng.toFixed(4)}
+                  </Text>
+                </View>
+                <Pressable onPress={() => dropGym(g.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text className="text-grey" style={{ fontSize: 13, textDecorationLine: "underline" }}>
+                    삭제
+                  </Text>
+                </Pressable>
+              </Row>
+            </View>
+          ))}
+
+          <Divider />
+          <Pressable onPress={addHereAsGym} disabled={gymBusy}>
+            <Row>
+              <View className="flex-1 pr-3">
+                <Text className="text-brand" style={{ fontSize: 15, fontWeight: "700" }}>
+                  {gymBusy ? "현재 위치를 확인하는 중…" : "현재 위치를 헬스장으로 추가"}
+                </Text>
+                {gymNote ? (
+                  <Text className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 18 }}>
+                    {gymNote}
+                  </Text>
+                ) : null}
+              </View>
+            </Row>
+          </Pressable>
+
+          {gyms.length > 0 && !bgGranted && (
+            <>
+              <Divider />
+              <Pressable onPress={async () => setBgGranted(await requestBackgroundLocationPermission())}>
+                <Row>
+                  <View className="flex-1 pr-3">
+                    <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600" }}>
+                      위치 ‘항상 허용’ 켜기
+                    </Text>
+                    <Text className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 18 }}>
+                      운동 15분 뒤 마지막 확인은 앱이 꺼져 있어도 위치가 필요해요. 없으면 자동 판정이 부정확할 수 있어요.
+                    </Text>
+                  </View>
+                  <Text className="text-warn" style={{ fontSize: 14, fontWeight: "600" }}>
+                    필요
+                  </Text>
+                </Row>
+              </Pressable>
+            </>
+          )}
         </View>
 
         {/* 데이터 */}
