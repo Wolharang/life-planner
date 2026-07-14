@@ -29,7 +29,7 @@ prototype's design/foundations** — its exact state is captured in `docs/resear
 | Confirmed decisions (D-log) | `docs/core/decisions.md` |
 | **Completed prototype (foundation · archived)** | `docs/research/prototype/` — PRD, build-log, plan, test-checklist, user-flows, **`PROTOTYPE-STATE.md`** |
 | Personas · research / analysis | `docs/research/` (personas/, essence, features/, competitive-analysis, hmw, information-architecture, …) |
-| **Legal — the shipped policy text (canonical)** | **`reference/`** (repo root, *not* `docs/`) — `terms-of-service.md` · `privacy-policy.md` · `locate-policy.md`. Also holds the founder's source apps (`calculator.js`, `kcal.js`). **Edit a policy → `cd app && npm run legal:sync`**, or the drift test fails the build (D71). |
+| **Legal — the shipped policy text** | **`app/src/content/legal.ts` IS the document** (D71) — structured, not markdown. `reference/*.md` (repo root) holds the founder's **superseded drafts**; they are no longer shipped. **Change a policy → edit `legal.ts`, bump `LEGAL_VERSION`, add a 공지사항** (the terms oblige advance notice). A new field that leaves the phone belongs in 개인정보 처리방침 제2조 **in the same commit**. |
 
 `docs/core/` = the essential **full-app** product truth; `docs/research/` = everything else (personas, analysis,
 process) **and the completed-prototype archive** (`docs/research/prototype/`). Keep `docs/core/` lean.

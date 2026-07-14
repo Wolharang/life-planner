@@ -188,3 +188,7 @@ LifePlanner(이하 '기관'이라고 함)은 기관에서 제공하는 서비스
 **[부칙] (시행일)**
 
 이 개인정보처리방침은 2026년 ○월 ○일부터 시행합니다.
+
+<!-- SUPERSEDED (2026-07-14, D71). This draft is no longer shipped. The policy the app actually shows is
+     authored in `app/src/content/legal.ts`; this file is kept as the source it was drawn from. Editing it
+     changes nothing the user sees. -->

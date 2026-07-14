@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import { NOTICES } from "@/content/notices";
-import { DocText } from "@/ui/DocText";
+import { LegalBody } from "@/ui/LegalBody";
 
 export default function NoticesScreen() {
   const router = useRouter();
@@ -80,7 +80,7 @@ export default function NoticesScreen() {
 
                 {on && (
                   <View style={{ marginTop: 12 }}>
-                    <DocText body={n.body} />
+                    <LegalBody blocks={n.body} />
                   </View>
                 )}
               </Pressable>

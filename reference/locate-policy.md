@@ -198,3 +198,7 @@ LifePlanner
 부 칙
 
 제1조 (시행일) 이 약관은 2000년 00월 00일부터 시행합니다.
+
+<!-- SUPERSEDED (2026-07-14, D71). This draft is no longer shipped. The policy the app actually shows is
+     authored in `app/src/content/legal.ts`; this file is kept as the source it was drawn from. Editing it
+     changes nothing the user sees. -->

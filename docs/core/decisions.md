@@ -14,29 +14,36 @@
 
 ## 2026-07-14 — the app becomes a service someone else could use
 
-### D71. Consent is a record, not a tick box — and the words must be the words we keep
-- **The founder wrote the three policy documents** (`reference/terms-of-service.md`, `privacy-policy.md`,
-  `locate-policy.md`). Signup now asks for them: **three lines, one per document**, plus 전체 동의.
-- **필수 / 필수 / 선택.** 이용약관 and 개인정보처리방침 gate signup. **위치기반서비스 is optional on purpose**: the
-  app collects **no location today**, and the feature it exists for — *spotting that you actually walked into
-  the gym* (privacy-policy §8; a planned feature, D-later) — is not built. **Gating signup on a permission we
-  never ask for would be extracting a consent we have no use for.** The 만 14세 floor the terms themselves impose
-  (제4조 2항 1호) rides on the 이용약관 line rather than taking a row of its own.
+### D71. The app IS the policy document — and it may only claim the collection it actually performs
+- **Signup asks for all three, and all three are 필수** (founder, 2026-07-14): 서비스 이용약관 · 개인정보 처리방침 ·
+  위치기반서비스 이용약관. Effective **2026-07-14**.
+- **`app/src/content/legal.ts` is the document.** The first attempt baked the founder's `reference/*.md` drafts
+  into the bundle and rendered their markdown. That was wrong twice over: **the drafts leaked their own
+  scaffolding onto the screen** (`(초안)` in the title; `## 8.` on *two different clauses*), and **they described
+  an app we never built** — 결제 기록, IMEI, Mac Address, 체중·신장·프로필 사진, 협력회사로부터의 제공, 팩스 수집.
+- ***A privacy policy that claims collection we do not perform is not caution — it is a false statement about
+  the user's data***, and it takes on duties we never owed. So 제2조 was rewritten from the code that actually
+  collects: 이메일/비밀번호 또는 Google uid · blocks · expenses · meals · **기기 이름** (D70 uploads it, so the user
+  is owed the sentence) · 동의 기록 · Firebase의 접속 기록/IP. Nothing else. `legal.test.ts` **fails the build** if
+  a never-collected term (IMEI, 결제, 사진, …) appears anywhere but in a sentence that denies it — and if any 조
+  number repeats, which is exactly how the draft ended up with two 제8조.
+- **The drafts in `reference/` are superseded**, kept as the source they were drawn from. The generator and its
+  drift test are gone: there is no copy to drift, because there is no copy.
+- **Location: 필수 동의, zero collection.** The app requests no location permission today. The document says so
+  in its own opening note, and says the consent will be re-confirmed *at the device permission* when the feature
+  it exists for — spotting that you actually walked into the gym — is built.
 - **Google is gated too.** For a first-time user, "Google로 계속하기" is not a login — **it is the signup**. Gate
-  only the email form and an account gets minted with no consent behind it. Pressing it with no consent on file
-  now moves them to the 가입 tab instead of quietly creating the account.
-- **The tick is recorded** (`lp.consent.v1`: which documents, when, and the **version of the words they saw**).
-  A tick that leaves no trace is theatre — we could not later say we have consent, nor tell whether the text
-  they agreed to is the text we still ship. A `LEGAL_VERSION` bump is therefore *what re-asks them*.
-- **The shipped text cannot drift from the canonical text.** The app can't read a repo file at runtime, so
-  `scripts/sync-legal.js` bakes `reference/*.md` into the bundle and **`legal.generated.test.ts` fails the build
-  if the copy and the source disagree**. *Consent to a document we no longer have on file is not consent.*
-- **공지사항 is not decoration — the terms oblige it** (제3조 3항: a change is announced **in-app**, 7 days ahead,
-  30 if it disadvantages the user). Without that screen the app could not keep its own terms. It is a **static,
-  in-bundle list**: a notice you cannot read offline is worse than one shipped in the binary.
-- **The four links sit quiet at the bottom of 계정.** Nothing on that shelf helps you do the thing at 7am.
-  Findable when looked for, invisible when not — but *reachable*, because consent you can only read once, while
-  trying to get past it, is not really available at all.
+  only the email form and an account gets minted with no consent behind it at all.
+- **The tick is recorded** (`lp.consent.v1`: **per document**, when, and the **version of the words they saw**).
+  A tick that leaves no trace is theatre — we could not say we have consent, nor tell whether the text they
+  agreed to is the text we still ship. A `LEGAL_VERSION` bump is *what re-asks them*. The per-document date is
+  what the 동의 내역 screen shows on each row.
+- **공지사항 is not decoration — the terms oblige it** (제3조 2항: a change is announced **in-app**, 7 days ahead,
+  30 if it disadvantages the user). Without that screen the app could not keep its own terms. Static and
+  in-bundle: a notice you cannot read offline is worse than one shipped in the binary.
+- **The links sit quiet at the bottom of 계정.** Nothing on that shelf helps you do the thing at 7am. Findable
+  when looked for, invisible when not — but *reachable*, because consent you can only read once, while trying to
+  get past it, is not really available at all.
 
 ## 2026-07-13 (late) — the two-device test, and what it exposed
 
