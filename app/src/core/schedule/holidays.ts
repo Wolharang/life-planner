@@ -1,10 +1,10 @@
 // Korean public holidays (관공서 공휴일) — the "red days" the calendar colours and names.
 //
-// **Source of truth is now synced** (D89): a GitHub Action pulls the Kakao holidays API and publishes a
-// {date: name} map to Firestore; each device caches it (`holidaySync.ts`) and feeds it here via
-// `applySyncedHolidays`. `holidayName` consults the synced map first. The hand-maintained table below is only
-// the **offline / first-run / no-Firebase fallback** — so a fresh install or an offline phone still shows the
-// obvious holidays before the first sync lands.
+// **Source of truth is now synced** (D89): a Cloudflare Worker (Cron Trigger) pulls the Kakao holidays API into
+// KV and serves a {date: name} map at a public URL; each device fetches + caches it (`holidaySync.ts`) and feeds
+// it here via `applySyncedHolidays`. `holidayName` consults the synced map first. The hand-maintained table below
+// is only the **offline / first-run / not-yet-wired fallback** — so a fresh install or an offline phone still
+// shows the obvious holidays before the first sync lands.
 //
 // Fallback shape:
 //   · **Fixed solar** dates recur every year → keyed by "MM-DD".

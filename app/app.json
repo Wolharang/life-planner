@@ -79,7 +79,8 @@
       },
       "eas": {
         "projectId": "c2e60ce5-73dd-45d2-a78a-65ce1c99d5b3"
-      }
+      },
+      "holidaysUrl": ""
     },
     "icon": "./assets/icon.png"
   }

@@ -13,16 +13,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // **Public reference data (holidays), the one deliberate exception to "own documents only".**
-    // `/config/holidays_meta` (a version int) and `/config/holidays_data` (a {date: name} map) are the Korean
-    // public-holiday table, refreshed by the GitHub Actions sync (D89). It carries **no personal data**, and
-    // the app must read it while **logged out** (D20), so it is world-readable. Clients never write it — the
-    // only writer is the Action's Admin SDK, which bypasses these rules; `if false` keeps every device out.
-    match /config/{doc} {
-      allow read: if true;
-      allow write: if false;
-    }
-
     match /users/{uid} {
       // The owner, and only the owner. `request.auth == null` (logged out) fails this, so an
       // unauthenticated client can read nothing at all.

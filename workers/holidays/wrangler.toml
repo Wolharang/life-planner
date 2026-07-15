@@ -1,0 +1,19 @@
+name = "lp-holidays"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Cron Triggers are UTC. Subtract 9h from the desired KST time.
+# Weekly, Monday 05:00 KST → Sunday 20:00 UTC. Holidays are announced far ahead, so weekly is ample; add more
+# lines (e.g. "0 8 * * *" = 17:00 KST daily) if you want.
+[triggers]
+crons = ["0 20 * * SUN"]
+
+# Create the namespace once with:  wrangler kv namespace create HOLIDAYS
+# then paste the printed id below.
+[[kv_namespaces]]
+binding = "HOLIDAYS"
+id = "PUT_KV_NAMESPACE_ID_HERE"
+
+# Secrets are NOT set here — they are set out-of-band and stay encrypted:
+#   wrangler secret put KAKAO_ADMIN_KEY
+#   wrangler secret put REFRESH_TOKEN
