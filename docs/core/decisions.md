@@ -38,7 +38,9 @@
   dedicated **순서 바꾸기** screen for that day, where rows are **dragged by a ≡ handle** to reorder. The order
   is stored as an optional `sortIndex` on Expense/MealEntry (lower = higher; absent = timestamp, newest first)
   and **synced** — `reorderExpenses`/`reorderMeals` stamp it, bump `updatedAt`, and `syncPut` each row, so the
-  other phones get the new order (putPayload carries the new field automatically).
+  other phones get the new order (putPayload carries the new field automatically). **Revision**: a freshly-added
+  row on a manually-ordered day has no `sortIndex` yet and **floats to the top** by timestamp (arranged rows keep
+  their order below) — it originally sank to the bottom, which read as "the new entry ignored its time".
 - **Scope**: reorder is **within a single day** (days stay chronological). Drag uses **PanResponder** (the
   calendar-resize primitive) — **no** gesture-handler / draggable-flatlist dependency, so no prebuild.
 - **Rationale**: Founder wanted the 식사 breakdown shown as vivid colour bars like 지출, and the ability to

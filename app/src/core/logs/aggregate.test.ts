@@ -64,6 +64,14 @@ describe("expenses", () => {
     // manual order wins, regardless of timestamp
     const ordered = day.map((e) => ({ ...e, sortIndex: { x: 0, y: 1, z: 2 }[e.id]! }));
     expect(byDay(ordered)[0].items.map((e) => e.id)).toEqual(["x", "y", "z"]);
+
+    // a freshly-added row (no sortIndex) on a manually-ordered day floats to the TOP by timestamp,
+    // keeping the arranged rows in order below (D92 revision — it must not sink to the bottom).
+    const withNew = [
+      ...ordered,
+      exp({ id: "new", date: "2026-08-05", timestamp: 99 }), // no sortIndex
+    ];
+    expect(byDay(withNew)[0].items.map((e) => e.id)).toEqual(["new", "x", "y", "z"]);
   });
 
   it("formats KRW the way the reference app did", () => {

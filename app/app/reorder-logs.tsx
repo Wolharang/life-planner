@@ -19,10 +19,16 @@ const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
 type Row = Expense | MealEntry;
-const within = (a: Row, b: Row) =>
-  a.sortIndex != null || b.sortIndex != null
-    ? (a.sortIndex ?? Number.MAX_SAFE_INTEGER) - (b.sortIndex ?? Number.MAX_SAFE_INTEGER)
-    : b.timestamp - a.timestamp;
+// Same order the list uses (aggregate.withinDay): unarranged rows float to the top by timestamp, arranged rows
+// keep their manual order below.
+const within = (a: Row, b: Row) => {
+  const ai = a.sortIndex,
+    bi = b.sortIndex;
+  if (ai == null && bi == null) return b.timestamp - a.timestamp;
+  if (ai == null) return -1;
+  if (bi == null) return 1;
+  return ai - bi;
+};
 
 function title(date: string): string {
   const [y, m, d] = date.split("-").map(Number);

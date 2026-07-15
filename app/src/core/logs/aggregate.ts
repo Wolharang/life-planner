@@ -41,13 +41,16 @@ export function categoryDistribution(expenses: Expense[]): { category: Expense["
 /** Day sections (newest day first, newest entry first within a day) — the reference apps' SectionList. */
 // Within a day, honour a manual `sortIndex` (set by long-press reorder, D92) when present — lower first.
 // A day the user never reordered has none, so it falls back to timestamp descending (newest first), the
-// reference apps' default. A day that WAS reordered has sortIndex on every item; a freshly-added row (no
-// index yet) sorts to the bottom (MAX_SAFE_INTEGER) until the day is reordered again.
+// reference apps' default. On a day that WAS reordered, a **freshly-added row has no index yet** — it floats to
+// the **top** by timestamp (newest first), above the manually-arranged rows, which keep their order below. (It
+// used to sink to the bottom, which read as "the new entry ignored its time" — D92 revised.)
 function withinDay<T extends { timestamp: number; sortIndex?: number }>(a: T, b: T): number {
-  if (a.sortIndex != null || b.sortIndex != null) {
-    return (a.sortIndex ?? Number.MAX_SAFE_INTEGER) - (b.sortIndex ?? Number.MAX_SAFE_INTEGER);
-  }
-  return b.timestamp - a.timestamp;
+  const ai = a.sortIndex,
+    bi = b.sortIndex;
+  if (ai == null && bi == null) return b.timestamp - a.timestamp; // both unarranged → newest first
+  if (ai == null) return -1; // a is new/unarranged → floats above arranged rows
+  if (bi == null) return 1;
+  return ai - bi; // both arranged → by manual order
 }
 
 export function byDay<T extends { date: string; timestamp: number; sortIndex?: number }>(
