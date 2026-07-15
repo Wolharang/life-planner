@@ -23,9 +23,13 @@ import {
 import { isSkipped } from "@/core/schedule/blockScheduler";
 import { onSyncApplied } from "@/core/data/sync";
 import { isExecution, todayYmd } from "@/core/schedule/blockScheduler";
+import { inBrief } from "@/core/notifications/morningBrief";
+import { holidayName } from "@/core/schedule/holidays";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const BRAND = "#3182F6";
+const HOLIDAY_RED = "#E5484D"; // Sundays + official holidays; a refined red, calendar convention (not the
+// no-guilt outcome red — that rule is about 성공/미스, D78). Saturdays use BRAND blue.
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -60,28 +64,26 @@ export default function Calendar() {
   useEffect(() => onSyncApplied(reload), [reload]);
 
   /**
-   * **The month grid must show the whole day, not half of it.**
+   * **The month grid shows only what the morning briefing shows** — the day's *important* events, named.
    *
-   * It drew bars for `ImportantEvent` only, so a block — the thing that actually *takes* an hour of your day —
-   * left the calendar blank. You could add 강의 as a block, look at the month, see a free afternoon, and plan a
-   * workout straight into it. **A calendar that hides half your commitments is worse than no calendar**: it
-   * doesn't merely omit, it actively tells you the day is free.
-   *
-   * That is also the whole reason D62 brought `없음` back — a block is *an hour that is taken*. An hour that is
-   * taken has to be visible where you look for free hours.
-   *
-   * Events and blocks stay separate entities (data-model §2.2); only the *drawing* is unified.
+   * The grid used to draw every block, including the 없음-tier ones that merely hold an hour (강의, 이동, 알바).
+   * On a busy day that filled every cell with grey bars and buried the one thing you actually look for — 진마켓,
+   * 병원, a 약속. So the month now mirrors the **아침 요약**: a block appears here **iff `inBrief(b)`** (the same
+   * flag the day-detail 요약 toggle sets). Fill-in blocks still live on the day — they show in the detail panel
+   * below and in 하루 설계 — they just don't clutter the month. Each shown event is a compact chip (its colour,
+   * its title), like a real calendar, not an anonymous bar.
    */
   const blocksByDate = groupBlocksByDate(blocks);
-  const marksFor = (key: string) => {
-    const bs = (blocksByDate[key] ?? []).map((b) => ({
-      id: b.id,
-      // The lever's blocks read as the brand; a block that only holds the hour reads as neutral weight. Gold
-      // is never spent here — it marks ONE thing, and that is a DONE (design-system §1.1).
-      color: b.color || (isSkipped(b) ? "#D1D6DB" : b.alert === "execution" ? BRAND : "#B0B8C1"),
-    }));
-    return bs;
-  };
+  const marksFor = (key: string) =>
+    (blocksByDate[key] ?? [])
+      .filter(inBrief)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .map((b) => ({
+        id: b.id,
+        title: b.title,
+        // The lever's blocks read as the brand; a soft alert reads as neutral weight; a skipped one greys out.
+        color: b.color || (isSkipped(b) ? "#B0B8C1" : b.alert === "execution" ? BRAND : "#8B95A1"),
+      }));
   const cells = monthCells(view.y, view.m);
 
   const shiftMonth = (delta: number) => {
@@ -117,6 +119,7 @@ export default function Calendar() {
   };
   const [sy, sm, sd] = selected.split("-").map(Number);
   const selWeekday = WD[new Date(sy, sm - 1, sd).getDay()];
+  const selHoliday = holidayName(selected);
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
@@ -155,60 +158,95 @@ export default function Calendar() {
         ))}
       </View>
 
-      {/* square month grid — swipe left/right to change month (R1) */}
+      {/* month grid — taller cells so events show as compact named chips; swipe left/right to change month (R1) */}
       <View className="flex-row flex-wrap px-2" {...swipe.panHandlers}>
         {cells.map((c) => {
           const isToday = c.key === today;
           const isSelected = c.key === selected;
-          const marks = marksFor(c.key);
+          const holiday = holidayName(c.key);
+          // Number colour: a red holiday wins over Saturday (Korean convention — the founder's rule); then
+          // Sunday red, Saturday blue, weekday ink. Out-of-month days fade.
+          const numColor = !c.inMonth
+            ? "#C4CBD4"
+            : holiday || c.weekday === 0
+              ? HOLIDAY_RED
+              : c.weekday === 6
+                ? BRAND
+                : "#191F28";
+          // Holiday chip first (named, red), then the day's briefing events — capped, with a +N overflow.
+          const chips = [
+            ...(holiday ? [{ id: `h-${c.key}`, title: holiday, color: HOLIDAY_RED }] : []),
+            ...marksFor(c.key),
+          ];
+          const shown = chips.slice(0, 3);
+          const overflow = chips.length - shown.length;
           return (
             <Pressable
               key={c.key}
               onPress={() => setSelected(c.key)}
-              style={{ width: "14.2857%", aspectRatio: 1, padding: 2.5 }}
+              style={{ width: "14.2857%", aspectRatio: 0.64, padding: 2 }}
             >
               <View
                 style={{
                   flex: 1,
-                  borderRadius: 10,
-                  padding: 4,
+                  borderRadius: 9,
+                  paddingHorizontal: 3,
+                  paddingTop: 3,
+                  paddingBottom: 2,
                   backgroundColor: isSelected ? "#E8F3FF" : "transparent",
+                  // A red holiday carries a red border, as the founder asked.
+                  borderWidth: holiday ? 1 : 0,
+                  borderColor: holiday ? `${HOLIDAY_RED}80` : "transparent",
                 }}
               >
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: isToday ? BRAND : "transparent",
-                  }}
-                >
-                  <Text
+                <View style={{ alignItems: "center" }}>
+                  <View
                     style={{
-                      fontSize: 12.5,
-                      fontWeight: isToday || isSelected ? "700" : "500",
-                      color: isToday ? "#FFFFFF" : c.inMonth ? "#191F28" : "#B0B8C1",
+                      minWidth: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      paddingHorizontal: 4,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: isToday ? BRAND : "transparent",
                     }}
                   >
-                    {c.day}
-                  </Text>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: isToday || isSelected ? "700" : "500",
+                        color: isToday ? "#FFFFFF" : numColor,
+                      }}
+                    >
+                      {c.day}
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={{ flex: 1 }} />
-
-                {marks.slice(0, 3).map((m) => (
-                  <View
-                    key={m.id}
-                    style={{ height: 5, borderRadius: 3, marginTop: 2, backgroundColor: m.color }}
-                  />
-                ))}
-                {marks.length > 3 && (
-                  <Text className="text-grey" style={{ fontSize: 9, fontWeight: "600", marginTop: 1 }}>
-                    +{marks.length - 3}
-                  </Text>
-                )}
+                <View style={{ marginTop: 2, gap: 1.5 }}>
+                  {shown.map((m) => (
+                    <View
+                      key={m.id}
+                      style={{
+                        borderRadius: 3,
+                        backgroundColor: `${m.color}26`,
+                        borderWidth: 0.5,
+                        borderColor: `${m.color}66`,
+                        paddingHorizontal: 2,
+                        paddingVertical: 0.5,
+                      }}
+                    >
+                      <Text numberOfLines={1} style={{ fontSize: 8.5, fontWeight: "600", color: m.color, letterSpacing: -0.3 }}>
+                        {m.title}
+                      </Text>
+                    </View>
+                  ))}
+                  {overflow > 0 && (
+                    <Text className="text-grey" style={{ fontSize: 8, fontWeight: "600", marginLeft: 2 }}>
+                      +{overflow}
+                    </Text>
+                  )}
+                </View>
               </View>
             </Pressable>
           );
@@ -220,6 +258,9 @@ export default function Calendar() {
         <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
           <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
             {sm}월 {sd}일 <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600" }}>{selWeekday}</Text>
+            {selHoliday && (
+              <Text style={{ fontSize: 13.5, fontWeight: "700", color: HOLIDAY_RED }}> · {selHoliday}</Text>
+            )}
           </Text>
           <Link href={{ pathname: "/add-block", params: { date: selected } }} asChild>
             <Pressable className="bg-brand rounded-full px-3.5 py-1.5">

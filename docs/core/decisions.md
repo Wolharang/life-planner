@@ -12,6 +12,25 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Calendar redesign
+
+### D88. The month grid shows only briefing events (named chips), with Korean holidays
+- **The month shows a block iff `inBrief(b)`** — the same flag the 아침 요약 uses. This **narrows D67**: D67 put
+  *every* block on the calendar (a taken hour must be visible), but on a real week that filled every cell with
+  anonymous grey bars and buried the events you actually scan a month for (진마켓, 병원, 약속). The founder's
+  call: the month mirrors the briefing — important, named — while fill-in (없음-tier / 요약에서 뺀) blocks stay
+  off the grid. **They are not lost**: the day-detail panel and 하루 설계 still list every block, and the 요약
+  toggle there is where you move a block on/off the month. So the grid stops "telling you the day is free" by
+  omission *and* stops drowning the signal.
+- **Cells are taller; events render as compact named chips** (colour-tinted fill + same-colour title, ~8.5pt),
+  like the founder's 진마켓 mock — not bars. Date numbers shrank to make room. Up to 3 chips + "+N".
+- **Korean holidays** (`src/core/schedule/holidays.ts`): fixed-solar every year + a hand-maintained
+  lunar/substitute table (2025–2026, extend yearly — no lunar math, a wrong computed date is worse than a
+  known table). A red holiday colours its number red, draws a **red border**, and shows its **name as a red
+  chip**; the selected-day header names it too.
+- **Weekday colours**: Sunday + holidays red, Saturday blue. **Holiday red outranks Saturday blue** when they
+  overlap (현충일 on a Saturday shows red), per the founder's rule and Korean convention.
+
 ## 2026-07-15 — Launch screen + Logs icon refresh
 
 ### D87. Expense/meal glyphs → custom line icons; 뷰티 replaced by 의료
