@@ -281,9 +281,6 @@ export default function Calendar() {
                   paddingTop: 3,
                   paddingBottom: 2,
                   backgroundColor: isSelected ? "#E8F3FF" : "transparent",
-                  // A red holiday carries a red border, as the founder asked.
-                  borderWidth: holiday ? 1 : 0,
-                  borderColor: holiday ? `${HOLIDAY_RED}80` : "transparent",
                 }}
               >
                 <View style={{ alignItems: "center" }}>
