@@ -96,10 +96,18 @@ export default {
     const url = new URL(req.url);
 
     // Manual populate/refresh (e.g. right after deploy): /refresh?key=<REFRESH_TOKEN>. Guarded so it can't be
-    // triggered by anyone — it would otherwise spend 60 Kakao calls on demand.
+    // triggered by anyone — it would otherwise spend 60 Kakao calls on demand. Errors are returned as JSON
+    // (e.g. a Kakao 401/403 from an IP restriction) instead of surfacing as a bare Cloudflare 1101.
     if (url.pathname === "/refresh") {
       if (url.searchParams.get("key") !== env.REFRESH_TOKEN) return new Response("forbidden", { status: 403 });
-      return Response.json(await refresh(env));
+      try {
+        return Response.json(await refresh(env));
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), {
+          status: 502,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      }
     }
 
     // Default: serve the holiday payload to devices, ETag-conditional so unchanged fetches return 304.
