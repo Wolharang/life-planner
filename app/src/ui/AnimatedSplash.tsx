@@ -6,8 +6,8 @@
 // revealed by animating strokeDashoffset from its full length to 0 — the classic draw-on. react-native-svg +
 // Reanimated were already deps, so this adds nothing.
 //
-// Calm by design (the no-guilt ethos): slow, single-pass strokes and a gentle per-letter rise — no bounce, no
-// confetti. Total ≈ 2.3s, then a soft fade-out.
+// Calm but brisk (the no-guilt ethos, minus the dawdle): single-pass strokes and a per-letter rise — no bounce,
+// no confetti — kept to ≈ 1.2s so it reads once and gets out of the way on every launch.
 import { useEffect } from "react";
 import { StyleSheet, View, Dimensions } from "react-native";
 import Animated, {
@@ -62,17 +62,19 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const cover = useSharedValue(1); // whole-overlay opacity for the final fade
 
   useEffect(() => {
-    // 1) the ring draws itself, 2) the ticks, 3) the checkmark — each overlapping the last so it reads as one
-    // continuous drawing motion.
-    ring.value = withTiming(0, { duration: 560, easing: Easing.inOut(Easing.quad) });
-    ticks.value = withDelay(480, withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) }));
-    check.value = withDelay(720, withTiming(0, { duration: 360, easing: Easing.out(Easing.cubic) }));
-    // 4) the wordmark is written on, one letter at a time.
-    wordN.value = withDelay(1050, withTiming(WORD.length, { duration: 780, easing: Easing.inOut(Easing.quad) }));
-    // 5) hold, then fade out and hand control to the app.
+    // Kept deliberately BRISK (~1.2s total): the launch animation must clear fast and hand off to the app — an
+    // intro the user sees on every open should read once and get out of the way. The three strokes overlap
+    // heavily so the clock still reads as "drawn" without dwelling.
+    // 1) ring, 2) ticks, 3) checkmark — overlapping into one continuous drawing motion.
+    ring.value = withTiming(0, { duration: 340, easing: Easing.out(Easing.quad) });
+    ticks.value = withDelay(240, withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }));
+    check.value = withDelay(380, withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }));
+    // 4) the wordmark writes on, one letter at a time (starts before the clock fully finishes).
+    wordN.value = withDelay(480, withTiming(WORD.length, { duration: 440, easing: Easing.inOut(Easing.quad) }));
+    // 5) a hair of hold, then a quick fade-out that hands control to the app.
     cover.value = withDelay(
-      2000,
-      withTiming(0, { duration: 360, easing: Easing.in(Easing.quad) }, (finished) => {
+      980,
+      withTiming(0, { duration: 240, easing: Easing.in(Easing.quad) }, (finished) => {
         if (finished) runOnJS(onFinish)();
       }),
     );

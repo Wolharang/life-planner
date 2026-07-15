@@ -18,7 +18,7 @@ import { registerSelf } from "@/core/data/deviceRepository";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
 // don't have to thread fontFamily through each node. Instance styles are placed AFTER the base in the
-// array, so any explicit fontFamily (e.g. the execution moment's GowunBatang serif) still wins.
+// array, so any explicit fontFamily set on a node (e.g. the launch wordmark's Baloo2) still wins.
 // Defensive: only patch when Text.render is really a function, only wrap valid elements, and never let a
 // failure here take the app down (a font default must not be able to crash rendering).
 try {
@@ -50,14 +50,15 @@ try {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  // Family names here are what the global patch / execution serif reference. We load only the Regular
-  // cut of each family (bold is synthesized from fontWeight) — the extra weight files were never
-  // referenced by family name, so loading them only cost startup memory/time. Keeping it lean.
+  // **Block first paint on ONLY the fonts the first frame needs** — this gate is the blank-white time before
+  // the launch animation can even start, so every byte here delays startup. Pretendard = the app body face;
+  // Baloo2 = the launch wordmark. We deliberately do NOT load GowunBatang here: it's an 8.4 MB serif that no JS
+  // screen actually references (the execution moment is a native activity with its own font), so blocking cold
+  // start on it bought nothing but a longer white screen. If a JS screen ever needs the serif, load it lazily
+  // (Font.loadAsync) so it never gates launch again.
   const [loaded, error] = useFonts({
     Pretendard: require("../assets/fonts/Pretendard-Regular.ttf"),
-    GowunBatang: require("../assets/fonts/GowunBatang-Regular.ttf"),
-    // Rounded display face — used ONLY for the launch-screen wordmark (the LifePlanner logo). Not the app body.
-    Baloo2: require("../assets/fonts/Baloo2-Bold.ttf"),
+    Baloo2: require("../assets/fonts/Baloo2-Bold.ttf"), // launch wordmark only, not the app body
   });
 
   // Hide the NATIVE splash once fonts resolve (or fail — never hang the app on a font error). The JS
