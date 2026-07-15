@@ -53,6 +53,19 @@ describe("expenses", () => {
     expect(byDay(inMonth(all, "2026-08")).map((s) => s.date)).toEqual(["2026-08-03", "2026-08-01"]);
   });
 
+  it("within a day, defaults to newest first but honours a manual sortIndex (D92)", () => {
+    const day = [
+      exp({ id: "x", date: "2026-08-05", timestamp: 10 }),
+      exp({ id: "y", date: "2026-08-05", timestamp: 30 }),
+      exp({ id: "z", date: "2026-08-05", timestamp: 20 }),
+    ];
+    // no sortIndex → timestamp descending
+    expect(byDay(day)[0].items.map((e) => e.id)).toEqual(["y", "z", "x"]);
+    // manual order wins, regardless of timestamp
+    const ordered = day.map((e) => ({ ...e, sortIndex: { x: 0, y: 1, z: 2 }[e.id]! }));
+    expect(byDay(ordered)[0].items.map((e) => e.id)).toEqual(["x", "y", "z"]);
+  });
+
   it("formats KRW the way the reference app did", () => {
     expect(won(20000)).toBe("20,000원");
   });

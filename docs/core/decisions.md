@@ -12,6 +12,20 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Logs: meal colour bar + drag reorder
+
+### D92. Long-press to reorder a day's 지출/식사 rows (synced), + a meal-kcal colour bar
+- **Decision**: (a) The 식사 summary gains a **colour distribution bar** of the day's logged kcal per meal
+  (아침/점심/저녁/간식 in `MEAL_COLOR`), mirroring 지출's category bar. (b) A row can be **long-pressed** to open a
+  dedicated **순서 바꾸기** screen for that day, where rows are **dragged by a ≡ handle** to reorder. The order
+  is stored as an optional `sortIndex` on Expense/MealEntry (lower = higher; absent = timestamp, newest first)
+  and **synced** — `reorderExpenses`/`reorderMeals` stamp it, bump `updatedAt`, and `syncPut` each row, so the
+  other phones get the new order (putPayload carries the new field automatically).
+- **Scope**: reorder is **within a single day** (days stay chronological). Drag uses **PanResponder** (the
+  calendar-resize primitive) — **no** gesture-handler / draggable-flatlist dependency, so no prebuild.
+- **Rationale**: Founder wanted the 식사 breakdown shown as vivid colour bars like 지출, and the ability to
+  reorder already-added entries by long-press, reflected across devices.
+
 ## 2026-07-15 — Logs colour (category palette + amount highlight)
 
 ### D91. 지출 category palette → vivid, well-spread hues; notable amounts turn soft blue

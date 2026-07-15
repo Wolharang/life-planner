@@ -39,7 +39,20 @@ export function categoryDistribution(expenses: Expense[]): { category: Expense["
 }
 
 /** Day sections (newest day first, newest entry first within a day) — the reference apps' SectionList. */
-export function byDay<T extends { date: string; timestamp: number }>(items: T[]): { date: string; items: T[] }[] {
+// Within a day, honour a manual `sortIndex` (set by long-press reorder, D92) when present — lower first.
+// A day the user never reordered has none, so it falls back to timestamp descending (newest first), the
+// reference apps' default. A day that WAS reordered has sortIndex on every item; a freshly-added row (no
+// index yet) sorts to the bottom (MAX_SAFE_INTEGER) until the day is reordered again.
+function withinDay<T extends { timestamp: number; sortIndex?: number }>(a: T, b: T): number {
+  if (a.sortIndex != null || b.sortIndex != null) {
+    return (a.sortIndex ?? Number.MAX_SAFE_INTEGER) - (b.sortIndex ?? Number.MAX_SAFE_INTEGER);
+  }
+  return b.timestamp - a.timestamp;
+}
+
+export function byDay<T extends { date: string; timestamp: number; sortIndex?: number }>(
+  items: T[],
+): { date: string; items: T[] }[] {
   const by = new Map<string, T[]>();
   for (const i of items) {
     const arr = by.get(i.date);
@@ -47,7 +60,7 @@ export function byDay<T extends { date: string; timestamp: number }>(items: T[])
     else by.set(i.date, [i]);
   }
   return [...by.entries()]
-    .map(([date, list]) => ({ date, items: list.slice().sort((a, b) => b.timestamp - a.timestamp) }))
+    .map(([date, list]) => ({ date, items: list.slice().sort(withinDay) }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 

@@ -9,6 +9,7 @@ import { View, Text, Pressable, SectionList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
@@ -76,6 +77,12 @@ export default function Logs() {
     resetView(d.getFullYear(), d.getMonth());
   };
   const goToday = () => resetView(now.getFullYear(), now.getMonth());
+
+  // Long-press a row → reorder that day's rows (D92). Drag+drop with sync lives on a dedicated screen.
+  const openReorder = (date: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    router.push({ pathname: "/reorder-logs", params: { tab, date } } as never);
+  };
 
   const monthExpenses = inMonth(expenses, month);
   const monthMeals = inMonth(meals, month);
@@ -206,6 +213,14 @@ export default function Logs() {
                 {summary.total}
                 <Text style={{ fontSize: 15, fontWeight: "700" }}> / {DAILY_KCAL_TARGET}kcal</Text>
               </Text>
+              {/* meal distribution bar — proportion of the day's logged kcal per meal (like 지출's bar) */}
+              {MEAL_TYPES.some((m) => summary.byMeal[m].kcal > 0) && (
+                <View className="flex-row overflow-hidden" style={{ height: 8, borderRadius: 4, marginTop: 14 }}>
+                  {MEAL_TYPES.filter((m) => summary.byMeal[m].kcal > 0).map((m) => (
+                    <View key={m} style={{ flex: summary.byMeal[m].kcal, backgroundColor: MEAL_COLOR[m] }} />
+                  ))}
+                </View>
+              )}
               <View style={{ marginTop: 10, gap: 4 }}>
                 {MEAL_TYPES.map((m) => {
                   const s = summary.byMeal[m];
@@ -255,9 +270,14 @@ export default function Logs() {
             <ExpenseRow
               e={item as Expense}
               onPress={() => router.push({ pathname: "/add-expense", params: { id: item.id } })}
+              onLongPress={() => openReorder((item as Expense).date)}
             />
           ) : (
-            <MealRow m={item as MealEntry} onPress={() => router.push({ pathname: "/add-meal", params: { id: item.id } })} />
+            <MealRow
+              m={item as MealEntry}
+              onPress={() => router.push({ pathname: "/add-meal", params: { id: item.id } })}
+              onLongPress={() => openReorder((item as MealEntry).date)}
+            />
           )
         }
         ListEmptyComponent={
@@ -289,9 +309,9 @@ export default function Logs() {
   );
 }
 
-function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
+function ExpenseRow({ e, onPress, onLongPress }: { e: Expense; onPress: () => void; onLongPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} className="flex-row items-center" style={{ paddingVertical: 9 }}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={280} className="flex-row items-center" style={{ paddingVertical: 9 }}>
       <View
         className="items-center justify-center"
         style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${CATEGORY_COLOR[e.category]}2E` }}
@@ -313,9 +333,9 @@ function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
   );
 }
 
-function MealRow({ m, onPress }: { m: MealEntry; onPress: () => void }) {
+function MealRow({ m, onPress, onLongPress }: { m: MealEntry; onPress: () => void; onLongPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} className="flex-row items-center" style={{ paddingVertical: 9 }}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={280} className="flex-row items-center" style={{ paddingVertical: 9 }}>
       <View
         className="items-center justify-center"
         style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${MEAL_COLOR[m.mealType]}2E` }}

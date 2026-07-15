@@ -82,6 +82,8 @@ export interface Expense {
   /** 결제수단 — free text (D26) */
   payment?: string;
   memo?: string;
+  /** Manual within-day display order (D92). Absent = fall back to timestamp (newest first). Lower = higher. */
+  sortIndex?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -102,6 +104,8 @@ export interface MealEntry {
   detail?: string;
   /** manual entry only — no barcode / calorie DB (D27) */
   kcal: number;
+  /** Manual within-day display order (D92). Absent = fall back to timestamp (newest first). Lower = higher. */
+  sortIndex?: number;
   createdAt: number;
   updatedAt: number;
 }

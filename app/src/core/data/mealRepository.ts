@@ -44,6 +44,24 @@ export async function updateMeal(meal: MealEntry): Promise<void> {
   syncPut("meals", meal);
 }
 
+/** Persist a manual within-day order (D92) — see reorderExpenses. */
+export async function reorderMeals(orderedIds: string[]): Promise<void> {
+  const rank = new Map(orderedIds.map((id, i) => [id, i]));
+  const now = Date.now();
+  const all = await listMeals();
+  const touched: MealEntry[] = [];
+  const next = all.map((m) => {
+    const i = rank.get(m.id);
+    if (i == null || m.sortIndex === i) return m;
+    const updated = { ...m, sortIndex: i, updatedAt: now };
+    touched.push(updated);
+    return updated;
+  });
+  if (touched.length === 0) return;
+  await saveMeals(next);
+  for (const m of touched) syncPut("meals", m);
+}
+
 export async function deleteMeal(id: string): Promise<void> {
   const all = await listMeals();
   await saveMeals(all.filter((m) => m.id !== id));

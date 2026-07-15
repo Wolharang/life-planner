@@ -48,6 +48,25 @@ export async function updateExpense(expense: Expense): Promise<void> {
   syncPut("expenses", expense);
 }
 
+/** Persist a manual within-day order (D92): stamp `sortIndex` by position, bump `updatedAt`, and mirror each
+ *  reordered row up so the new order reaches the other phones (putPayload carries the new field). */
+export async function reorderExpenses(orderedIds: string[]): Promise<void> {
+  const rank = new Map(orderedIds.map((id, i) => [id, i]));
+  const now = Date.now();
+  const all = await listExpenses();
+  const touched: Expense[] = [];
+  const next = all.map((e) => {
+    const i = rank.get(e.id);
+    if (i == null || e.sortIndex === i) return e;
+    const updated = { ...e, sortIndex: i, updatedAt: now };
+    touched.push(updated);
+    return updated;
+  });
+  if (touched.length === 0) return;
+  await saveExpenses(next);
+  for (const e of touched) syncPut("expenses", e);
+}
+
 export async function deleteExpense(id: string): Promise<void> {
   const all = await listExpenses();
   await saveExpenses(all.filter((e) => e.id !== id));
