@@ -228,6 +228,34 @@ async function writeBlocks(blocks: TimeBlock[]): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(blocks));
 }
 
+const COLOR_MIGRATION_FLAG = "lp.migrate.blockColorBlue.v1";
+
+/** One-time (D94): give every colourless block the default blue and mirror it up, so existing calendar events —
+ *  which stored no colour and rendered grey — become blue on every device. Runs once per device; a block the user
+ *  later clears stays cleared (the flag stops it re-colouring), and the render fallback (calendar) covers any
+ *  block that arrives from another device after this ran. Best-effort: never blocks startup. */
+export async function migrateBlockColorsToBlue(): Promise<void> {
+  try {
+    if (await AsyncStorage.getItem(COLOR_MIGRATION_FLAG)) return;
+    const blocks = await listBlocks();
+    const now = Date.now();
+    const touched: TimeBlock[] = [];
+    const next = blocks.map((b) => {
+      if (b.color) return b;
+      const u = { ...b, color: "#3182F6", updatedAt: now };
+      touched.push(u);
+      return u;
+    });
+    if (touched.length > 0) {
+      await writeBlocks(next);
+      syncPutMany("blocks", touched); // mirror the recoloured blocks up (no-op when logged out)
+    }
+    await AsyncStorage.setItem(COLOR_MIGRATION_FLAG, "1");
+  } catch {
+    // a failed colour backfill must never take down startup
+  }
+}
+
 export async function addBlock(block: TimeBlock): Promise<void> {
   await addBlocks([block]);
 }

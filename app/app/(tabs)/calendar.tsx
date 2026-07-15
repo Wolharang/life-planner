@@ -175,7 +175,7 @@ export default function Calendar() {
         id: b.id,
         title: b.title,
         // The lever's blocks read as the brand; a soft alert reads as neutral weight; a skipped one greys out.
-        color: b.color || (isSkipped(b) ? "#B0B8C1" : b.alert === "execution" ? BRAND : "#8B95A1"),
+        color: b.color || (isSkipped(b) ? "#B0B8C1" : BRAND), // colourless blocks default to blue (D94)
       }));
   const cells = monthCells(view.y, view.m);
 
@@ -490,7 +490,7 @@ export default function Calendar() {
                     height: 10,
                     borderRadius: 5,
                     marginTop: 4,
-                    backgroundColor: b.color || (b.alert === "execution" ? BRAND : "#B0B8C1"),
+                    backgroundColor: b.color || BRAND, // colourless blocks default to blue (D94)
                   }}
                 />
                 <View className="flex-1" style={{ marginLeft: 11 }}>

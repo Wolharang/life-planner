@@ -11,7 +11,7 @@ import { Sheet } from "@/ui/Sheet";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
-import { rearmBlockAlarms } from "@/core/data/blockRepository";
+import { rearmBlockAlarms, migrateBlockColorsToBlue } from "@/core/data/blockRepository";
 import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { registerBackgroundSync } from "@/core/notifications/backgroundSync";
 import { registerSelf } from "@/core/data/deviceRepository";
@@ -85,6 +85,12 @@ export default function RootLayout() {
   // docs are world-readable — so it runs on its own, and never blocks anything if Firebase is absent.
   useEffect(() => {
     void initHolidays();
+  }, []);
+
+  // One-time backfill: colourless calendar blocks → default blue (D94). Local write persists now; a later
+  // login reconcile pushes the newer rows to the server. Safe pre-login (syncPutMany no-ops until signed in).
+  useEffect(() => {
+    void migrateBlockColorsToBlue();
   }, []);
 
   const [identified, setIdentified] = useState(false);

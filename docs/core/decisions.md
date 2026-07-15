@@ -59,6 +59,19 @@
   varied colours, and the reference app's blue amount emphasis. These are decorative identity colours on the
   Logs surface only — no execution-moment / no-guilt semantics are touched.
 
+## 2026-07-15 — Calendar blocks default to blue
+
+### D94. New calendar blocks default to blue; existing colourless blocks are backfilled to blue (synced)
+- **Decision**: A new time-block's colour defaults to **blue `#3182F6`** (add-block), and the calendar's
+  colourless-block **render fallback** is blue too (was grey `#8B95A1` for non-execution blocks; skipped blocks
+  stay muted `#B0B8C1`). A **one-time per-device migration** (`migrateBlockColorsToBlue`, flag
+  `lp.migrate.blockColorBlue.v1`) stamps blue on every block that stored no colour, bumps `updatedAt`, and
+  mirrors it up — so the **existing events on the server become blue on every device**. A block the user later
+  clears stays cleared (the flag stops re-colouring); the render fallback covers any block synced in after the
+  migration ran.
+- **Rationale**: Founder: colourless events read as drab grey; wanted new events blue by default and the
+  existing (colourless) ones changed to blue, reflected across devices.
+
 ## 2026-07-15 — Grey background lightened
 
 ### D90. The grey BACKGROUND fill is lightened >½ toward white (not the text)

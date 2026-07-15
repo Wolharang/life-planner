@@ -101,7 +101,7 @@ export default function AddBlock() {
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
-  const [color, setColor] = useState("");
+  const [color, setColor] = useState("#3182F6"); // blue by default (D94)
   const [alert, setAlert] = useState<BlockAlert>("execution"); // the lever is the default (D43)
   const [loudness, setLoudness] = useState<BlockLoudness>("vibrate"); // D65 — 무음/진동/소리
   const [leads, setLeads] = useState<number[]>([0]); // soft only: the moments the user picked (D45)
