@@ -29,27 +29,25 @@ function googleWebClientId() {
 // The Kakao **native app key** for the map SDK. Like the Google id above it is a public identifier (protected by
 // the console's package-name + key-hash registration, not a secret), but it is a project identifier, so it lives
 // in the **gitignored** `kakao.json` rather than tracked source. Absent → the app falls back to the OSM map.
-function kakaoKeys() {
+function kakaoNativeKey() {
   try {
-    const k = JSON.parse(fs.readFileSync(path.join(__dirname, "kakao.json"), "utf8"));
-    return { nativeAppKey: k.nativeAppKey || "", restApiKey: k.restApiKey || "" };
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "kakao.json"), "utf8")).nativeAppKey || "";
   } catch {
-    return { nativeAppKey: "", restApiKey: "" };
+    return "";
   }
 }
 
 module.exports = ({ config }) => {
-  const kakao = kakaoKeys();
   return {
     ...config,
     extra: {
       ...config.extra,
       googleWebClientId: googleWebClientId(),
-      kakaoNativeAppKey: kakao.nativeAppKey,
-      // The Local (place-search) REST key. Unlike the native key it is NOT protected by a key-hash — embedded in
-      // a client it is extractable — so it rides Kakao's free search quota and is fine for personal use, but it
-      // is a real key: keep it in gitignored kakao.json, never tracked source.
-      kakaoRestApiKey: kakao.restApiKey,
+      // Only the **native map key** is shipped — it is key-hash protected (useless without our keystore), the
+      // standard Kakao model. The **REST (place-search) key is NOT** bundled (D93): it is not key-hash protected,
+      // so a public APK would leak it. Place search instead goes through the Cloudflare Worker (`kakaoProxyUrl`),
+      // which holds the REST key as a secret — so this build is safe to distribute openly.
+      kakaoNativeAppKey: kakaoNativeKey(),
     },
   };
 };

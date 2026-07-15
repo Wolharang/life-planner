@@ -1,17 +1,19 @@
 // Kakao Local — keyword place search (장소/주소 검색) and reverse-geocode (좌표 → 주소). Separate from the map
-// SDK: plain REST calls to dapi.kakao.com with the REST key. Work no matter which map renders the results.
+// SDK: plain REST calls to Kakao's dapi.kakao.com. Work no matter which map renders the results.
 //
-// The query the user types (and the map's centre, for sorting) go to Kakao; nothing about the account does.
-// Free-tier quota covers personal use.
+// **The REST key is NOT in the app (D93).** These go through our Cloudflare Worker (`kakaoProxyUrl`), which holds
+// the key as a secret and relays the request to Kakao — so a publicly-distributed APK leaks no key. The query the
+// user types (and the map's centre, for sorting) pass through the Worker to Kakao without being stored; nothing
+// about the account is sent. Free-tier quota covers personal use.
 
 import Constants from "expo-constants";
 import type { GeoPoint } from "@/core/schedule/autoEval";
 
-const REST_KEY: string =
-  (Constants.expoConfig?.extra as { kakaoRestApiKey?: string } | undefined)?.kakaoRestApiKey ?? "";
+const PROXY: string =
+  (Constants.expoConfig?.extra as { kakaoProxyUrl?: string } | undefined)?.kakaoProxyUrl ?? "";
 
-/** Is search available in this build (a REST key is present)? `false` → the search box is hidden. */
-export const kakaoSearchAvailable = REST_KEY.length > 0;
+/** Is search available in this build (a proxy URL is configured)? `false` → the search box is hidden. */
+export const kakaoSearchAvailable = PROXY.length > 0;
 
 export type Place = {
   name: string;
@@ -22,9 +24,10 @@ export type Place = {
   distanceM: number | null;
 };
 
-async function kakaoGet(url: string): Promise<any | null> {
+async function kakaoGet(pathAndQuery: string): Promise<any | null> {
+  if (!PROXY) return null;
   try {
-    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${REST_KEY}` } });
+    const res = await fetch(`${PROXY}${pathAndQuery}`);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -39,10 +42,10 @@ async function kakaoGet(url: string): Promise<any | null> {
  */
 export async function searchPlaces(query: string, center?: GeoPoint): Promise<Place[]> {
   const q = query.trim();
-  if (!q || !REST_KEY) return [];
-  let url = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=15`;
-  if (center) url += `&x=${center.lng}&y=${center.lat}&sort=distance`;
-  const data = await kakaoGet(url);
+  if (!q || !PROXY) return [];
+  let path = `/kakao/keyword?query=${encodeURIComponent(q)}&size=15`;
+  if (center) path += `&x=${center.lng}&y=${center.lat}&sort=distance`;
+  const data = await kakaoGet(path);
   const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
   return docs
     .map((d) => ({
@@ -68,10 +71,8 @@ function shorten(region1: string): string {
  * currently looking at. Prefers the 행정동 (region_type "H"). "" on any failure.
  */
 export async function coordToAddress(point: GeoPoint): Promise<string> {
-  if (!REST_KEY) return "";
-  const data = await kakaoGet(
-    `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${point.lng}&y=${point.lat}`,
-  );
+  if (!PROXY) return "";
+  const data = await kakaoGet(`/kakao/coord2region?x=${point.lng}&y=${point.lat}`);
   const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
   const d = docs.find((x) => x.region_type === "H") ?? docs[0];
   if (!d) return "";

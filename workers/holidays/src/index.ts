@@ -13,10 +13,20 @@
 // Why a Worker and not Firebase Cloud Functions: Functions need the paid Blaze plan; Workers Cron is free.
 
 export interface Env {
-  KAKAO_ADMIN_KEY: string; // wrangler secret put KAKAO_ADMIN_KEY
-  REFRESH_TOKEN: string; //   wrangler secret put REFRESH_TOKEN  (guards /refresh)
+  KAKAO_ADMIN_KEY: string; // wrangler secret put KAKAO_ADMIN_KEY  (kapi holidays)
+  KAKAO_REST_KEY: string; //  wrangler secret put KAKAO_REST_KEY   (dapi Local place-search proxy, D93)
+  REFRESH_TOKEN: string; //   wrangler secret put REFRESH_TOKEN    (guards /refresh)
   HOLIDAYS: KVNamespace;
 }
+
+// Kakao Local (place search / reverse-geocode) proxy (D93): the app calls these two paths instead of
+// dapi.kakao.com directly, so the **REST key never ships in the APK** (it would be extractable — it is NOT
+// protected by a key-hash the way the native map key is). Only these two fixed endpoints are relayed — this is
+// not an open proxy — and nothing is stored or logged (the query + map-centre pass straight through to Kakao).
+const KAKAO_LOCAL: Record<string, string> = {
+  "/kakao/keyword": "https://dapi.kakao.com/v2/local/search/keyword.json",
+  "/kakao/coord2region": "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json",
+};
 
 const MONTHS = 45;
 const KEY = "holidays"; // single KV doc: { version, days }
@@ -112,6 +122,31 @@ export default {
           headers: { "content-type": "application/json; charset=utf-8" },
         });
       }
+    }
+
+    // Kakao Local proxy (D93) — relay the two whitelisted endpoints with the server-held REST key.
+    const endpoint = KAKAO_LOCAL[url.pathname];
+    if (endpoint) {
+      if (req.method === "OPTIONS") {
+        return new Response(null, {
+          headers: {
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET, OPTIONS",
+            "access-control-allow-headers": "*",
+          },
+        });
+      }
+      const res = await fetch(`${endpoint}?${url.searchParams.toString()}`, {
+        headers: { Authorization: `KakaoAK ${env.KAKAO_REST_KEY}` },
+      });
+      return new Response(await res.text(), {
+        status: res.status,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+        },
+      });
     }
 
     // Default: serve the holiday doc to devices, ETag-conditional so unchanged fetches return 304.

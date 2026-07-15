@@ -12,6 +12,24 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Public-distributable APK: Kakao REST key moved server-side
+
+### D93. The Kakao place-search REST key is proxied through the Worker, not shipped
+- **Decision**: To make an APK safe to distribute on a **public** download link, the Kakao **Local (place-search
+  + reverse-geocode) REST key** is no longer bundled. The app calls the existing Cloudflare Worker
+  (`kakaoProxyUrl`) at `/kakao/keyword` and `/kakao/coord2region`; the Worker holds `KAKAO_REST_KEY` as a secret
+  and relays to `dapi.kakao.com`. Only these two endpoints are whitelisted (not an open proxy); nothing is
+  stored/logged. **Still shipped (safe):** the Kakao **native map key** (key-hash protected — useless without our
+  keystore) and `google-services.json` (client config, protected by Firestore rules — standard for any Android
+  app). Search degrades to hidden if `kakaoProxyUrl` is unset.
+- **Rationale**: The only genuinely-unprotected secret in the build was the REST key (the code already flagged it
+  as extractable). Founder asked to keep functionality but secure it via the free server. Proxying removes the
+  raw-key exposure and lets the key be rotated independently of the app.
+- **Follow-up (legal)**: the search query + map-centre now transit the 기관's server (not stored). The 처리방침
+  제4조 states no third-party provision; whether a relay clause is warranted is left to the founder (a policy
+  change needs a `LEGAL_VERSION` bump + 공지, so it is not made unilaterally here).
+- **Deploy**: `wrangler secret put KAKAO_REST_KEY` (value = kakao.json `restApiKey`) then `wrangler deploy`.
+
 ## 2026-07-15 — Logs: meal colour bar + drag reorder
 
 ### D92. Long-press to reorder a day's 지출/식사 rows (synced), + a meal-kcal colour bar
