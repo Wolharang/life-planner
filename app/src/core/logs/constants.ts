@@ -16,16 +16,19 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "기타",
 ];
 
-/** Category identity colors (reference-apps §A1) — used on the icon circle, badge and distribution bar. */
+/** Category identity colors — used on the icon circle, badge and distribution bar. Deliberately a **vivid,
+ *  well-spread hue wheel** (D91): the old set was all dark/desaturated cool tones, so 주식 and 잡화소모 read as
+ *  the same colour and the list looked monochrome. Each category now owns a clearly distinct hue. (Red is left
+ *  out on purpose — the app reserves red-anxiety for nothing; a miss is taupe, never red.) */
 export const CATEGORY_COLOR: Record<ExpenseCategory, string> = {
-  주식: "#1B4332",
-  간식: "#C9A227",
-  문화생활: "#46466B",
-  잡화소모: "#3C7A89",
-  이동통신: "#5B7C99",
-  대중교통비: "#B5533C",
-  의료: "#2E8B7F",
-  기타: "#8B7E74",
+  주식: "#FD7E14", // orange
+  간식: "#FAB005", // amber
+  문화생활: "#7950F2", // violet
+  잡화소모: "#40C057", // green
+  이동통신: "#228BE6", // blue
+  대중교통비: "#E64980", // pink
+  의료: "#15AABF", // cyan
+  기타: "#868E96", // grey
 };
 
 export const MEAL_TYPES: MealType[] = ["아침", "점심", "저녁", "간식"];

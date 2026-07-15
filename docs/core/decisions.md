@@ -12,6 +12,19 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Logs colour (category palette + amount highlight)
+
+### D91. 지출 category palette → vivid, well-spread hues; notable amounts turn soft blue
+- **Decision**: `CATEGORY_COLOR` is replaced with a **vivid, hue-spread** set (orange/amber/violet/green/blue/
+  pink/cyan/grey) so every category is clearly distinct. The old set was all dark, desaturated cool tones —
+  주식 (dark green) and 잡화소모 (teal) read as the same colour and the list looked monochrome. **Red stays
+  out** (the app reserves no red-anxiety; a miss is taupe, never red). Meal rows keep `MEAL_COLOR` (D90-era).
+  Row **amounts** highlight in soft blue `#4593FC` above a threshold — spend ≥ 6,000원, meal ≥ 501 kcal —
+  mirroring a bank app's "notable amount" cue; smaller ones stay ink.
+- **Rationale**: Founder: the categories were too similar / the list still looked flat; wanted varied icons in
+  varied colours, and the reference app's blue amount emphasis. These are decorative identity colours on the
+  Logs surface only — no execution-moment / no-guilt semantics are touched.
+
 ## 2026-07-15 — Grey background lightened
 
 ### D90. The grey BACKGROUND fill is lightened >½ toward white (not the text)

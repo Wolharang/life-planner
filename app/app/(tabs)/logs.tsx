@@ -22,6 +22,12 @@ const WD = ["일", "월", "화", "수", "목", "금", "토"];
 type Tab = "expense" | "meal";
 const pad = (n: number) => String(n).padStart(2, "0");
 
+// A soft blue that highlights the notable amounts (like the bank-app reference): a spend of 6,000원+ or a
+// meal of 501kcal+. Smaller ones stay ink so the big ones stand out.
+const HL_BLUE = "#4593FC";
+const HL_EXPENSE = 6000; // 원
+const HL_KCAL = 501;
+
 const dayHeader = (date: string) => {
   const [y, m, d] = date.split("-").map(Number);
   return `${m}.${d}. ${WD[new Date(y, m - 1, d).getDay()]}요일`;
@@ -300,7 +306,7 @@ function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
           {[e.category, e.store, e.payment].filter(Boolean).join(" · ")}
         </Text>
       </View>
-      <Text className="text-ink" style={{ fontSize: 14.5, fontWeight: "700" }}>
+      <Text style={{ fontSize: 14.5, fontWeight: "700", color: e.amount >= HL_EXPENSE ? HL_BLUE : "#191F28" }}>
         {won(e.amount)}
       </Text>
     </Pressable>
@@ -324,7 +330,7 @@ function MealRow({ m, onPress }: { m: MealEntry; onPress: () => void }) {
           {[m.mealType, m.detail].filter(Boolean).join(" · ")}
         </Text>
       </View>
-      <Text className="text-ink" style={{ fontSize: 14.5, fontWeight: "700" }}>
+      <Text style={{ fontSize: 14.5, fontWeight: "700", color: m.kcal >= HL_KCAL ? HL_BLUE : "#191F28" }}>
         {m.kcal}kcal
       </Text>
     </Pressable>
