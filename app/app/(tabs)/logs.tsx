@@ -15,7 +15,7 @@ import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
 import { onSyncApplied } from "@/core/data/sync";
 import { todayYmd } from "@/core/schedule/blockScheduler";
 import { byDay, categoryDistribution, dayAggregate, expenseTotal, inMonth, mealSummary, monthKey, won } from "@/core/logs/aggregate";
-import { CATEGORY_COLOR, DAILY_KCAL_TARGET, MEAL_TYPES } from "@/core/logs/constants";
+import { CATEGORY_COLOR, DAILY_KCAL_TARGET, MEAL_COLOR, MEAL_TYPES } from "@/core/logs/constants";
 import { CategoryIcon, MealIcon } from "@/ui/icons/LogIcons";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -205,7 +205,7 @@ export default function Logs() {
                   const s = summary.byMeal[m];
                   return (
                     <View key={m} className="flex-row items-center" style={{ gap: 4 }}>
-                      <MealIcon meal={m} size={14} color="#4E5968" />
+                      <MealIcon meal={m} size={14} color={MEAL_COLOR[m]} />
                       <Text className="text-ink-soft flex-1" style={{ fontSize: 12.5 }} numberOfLines={1}>
                         {m} [{s.kcal}/{s.target}]
                         {s.names.length > 0 ? ` · ${s.names.join(", ")}` : ""}
@@ -288,9 +288,9 @@ function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
     <Pressable onPress={onPress} className="flex-row items-center" style={{ paddingVertical: 9 }}>
       <View
         className="items-center justify-center"
-        style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: `${CATEGORY_COLOR[e.category]}1A` }}
+        style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${CATEGORY_COLOR[e.category]}2E` }}
       >
-        <CategoryIcon category={e.category} size={18} color={CATEGORY_COLOR[e.category]} />
+        <CategoryIcon category={e.category} size={19} color={CATEGORY_COLOR[e.category]} />
       </View>
       <View className="flex-1" style={{ marginLeft: 11 }}>
         <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }} numberOfLines={1}>
@@ -310,8 +310,11 @@ function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
 function MealRow({ m, onPress }: { m: MealEntry; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} className="flex-row items-center" style={{ paddingVertical: 9 }}>
-      <View className="bg-group items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17 }}>
-        <MealIcon meal={m.mealType} size={18} color="#4E5968" />
+      <View
+        className="items-center justify-center"
+        style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${MEAL_COLOR[m.mealType]}2E` }}
+      >
+        <MealIcon meal={m.mealType} size={19} color={MEAL_COLOR[m.mealType]} />
       </View>
       <View className="flex-1" style={{ marginLeft: 11 }}>
         <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }} numberOfLines={1}>
