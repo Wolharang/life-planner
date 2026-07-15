@@ -22,6 +22,8 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -66,6 +68,7 @@ export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: 
   const check = useSharedValue(CHECK_LEN);
   const wordN = useSharedValue(0); // how many letters have resolved (0 → WORD.length)
   const cover = useSharedValue(1); // whole-overlay opacity for the final fade
+  const pulse = useSharedValue(1); // clock breath while WAITING on a slow load (so it never looks frozen)
   const finishing = useRef(false);
 
   // Finish fast and hand off. Called the instant the app is ready (or by the safety timeout). Guarded so it runs
@@ -73,6 +76,8 @@ export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: 
   const runFinish = useCallback(() => {
     if (finishing.current) return;
     finishing.current = true;
+    cancelAnimation(pulse); // stop the waiting breath and settle the clock to solid as it finishes
+    pulse.value = withTiming(1, { duration: 110 });
     ring.value = withTiming(0, { duration: 110 });
     ticks.value = withTiming(0, { duration: 110 });
     check.value = withTiming(0, { duration: 110 });
@@ -92,6 +97,19 @@ export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: 
     ring.value = withTiming(0, { duration: 340, easing: Easing.out(Easing.quad) });
     ticks.value = withDelay(240, withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }));
     check.value = withDelay(380, withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }));
+    // Once the clock is drawn, if we're STILL waiting on the load, breathe gently — a slow load then reads as
+    // "loading", not "frozen". runFinish cancels this the instant we're ready (or if we were ready all along).
+    pulse.value = withDelay(
+      700,
+      withRepeat(
+        withSequence(
+          withTiming(0.55, { duration: 640, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 640, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        false,
+      ),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -114,19 +132,25 @@ export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: 
       cancelAnimation(check);
       cancelAnimation(wordN);
       cancelAnimation(cover);
+      cancelAnimation(pulse);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
   const coverStyle = useAnimatedStyle(() => ({ opacity: cover.value }));
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+    transform: [{ scale: 0.96 + pulse.value * 0.04 }], // 0.55→1 maps to a barely-there 0.982→1.0 breath
+  }));
   const ringProps = useAnimatedProps(() => ({ strokeDashoffset: ring.value }));
   const tickProps = useAnimatedProps(() => ({ strokeDashoffset: ticks.value }));
   const checkProps = useAnimatedProps(() => ({ strokeDashoffset: check.value }));
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, styles.root, coverStyle]} pointerEvents="none">
-      <Svg width={CLOCK_SIZE} height={CLOCK_SIZE} viewBox="0 0 100 100">
+      <Animated.View style={pulseStyle}>
+        <Svg width={CLOCK_SIZE} height={CLOCK_SIZE} viewBox="0 0 100 100">
         <ACircle
           cx={50}
           cy={50}
@@ -162,7 +186,8 @@ export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: 
           strokeDasharray={CHECK_LEN}
           animatedProps={checkProps}
         />
-      </Svg>
+        </Svg>
+      </Animated.View>
       <View style={styles.wordRow}>
         {WORD.split("").map((ch, i) => (
           <Letter key={i} ch={ch} index={i} driver={wordN} />
