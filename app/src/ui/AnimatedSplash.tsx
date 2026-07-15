@@ -70,10 +70,10 @@ const styles = StyleSheet.create({
   clock: { width: CLOCK_SIZE, height: CLOCK_SIZE },
   word: {
     position: "absolute",
-    top: H / 2 + CLOCK_SIZE / 2 + 4, // just below the centered clock
-    fontSize: 29,
-    fontWeight: "800",
+    top: H / 2 + CLOCK_SIZE / 2 + 2, // just below the centered clock
+    fontFamily: "Baloo2", // rounded logo face (the wordmark is the logo, not app body text)
+    fontSize: 32,
     color: "#3182F6", // token: brand
-    letterSpacing: -0.4,
+    letterSpacing: 0.2, // Baloo 2 sits tight; a hair of tracking opens the wordmark up
   },
 });

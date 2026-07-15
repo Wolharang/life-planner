@@ -56,6 +56,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     Pretendard: require("../assets/fonts/Pretendard-Regular.ttf"),
     GowunBatang: require("../assets/fonts/GowunBatang-Regular.ttf"),
+    // Rounded display face — used ONLY for the launch-screen wordmark (the LifePlanner logo). Not the app body.
+    Baloo2: require("../assets/fonts/Baloo2-Bold.ttf"),
   });
 
   // Hide the NATIVE splash once fonts resolve (or fail — never hang the app on a font error). The JS
