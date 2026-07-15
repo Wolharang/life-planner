@@ -9,7 +9,7 @@
 // Kind (일반/운동/러닝) is orthogonal. There is one place to add, and one thing to add.
 // Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
-import { View, Text, Pressable, ScrollView, PanResponder, Modal } from "react-native";
+import { View, Text, Pressable, ScrollView, PanResponder, Modal, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -61,6 +61,7 @@ function Wheel({
     <ScrollView
       ref={ref}
       style={{ flex: 1 }}
+      nestedScrollEnabled
       showsVerticalScrollIndicator={false}
       snapToInterval={ITEM_H}
       decelerationRate="fast"
@@ -501,13 +502,13 @@ export default function Calendar() {
         </ScrollView>
       </View>
 
-      {/* jump-to-month picker — two scroll wheels (year · month), centre row = selection */}
+      {/* jump-to-month picker — two scroll wheels (year · month), centre row = selection.
+          NOTE: the card is a plain View (NOT a Pressable) — a Pressable ancestor eats the ScrollView's drag on
+          Android, freezing the wheels. Tap-to-close is a separate backdrop Pressable *behind* the card. */}
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
-        <Pressable
-          onPress={() => setPickerOpen(false)}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", paddingHorizontal: 40 }}
-        >
-          <Pressable onPress={() => {}} className="bg-surface" style={{ borderRadius: 20, overflow: "hidden", elevation: 6 }}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", paddingHorizontal: 40 }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPickerOpen(false)} />
+          <View className="bg-surface" style={{ borderRadius: 20, overflow: "hidden", elevation: 6 }}>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", textAlign: "center", paddingTop: 18, paddingBottom: 14 }}>
               {pickYear}년 {pickMonth}월
             </Text>
@@ -536,8 +537,8 @@ export default function Calendar() {
             <Pressable onPress={() => jumpTo(pickYear, pickMonth - 1)} style={{ alignSelf: "flex-end", paddingHorizontal: 22, paddingVertical: 13 }}>
               <Text style={{ color: BRAND, fontSize: 16, fontWeight: "800" }}>선택</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
