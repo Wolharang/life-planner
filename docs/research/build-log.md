@@ -959,3 +959,16 @@ clock — only the splash was unbranded.
   6 GB heap, execution lock-screen activity, Kakao maven repo, location perms all intact; keystore SHA1
   unchanged. **On-device visual check pending (founder):** needs a fresh native build (`run:android` or
   `assembleRelease` + install) — a Metro reload shows only the JS overlay, not the new native splash.
+
+### Revised same day — draw-on intro (superseding the fade above)
+The founder asked for the logo to *appear as if drawn*, from nothing. So the launch animation was reworked:
+- **Native splash → plain white** (a 48×48 fully-transparent `splash-blank.png`, `imageWidth` 1). Showing the
+  full clock natively would spoil a draw-on, so the native frame is now blank white and the JS layer draws the
+  logo from scratch.
+- **Clock as SVG, stroked on** (`react-native-svg`): animating `strokeDashoffset` from each shape's full length
+  to 0 draws the ring, then the four ticks, then the checkmark — overlapping into one continuous motion.
+- **Wordmark written on letter-by-letter**: a single shared driver sweeps 0→11 and each Baloo 2 letter resolves
+  (opacity + a small rise) as the driver passes its index → the word reads as if handwritten left-to-right.
+- ~2.3 s total, then hold + fade-out. Second `prebuild --clean` (keystore preserved again). `npm run typecheck`
+  ✓ · `npm test` ✓ (133/133). The PNG clock in the native splash from the first pass is gone; the app icon
+  (`adaptive-icon.png`) is unchanged.
