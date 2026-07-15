@@ -39,13 +39,16 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 // the grid switches to a **compact** form (small square cells, numbers only). Heights are derived from the
 // cell geometry so 6 rows land exactly.
 const CELL_W = (Dimensions.get("window").width - 16) / 7; // grid is px-2 (8 each side)
-// Expanded cells are tall on purpose: at rest the calendar fills the screen so the detail panel below shows only
-// its "N월 N일 · ＋추가" header row (the 아침 요약 preview sits just under the fold). Drag up to reveal it.
-const EXP_ASPECT = 0.52;
+// The expanded grid height is derived from the **measured** available height, not a fixed cell aspect: it fills
+// the space that is left after reserving DETAIL_MIN for the detail panel's header row ("N월 N일 · ＋추가"). This
+// is what keeps that row (and the whole detail panel) on screen — a fixed tall aspect once grew the grid past the
+// viewport and squeezed the flex-1 detail to zero, wiping the panel out entirely. Drag up to grow the detail.
+const HANDLE_H = 21; // drag handle: paddingVertical 8·2 + bar 4 + 1px border
+const DETAIL_MIN = 56; // the detail header row (date + ＋추가) kept visible at rest
 const CMP_ASPECT = 1.25; // compact cell (short — number + dots)
-const EXPANDED_H = Math.round((CELL_W / EXP_ASPECT) * 6);
 const COMPACT_H = Math.round((CELL_W / CMP_ASPECT) * 6);
-const MID_H = (EXPANDED_H + COMPACT_H) / 2;
+// Before the first onLayout, fall back to a screen-height estimate so the first frame isn't wrong-sized.
+const FALLBACK_EXPANDED = Math.round(Dimensions.get("window").height * 0.6);
 
 /**
  * How an event/holiday title reads inside a month cell. ≤5 chars: as-is. 6+ chars: spaces removed and cut to 5
@@ -202,15 +205,24 @@ export default function Calendar() {
 
   // Resizable split (drag the handle): calH is the calendar's clipped height. During a drag the grid stays
   // expanded and clips from the bottom; on release it snaps to fully-expanded or fully-compact.
-  const [calH, setCalH] = useState(EXPANDED_H);
+  //
+  // The **expanded** height is derived from the measured area (grid + handle + detail), leaving DETAIL_MIN for
+  // the detail header — so the panel can never be squeezed off screen. `cellH` sizes each row so all 6 weeks
+  // fill that height; dragging shrinks calH and the extra rows clip (they are NOT rescaled).
+  const [areaH, setAreaH] = useState(0);
+  const expandedH = Math.max(COMPACT_H + 60, (areaH > 0 ? areaH - HANDLE_H - DETAIL_MIN : FALLBACK_EXPANDED));
+  const cellH = expandedH / 6;
+  const midH = (expandedH + COMPACT_H) / 2;
+
+  const [calH, setCalH] = useState(FALLBACK_EXPANDED);
   const [dragging, setDragging] = useState(false);
-  const calHRef = useRef(EXPANDED_H);
-  const startH = useRef(EXPANDED_H);
+  const calHRef = useRef(FALLBACK_EXPANDED);
+  const startH = useRef(FALLBACK_EXPANDED);
   const setH = (h: number) => {
     calHRef.current = h;
     setCalH(h);
   };
-  const clamp = (n: number) => Math.min(Math.max(n, COMPACT_H), EXPANDED_H);
+  const clamp = (n: number) => Math.min(Math.max(n, COMPACT_H), expandedH);
   const handle = useMemo(
     () =>
       PanResponder.create({
@@ -223,22 +235,32 @@ export default function Calendar() {
         // Dragging up → g.dy < 0 → calendar shrinks (detail grows). Down → grows back.
         onPanResponderMove: (_, g) => setH(clamp(startH.current + g.dy)),
         onPanResponderRelease: (_, g) => {
-          setH(startH.current + g.dy < MID_H ? COMPACT_H : EXPANDED_H);
+          setH(startH.current + g.dy < midH ? COMPACT_H : expandedH);
           setDragging(false);
         },
         onPanResponderTerminate: () => setDragging(false),
       }),
-    []
+    // rebuild when the measured height changes, so clamp/snap use the fresh expanded/mid heights
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expandedH],
   );
   // Compact only when settled at the small end — during a drag the grid stays expanded (and clips).
-  const collapsed = !dragging && calH < MID_H;
+  const collapsed = !dragging && calH < midH;
+
+  // When the available height is (re)measured, resize to the new expanded height (keeping whichever end we're at).
+  useEffect(() => {
+    if (dragging) return;
+    setH(calHRef.current < midH ? COMPACT_H : expandedH);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedH]);
 
   // Re-entering the calendar always returns to the expanded (wide) state — a collapsed split never persists.
   useFocusEffect(
     useCallback(() => {
-      setH(EXPANDED_H);
+      setH(expandedH);
       setDragging(false);
-    }, []),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandedH]),
   );
 
   // R1 acceptance: **swipe months** — the standard calendar convention (S26/C2: reuse what people
@@ -309,6 +331,8 @@ export default function Calendar() {
         ))}
       </View>
 
+      {/* The resizable region (grid + handle + detail) — measured so the expanded grid never eats the detail. */}
+      <View className="flex-1" onLayout={(e) => setAreaH(e.nativeEvent.layout.height)}>
       {/* resizable calendar — clipped to calH; drag the handle below to grow the detail panel */}
       <View style={{ height: calH, overflow: "hidden" }}>
         <View className="flex-row flex-wrap px-2" {...swipe.panHandlers}>
@@ -367,8 +391,8 @@ export default function Calendar() {
             const overflow = chips.length - shown.length;
             const alone = chips.length === 1;
             return (
-              <Pressable key={c.key} onPress={() => setSelected(c.key)} style={{ width: "14.2857%", aspectRatio: EXP_ASPECT, padding: 2 }}>
-                <View style={{ flex: 1, borderRadius: 9, paddingHorizontal: 3, paddingTop: 3, paddingBottom: 2, backgroundColor: isSelected ? "#E8F3FF" : "transparent" }}>
+              <Pressable key={c.key} onPress={() => setSelected(c.key)} style={{ width: "14.2857%", height: cellH, padding: 2 }}>
+                <View style={{ flex: 1, borderRadius: 9, overflow: "hidden", paddingHorizontal: 3, paddingTop: 3, paddingBottom: 2, backgroundColor: isSelected ? "#E8F3FF" : "transparent" }}>
                   <View style={{ alignItems: "center" }}>{numCircle(11)}</View>
                   <View style={{ marginTop: 2, gap: 1.5 }}>
                     {shown.map((m) => {
@@ -562,6 +586,7 @@ export default function Calendar() {
             ))
           )}
         </ScrollView>
+      </View>
       </View>
 
       {/* jump-to-month picker — two scroll wheels (year · month), centre row = selection.
