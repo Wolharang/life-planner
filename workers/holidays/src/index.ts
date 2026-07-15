@@ -124,6 +124,39 @@ export default {
       }
     }
 
+    // Kakao REST-key keep-alive (D95): a signed-in device pings this. If this account has NOT kept the key warm
+    // in the current ~30-day period (anchored to its creation time), make ONE throwaway Kakao Local call with a
+    // fixed constant coordinate and record the period in KV. Otherwise no-op. The response is discarded — the
+    // point is only that the key was exercised, so it isn't deactivated for disuse. Server-side dedup means many
+    // devices/launches in a month cause exactly one real call.
+    if (url.pathname === "/keepalive") {
+      const acct = url.searchParams.get("acct") ?? "";
+      const created = Number(url.searchParams.get("created") ?? "0");
+      // no-store: this must always execute the Worker (KV dedup governs the real Kakao call) — a cached response
+      // would silently skip the monthly call and defeat the whole point.
+      const cors = { "access-control-allow-origin": "*", "cache-control": "no-store" };
+      if (!acct || !Number.isFinite(created) || created <= 0) {
+        return Response.json({ ok: false, reason: "bad-params" }, { headers: cors });
+      }
+      const period = Math.floor((Date.now() - created) / (30 * 24 * 60 * 60 * 1000)); // ~monthly bucket
+      const kvKey = `ka:${acct}`;
+      const last = await env.HOLIDAYS.get(kvKey);
+      if (last != null && Number(last) >= period) {
+        return Response.json({ ok: true, fired: false }, { headers: cors });
+      }
+      let fired = false;
+      try {
+        const r = await fetch("https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=126.9779&y=37.5663", {
+          headers: { Authorization: `KakaoAK ${env.KAKAO_REST_KEY}` },
+        });
+        fired = r.ok; // discard the body — we only needed the call to happen
+      } catch {
+        // transient failure — leave KV unchanged so the next ping retries this period
+      }
+      if (fired) await env.HOLIDAYS.put(kvKey, String(period));
+      return Response.json({ ok: true, fired }, { headers: cors });
+    }
+
     // Kakao Local proxy (D93) — relay the two whitelisted endpoints with the server-held REST key.
     const endpoint = KAKAO_LOCAL[url.pathname];
     if (endpoint) {

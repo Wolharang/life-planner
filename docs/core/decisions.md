@@ -12,6 +12,23 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Kakao REST-key keep-alive
+
+### D95. A signed-in device keeps the Kakao REST key warm — one throwaway call/month, deduped server-side
+- **Decision**: The Kakao Local REST key is exercised only when someone opens the gym map/search; a user who
+  never does could let it lapse (disuse-deactivation risk). So on startup a **signed-in** device pings the Worker
+  `/keepalive?acct=<uid>&created=<ms>`. The **Worker** decides: if this account has not kept the key warm in the
+  current **~30-day period anchored to the account's creation time** (tracked in KV `ka:<uid>`), it makes **one
+  throwaway Kakao Local call** with a fixed constant coordinate and records the period; otherwise no-op. The
+  response is **discarded** — only the call matters. Many devices/launches in a month → exactly one real call.
+  The app also throttles to one Worker ping/day locally; keepalive responses are `no-store` so the Worker always
+  runs (a cached response would skip the monthly call).
+- **Rationale**: Founder wanted a guaranteed periodic call so the REST key isn't deactivated for disuse, without
+  wasting quota. Anchoring to a **server-connected** device means a genuinely-inactive customer never triggers it
+  (no connection = no waste), exactly as intended.
+- **Privacy**: only the account uid + its creation timestamp go to **our own** Worker (a dedup key) — no location,
+  no user content, and nothing about the user reaches Kakao (the call uses a fixed coordinate). No 처리방침 change.
+
 ## 2026-07-15 — Public-distributable APK: Kakao REST key moved server-side
 
 ### D93. The Kakao place-search REST key is proxied through the Worker, not shipped

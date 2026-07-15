@@ -165,6 +165,15 @@ export function currentAccount(): Account | null {
   return u ? accountFromUser(u) : null;
 }
 
+/** The signed-in account's creation time in ms (Firebase Auth metadata), or `null` if logged out / unknown.
+ *  Used only to anchor the monthly Kakao keep-alive (D95) — not stored anywhere. */
+export function currentAccountCreatedAt(): number | null {
+  if (!load()) return null;
+  const t = authMod().currentUser?.metadata?.creationTime;
+  const ms = t ? Date.parse(t) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
 export function onAccountChanged(fn: (account: Account | null) => void): Unsubscribe {
   if (!load()) {
     fn(null);

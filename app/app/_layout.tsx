@@ -12,6 +12,7 @@ import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
 import { rearmBlockAlarms, migrateBlockColorsToBlue } from "@/core/data/blockRepository";
+import { startKakaoKeepAlive } from "@/core/data/kakaoKeepAlive";
 import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { registerBackgroundSync } from "@/core/notifications/backgroundSync";
 import { registerSelf } from "@/core/data/deviceRepository";
@@ -92,6 +93,10 @@ export default function RootLayout() {
   useEffect(() => {
     void migrateBlockColorsToBlue();
   }, []);
+
+  // Keep the Kakao REST key warm (D95): a signed-in device pings the Worker, which makes one throwaway Kakao
+  // call at most ~monthly (deduped server-side by account-creation time). Idle/signed-out users never connect.
+  useEffect(() => startKakaoKeepAlive(), []);
 
   const [identified, setIdentified] = useState(false);
   useEffect(() => {
