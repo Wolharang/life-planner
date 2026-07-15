@@ -74,6 +74,14 @@ async function refresh(env: Env): Promise<{ version: number; count: number; chan
   const sorted = sortObj(days);
   const count = Object.keys(sorted).length;
 
+  // **Sanity guard against bad API data.** Korea has ~15–20 red days/year → a healthy 45-month pull is ~55–90
+  // dates. If a glitch returns something implausible (e.g. every day flagged a holiday, or an empty/partial
+  // response), REJECT it: throw before writing, so the last-good KV is untouched and the table can never get
+  // stuck on garbage. The next run (or the device's bundled 2015–2040 table) keeps things correct meanwhile.
+  if (count < 30 || count > 300) {
+    throw new Error(`Sanity check failed: ${count} holidays (expected ~55–90) — refusing to overwrite.`);
+  }
+
   const prevRaw = await env.HOLIDAYS.get(KEY);
   const prev = prevRaw ? JSON.parse(prevRaw) : { version: 0, days: {} };
   if (JSON.stringify(sortObj(prev.days ?? {})) === JSON.stringify(sorted)) {

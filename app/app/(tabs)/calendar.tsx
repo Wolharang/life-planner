@@ -9,7 +9,7 @@
 // Kind (일반/운동/러닝) is orthogonal. There is one place to add, and one thing to add.
 // Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
-import { View, Text, Pressable, ScrollView, PanResponder } from "react-native";
+import { View, Text, Pressable, ScrollView, PanResponder, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -28,6 +28,10 @@ import { holidayName, onHolidaysChanged } from "@/core/schedule/holidays";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const BRAND = "#3182F6";
+// The picker's reach — matches the baked holiday range (holidays.data.ts), so anywhere you can jump shows red days.
+const MIN_YEAR = 2015;
+const MAX_YEAR = 2040;
+const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
 const HOLIDAY_RED = "#E5484D"; // Sundays + official holidays; a refined red, calendar convention (not the
 // no-guilt outcome red — that rule is about 성공/미스, D78). Saturdays use BRAND blue.
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -98,6 +102,19 @@ export default function Calendar() {
     setSelected(today);
   };
 
+  // Jump-to-month picker (tap the header) — so reaching a far year (2015…2040) is one selection, not a hundred
+  // swipes. Pick a year, then tap a month to jump.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickYear, setPickYear] = useState(view.y);
+  const openPicker = () => {
+    setPickYear(view.y);
+    setPickerOpen(true);
+  };
+  const jumpTo = (y: number, m0: number) => {
+    setView({ y, m: m0 });
+    setPickerOpen(false);
+  };
+
   // R1 acceptance: **swipe months** — the standard calendar convention (S26/C2: reuse what people
   // already know, spend the design budget on the moment). Only claims clearly-horizontal drags, so a
   // day tap and the detail panel's scroll still win.
@@ -126,11 +143,16 @@ export default function Calendar() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
-      {/* month header */}
+      {/* month header — tap the title to jump to any year/month */}
       <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
-        <Text className="text-ink" style={{ fontSize: 22, fontWeight: "700", letterSpacing: -0.4 }}>
-          {view.y}년 {view.m + 1}월
-        </Text>
+        <Pressable onPress={openPicker} hitSlop={8} className="flex-row items-center" style={{ gap: 4 }}>
+          <Text className="text-ink" style={{ fontSize: 22, fontWeight: "700", letterSpacing: -0.4 }}>
+            {view.y}년 {view.m + 1}월
+          </Text>
+          <Text className="text-grey" style={{ fontSize: 13, fontWeight: "700", marginTop: 2 }}>
+            ▾
+          </Text>
+        </Pressable>
         <View className="flex-row items-center" style={{ gap: 6 }}>
           <Pressable onPress={goToday} className="bg-group rounded-full px-3 py-1.5" hitSlop={8}>
             <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
@@ -417,6 +439,60 @@ export default function Calendar() {
           )}
         </ScrollView>
       </View>
+
+      {/* jump-to-month picker */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <Pressable
+          onPress={() => setPickerOpen(false)}
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", paddingHorizontal: 28 }}
+        >
+          <Pressable
+            onPress={() => {}}
+            className="bg-surface"
+            style={{ borderRadius: 18, padding: 18, elevation: 6 }}
+          >
+            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", textAlign: "center", marginBottom: 12 }}>
+              {pickYear}년으로 이동
+            </Text>
+
+            <Text className="text-grey" style={{ fontSize: 12, fontWeight: "700", marginBottom: 6 }}>연도</Text>
+            <ScrollView style={{ maxHeight: 132 }} showsVerticalScrollIndicator={false}>
+              <View className="flex-row flex-wrap" style={{ gap: 7 }}>
+                {YEARS.map((y) => {
+                  const on = y === pickYear;
+                  return (
+                    <Pressable
+                      key={y}
+                      onPress={() => setPickYear(y)}
+                      className={on ? "bg-brand" : "bg-group"}
+                      style={{ borderRadius: 9, paddingVertical: 8, width: "22.7%", alignItems: "center" }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: on ? "#FFFFFF" : "#4E5968" }}>{y}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <Text className="text-grey" style={{ fontSize: 12, fontWeight: "700", marginTop: 14, marginBottom: 6 }}>월</Text>
+            <View className="flex-row flex-wrap" style={{ gap: 7 }}>
+              {Array.from({ length: 12 }, (_, i) => i).map((m0) => {
+                const on = pickYear === view.y && m0 === view.m;
+                return (
+                  <Pressable
+                    key={m0}
+                    onPress={() => jumpTo(pickYear, m0)}
+                    className={on ? "bg-brand-soft" : "bg-group"}
+                    style={{ borderRadius: 9, paddingVertical: 11, width: "22.7%", alignItems: "center" }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: on ? BRAND : "#191F28" }}>{m0 + 1}월</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }

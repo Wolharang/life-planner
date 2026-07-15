@@ -45,6 +45,10 @@ export async function syncHolidays(): Promise<void> {
     const etag = res.headers.get("etag");
     const json = (await res.json()) as { days?: Record<string, string> };
     if (!json?.days) return;
+    // Defense-in-depth against bad data (the Worker guards too): a 45-month table is ~55–90 dates. If it's
+    // implausible, ignore it and keep the bundled/cached table rather than paint every day red.
+    const n = Object.keys(json.days).length;
+    if (n < 30 || n > 300) return;
     lastEtag = etag;
     applySyncedHolidays(json.days);
     await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ etag, days: json.days }));
