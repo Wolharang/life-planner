@@ -22,7 +22,8 @@ module.exports = {
     extend: {
       colors: {
         bg: "#FFFFFF",              // app background (utility)
-        group: "#F2F4F6",          // grouped-settings background
+        group: "#F8FAFC",          // grouped-settings / chip / pill BACKGROUND — lightened >½ toward white
+                                   // (D90). `line` below keeps the darker #F2F4F6 for crisp hairlines/borders.
         surface: "#FFFFFF",
         line: "#F2F4F6",           // hairline / soft grey fills
         ink: "#191F28",            // primary text (Toss ink)

@@ -12,6 +12,18 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Grey background lightened
+
+### D90. The grey BACKGROUND fill is lightened >½ toward white (not the text)
+- **Decision**: The grouped/chip/pill background token `group` is lightened `#F2F4F6 → #F8FAFC` — cascading to
+  every `bg-group` surface (68 sites, the grey used "everywhere"). **Text greys are NOT touched** (`ink-soft`
+  `#4E5968`, `grey` `#8B95A1`, `faint` `#B0B8C1` stay). Also untouched: `line` (`#F2F4F6`, kept darker for crisp
+  hairlines/borders), `off`/toggle tracks (`#E5E8EB`), card borders — lightening those would erase lines and
+  controls.
+- **Rationale**: The founder found the grey **backgrounds** too dark everywhere. A first attempt lightened the
+  *text* greys instead and made copy unreadable (reverted before this). This corrects it: only the background
+  fill moves. Token truth lives in `app/tailwind.config.js`.
+
 ## 2026-07-15 — Calendar redesign
 
 ### D89. Holidays sync automatically — Cloudflare Worker (Cron + KV) → devices (no paid cloud)
