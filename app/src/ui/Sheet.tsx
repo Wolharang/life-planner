@@ -9,7 +9,7 @@
 // alarm-red — `warn` (#B5533C) is the muted system-error tone (design-system: a miss is taupe and never red;
 // red is not the app's voice even when the action is grave).
 
-import { View, Text, Pressable, Modal, ScrollView } from "react-native";
+import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from "react-native";
 
 export interface SheetAction {
   label: string;
@@ -103,7 +103,8 @@ export function Sheet({ visible, title, message, actions, cancelLabel = "취소"
   );
 }
 
-/** The quiet confirmation after a sheet, when the thing really cannot be undone. */
+/** The quiet confirmation when a thing cannot be undone — a clean bottom sheet with a two-button row (취소 ·
+ *  the destructive action), not a stacked list. `warn` (#B5533C) is the muted system tone, never alarm-red. */
 export function ConfirmSheet({
   visible,
   title,
@@ -122,12 +123,46 @@ export function ConfirmSheet({
   busy?: boolean;
 }) {
   return (
-    <Sheet
-      visible={visible}
-      title={title}
-      message={message}
-      onClose={onClose}
-      actions={[{ label: confirmLabel, danger: true, disabled: busy, onPress: onConfirm }]}
-    />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(25,31,40,0.4)", justifyContent: "flex-end" }}>
+        <Pressable style={{ ...StyleSheet.absoluteFillObject }} onPress={onClose} />
+        <View className="bg-surface" style={{ borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 26 }}>
+          <View className="items-center" style={{ paddingTop: 10, paddingBottom: 6 }}>
+            <View className="bg-off" style={{ width: 36, height: 4, borderRadius: 999 }} />
+          </View>
+          <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
+            <Text className="text-ink" style={{ fontSize: 19, fontWeight: "700" }}>
+              {title}
+            </Text>
+            {message ? (
+              <Text className="text-grey" style={{ fontSize: 13.5, lineHeight: 21, marginTop: 8 }}>
+                {message}
+              </Text>
+            ) : null}
+            <View className="flex-row" style={{ gap: 10, marginTop: 22 }}>
+              <Pressable
+                onPress={onClose}
+                className="bg-group flex-1 items-center"
+                style={{ borderRadius: 14, paddingVertical: 15 }}
+              >
+                <Text className="text-ink-soft" style={{ fontSize: 15.5, fontWeight: "700" }}>
+                  취소
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onConfirm}
+                disabled={busy}
+                className="flex-1 items-center"
+                style={{ borderRadius: 14, paddingVertical: 15, backgroundColor: "#B5533C", opacity: busy ? 0.5 : 1 }}
+              >
+                <Text className="text-white" style={{ fontSize: 15.5, fontWeight: "700" }}>
+                  {confirmLabel}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }

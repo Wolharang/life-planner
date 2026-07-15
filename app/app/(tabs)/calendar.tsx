@@ -9,7 +9,7 @@
 // Kind (일반/운동/러닝) is orthogonal. There is one place to add, and one thing to add.
 // Local-only for now (eventRepository / blockRepository); cross-device sync (R2) comes with F0.
 
-import { View, Text, Pressable, ScrollView, PanResponder, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, PanResponder, Modal, StyleSheet, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -33,6 +33,27 @@ const MIN_YEAR = 2015;
 const MAX_YEAR = 2040;
 const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+// Resizable calendar/detail split. The grid lives in a height-controlled, clipped container: drag the handle up
+// and the calendar shrinks (bottom weeks clip away) while the detail panel below grows; at the collapsed snap
+// the grid switches to a **compact** form (small square cells, numbers only). Heights are derived from the
+// cell geometry so 6 rows land exactly.
+const CELL_W = (Dimensions.get("window").width - 16) / 7; // grid is px-2 (8 each side)
+const EXP_ASPECT = 0.64; // expanded cell (tall — holds named chips)
+const CMP_ASPECT = 1.25; // compact cell (short — number + dots)
+const EXPANDED_H = Math.round((CELL_W / EXP_ASPECT) * 6);
+const COMPACT_H = Math.round((CELL_W / CMP_ASPECT) * 6);
+const MID_H = (EXPANDED_H + COMPACT_H) / 2;
+
+/**
+ * How an event/holiday title reads inside a month cell. ≤5 chars: as-is. 6+ chars: spaces removed and cut to 5
+ * (no "…"). Exception — when it is the ONLY chip that day, a 6+ char title wraps to two lines up to 10 chars.
+ */
+function chipLabel(title: string, alone: boolean): { text: string; lines: number } {
+  if (title.length <= 5) return { text: title, lines: 1 };
+  const joined = title.replace(/\s+/g, "");
+  return alone ? { text: joined.slice(0, 10), lines: 2 } : { text: joined.slice(0, 5), lines: 1 };
+}
 
 // A scroll-snap wheel column (like a native date spinner): items snap to a fixed row height; the row at the
 // centre band is the selection, and it bolds live as you scroll. No dependency — just a snapping ScrollView.
@@ -177,6 +198,39 @@ export default function Calendar() {
     setPickerOpen(false);
   };
 
+  // Resizable split (drag the handle): calH is the calendar's clipped height. During a drag the grid stays
+  // expanded and clips from the bottom; on release it snaps to fully-expanded or fully-compact.
+  const [calH, setCalH] = useState(EXPANDED_H);
+  const [dragging, setDragging] = useState(false);
+  const calHRef = useRef(EXPANDED_H);
+  const startH = useRef(EXPANDED_H);
+  const setH = (h: number) => {
+    calHRef.current = h;
+    setCalH(h);
+  };
+  const clamp = (n: number) => Math.min(Math.max(n, COMPACT_H), EXPANDED_H);
+  const handle = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 3,
+        onPanResponderGrant: () => {
+          startH.current = calHRef.current;
+          setDragging(true);
+        },
+        // Dragging up → g.dy < 0 → calendar shrinks (detail grows). Down → grows back.
+        onPanResponderMove: (_, g) => setH(clamp(startH.current + g.dy)),
+        onPanResponderRelease: (_, g) => {
+          setH(startH.current + g.dy < MID_H ? COMPACT_H : EXPANDED_H);
+          setDragging(false);
+        },
+        onPanResponderTerminate: () => setDragging(false),
+      }),
+    []
+  );
+  // Compact only when settled at the small end — during a drag the grid stays expanded (and clips).
+  const collapsed = !dragging && calH < MID_H;
+
   // R1 acceptance: **swipe months** — the standard calendar convention (S26/C2: reuse what people
   // already know, spend the design budget on the moment). Only claims clearly-horizontal drags, so a
   // day tap and the detail panel's scroll still win.
@@ -245,100 +299,101 @@ export default function Calendar() {
         ))}
       </View>
 
-      {/* month grid — taller cells so events show as compact named chips; swipe left/right to change month (R1) */}
-      <View className="flex-row flex-wrap px-2" {...swipe.panHandlers}>
-        {cells.map((c) => {
-          const isToday = c.key === today;
-          const isSelected = c.key === selected;
-          const holiday = holidayName(c.key);
-          // Number colour: a red holiday wins over Saturday (Korean convention — the founder's rule); then
-          // Sunday red, Saturday blue, weekday ink. Out-of-month days fade.
-          const numColor = !c.inMonth
-            ? "#C4CBD4"
-            : holiday || c.weekday === 0
-              ? HOLIDAY_RED
-              : c.weekday === 6
-                ? BRAND
-                : "#191F28";
-          // Holiday chip first (named, red), then the day's briefing events — capped, with a +N overflow.
-          const chips = [
-            ...(holiday ? [{ id: `h-${c.key}`, title: holiday, color: HOLIDAY_RED }] : []),
-            ...marksFor(c.key),
-          ];
-          const shown = chips.slice(0, 3);
-          const overflow = chips.length - shown.length;
-          return (
-            <Pressable
-              key={c.key}
-              onPress={() => setSelected(c.key)}
-              style={{ width: "14.2857%", aspectRatio: 0.64, padding: 2 }}
-            >
+      {/* resizable calendar — clipped to calH; drag the handle below to grow the detail panel */}
+      <View style={{ height: calH, overflow: "hidden" }}>
+        <View className="flex-row flex-wrap px-2" {...swipe.panHandlers}>
+          {cells.map((c) => {
+            const isToday = c.key === today;
+            const isSelected = c.key === selected;
+            const holiday = holidayName(c.key);
+            // Number colour: a red holiday wins over Saturday (Korean convention); Sunday red, Saturday blue.
+            const numColor = !c.inMonth
+              ? "#C4CBD4"
+              : holiday || c.weekday === 0
+                ? HOLIDAY_RED
+                : c.weekday === 6
+                  ? BRAND
+                  : "#191F28";
+            const chips = [
+              ...(holiday ? [{ id: `h-${c.key}`, title: holiday, color: HOLIDAY_RED }] : []),
+              ...marksFor(c.key),
+            ];
+            const numCircle = (fontSize: number) => (
               <View
                 style={{
-                  flex: 1,
+                  minWidth: 18,
+                  height: 18,
                   borderRadius: 9,
-                  paddingHorizontal: 3,
-                  paddingTop: 3,
-                  paddingBottom: 2,
-                  backgroundColor: isSelected ? "#E8F3FF" : "transparent",
+                  paddingHorizontal: 4,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isToday ? BRAND : "transparent",
                 }}
               >
-                <View style={{ alignItems: "center" }}>
-                  <View
-                    style={{
-                      minWidth: 18,
-                      height: 18,
-                      borderRadius: 9,
-                      paddingHorizontal: 4,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: isToday ? BRAND : "transparent",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: isToday || isSelected ? "700" : "500",
-                        color: isToday ? "#FFFFFF" : numColor,
-                      }}
-                    >
-                      {c.day}
-                    </Text>
+                <Text style={{ fontSize, fontWeight: isToday || isSelected ? "700" : "500", color: isToday ? "#FFFFFF" : numColor }}>
+                  {c.day}
+                </Text>
+              </View>
+            );
+
+            // Compact form (collapsed): small square cell — number + up to 3 tiny dots, no text.
+            if (collapsed) {
+              return (
+                <Pressable key={c.key} onPress={() => setSelected(c.key)} style={{ width: "14.2857%", aspectRatio: CMP_ASPECT, padding: 2 }}>
+                  <View style={{ flex: 1, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: isSelected ? "#E8F3FF" : "transparent" }}>
+                    {numCircle(12)}
+                    <View style={{ flexDirection: "row", gap: 2.5, height: 5, marginTop: 3 }}>
+                      {chips.slice(0, 3).map((m, i) => (
+                        <View key={i} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: m.color }} />
+                      ))}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            }
+
+            // Expanded form: number + named chips (titles processed by chipLabel — no "…", 2-line lone exception).
+            const shown = chips.slice(0, 3);
+            const overflow = chips.length - shown.length;
+            const alone = chips.length === 1;
+            return (
+              <Pressable key={c.key} onPress={() => setSelected(c.key)} style={{ width: "14.2857%", aspectRatio: EXP_ASPECT, padding: 2 }}>
+                <View style={{ flex: 1, borderRadius: 9, paddingHorizontal: 3, paddingTop: 3, paddingBottom: 2, backgroundColor: isSelected ? "#E8F3FF" : "transparent" }}>
+                  <View style={{ alignItems: "center" }}>{numCircle(11)}</View>
+                  <View style={{ marginTop: 2, gap: 1.5 }}>
+                    {shown.map((m) => {
+                      const lbl = chipLabel(m.title, alone);
+                      return (
+                        <View
+                          key={m.id}
+                          style={{ borderRadius: 3, backgroundColor: `${m.color}26`, borderWidth: 0.5, borderColor: `${m.color}66`, paddingHorizontal: 2, paddingVertical: 0.5 }}
+                        >
+                          <Text numberOfLines={lbl.lines} style={{ fontSize: 8.5, fontWeight: "600", color: m.color, letterSpacing: -0.3, lineHeight: 10.5 }}>
+                            {lbl.text}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                    {overflow > 0 && (
+                      <Text className="text-grey" style={{ fontSize: 8, fontWeight: "600", marginLeft: 2 }}>
+                        +{overflow}
+                      </Text>
+                    )}
                   </View>
                 </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
-                <View style={{ marginTop: 2, gap: 1.5 }}>
-                  {shown.map((m) => (
-                    <View
-                      key={m.id}
-                      style={{
-                        borderRadius: 3,
-                        backgroundColor: `${m.color}26`,
-                        borderWidth: 0.5,
-                        borderColor: `${m.color}66`,
-                        paddingHorizontal: 2,
-                        paddingVertical: 0.5,
-                      }}
-                    >
-                      <Text numberOfLines={1} style={{ fontSize: 8.5, fontWeight: "600", color: m.color, letterSpacing: -0.3 }}>
-                        {m.title}
-                      </Text>
-                    </View>
-                  ))}
-                  {overflow > 0 && (
-                    <Text className="text-grey" style={{ fontSize: 8, fontWeight: "600", marginLeft: 2 }}>
-                      +{overflow}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </Pressable>
-          );
-        })}
+      {/* drag handle — pull up to enlarge the detail panel (calendar collapses to the compact form) */}
+      <View {...handle.panHandlers} className="items-center" style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#F2F4F6" }}>
+        <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: "#D1D6DB" }} />
       </View>
 
       {/* selected-day detail */}
-      <View className="flex-1" style={{ borderTopWidth: 1, borderTopColor: "#F2F4F6", marginTop: 6 }}>
+      <View className="flex-1">
         <View className="flex-row items-center justify-between px-5 pt-4 pb-1">
           <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
             {sm}월 {sd}일 <Text className="text-grey" style={{ fontSize: 14, fontWeight: "600" }}>{selWeekday}</Text>
