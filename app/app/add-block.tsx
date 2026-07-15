@@ -11,7 +11,7 @@
 import { View, Text, Pressable, TextInput, Switch, ScrollView } from "react-native";
 import { ConfirmSheet } from "@/ui/Sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addBlocks, updateBlock, deleteBlock, listBlocks, preCommitted, type TimeBlock } from "@/core/data/blockRepository";
 import { snapshotFor, todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
@@ -112,6 +112,8 @@ export default function AddBlock() {
   const [leadCustom, setLeadCustom] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const savingRef = useRef(false); // synchronous double-submit guard (see save)
+  const [saving, setSaving] = useState(false); // disables + relabels the 저장 button while writing
   const [calOpen, setCalOpen] = useState(false);
   // D70 — which phone(s) take the screen. Defaults to this one: you are planning on the phone you are holding.
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
@@ -240,6 +242,10 @@ export default function AddBlock() {
     setDates((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
 
   const save = async () => {
+    // **Double-submit guard.** The screen stays up until `router.back()` lands, which on a slow device is long
+    // enough to tap 저장 several times — and each tap minted a fresh id, so identical blocks piled up. A ref is
+    // synchronous, so it blocks the 2nd tap even before React re-renders the disabled button.
+    if (savingRef.current) return;
     if (!canSave) {
       if (!startValid || !endValid) setError("시각이 올바르지 않아요.");
       else if (!orderValid) setError("끝나는 시각이 시작보다 빨라요.");
@@ -247,6 +253,19 @@ export default function AddBlock() {
       else if (alert === "soft" && leads.length === 0) setError("알림 시점을 하나 이상 골라주세요.");
       return;
     }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await doSave();
+    } catch {
+      // The write failed and we did NOT navigate away — let the user try again.
+      setError("저장에 실패했어요. 다시 시도해 주세요.");
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  const doSave = async () => {
     const now = Date.now();
     const common = {
       start,
@@ -859,12 +878,12 @@ export default function AddBlock() {
 
         <Pressable
           onPress={save}
-          disabled={!canSave}
+          disabled={!canSave || saving}
           className="items-center"
-          style={{ backgroundColor: canSave ? "#3182F6" : "#B0B8C1", borderRadius: 15, paddingVertical: 16, marginTop: 36 }}
+          style={{ backgroundColor: canSave && !saving ? "#3182F6" : "#B0B8C1", borderRadius: 15, paddingVertical: 16, marginTop: 36, opacity: saving ? 0.7 : 1 }}
         >
           <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>
-            {editId || dates.length <= 1 ? "저장" : `${dates.length}개 날에 저장`}
+            {saving ? "저장 중…" : editId || dates.length <= 1 ? "저장" : `${dates.length}개 날에 저장`}
           </Text>
         </Pressable>
 

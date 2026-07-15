@@ -273,9 +273,15 @@ function refreshBrief(): void {
 }
 
 export async function addBlocks(blocks: TimeBlock[]): Promise<void> {
-  await writeBlocks([...(await listBlocks()), ...blocks]);
-  for (const b of blocks) await scheduleBlock(b); // write-through (architecture §9-2)
-  syncPutMany("blocks", blocks); // mirror up; a no-op when logged out
+  // Insurance against a double-add reaching the store (the add-block screen already guards taps): never insert an
+  // id that is already present, so the same block can't become two rows.
+  const existing = await listBlocks();
+  const have = new Set(existing.map((b) => b.id));
+  const fresh = blocks.filter((b) => !have.has(b.id));
+  if (fresh.length === 0) return;
+  await writeBlocks([...existing, ...fresh]);
+  for (const b of fresh) await scheduleBlock(b); // write-through (architecture §9-2)
+  syncPutMany("blocks", fresh); // mirror up; a no-op when logged out
   refreshBrief();
 }
 
