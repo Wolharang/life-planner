@@ -36,10 +36,10 @@ export const MEAL_TYPES: MealType[] = ["아침", "점심", "저녁", "간식"];
 /** Per-meal identity colors — so the 식사 list reads colorful (not one grey), the same way CATEGORY_COLOR
  *  gives 지출 its variety. Muted, time-of-day tones that sit with the category palette. */
 export const MEAL_COLOR: Record<MealType, string> = {
-  아침: "#D9932B", // sunrise ochre
-  점심: "#3E9E7A", // midday green
-  저녁: "#6A5A9C", // dusk violet
-  간식: "#C56B7A", // rose
+  아침: "#FF922B", // bright orange
+  점심: "#20C997", // bright teal-green
+  저녁: "#9775FA", // bright violet
+  간식: "#FF6B9D", // bright rose
 };
 
 /** Per-meal kcal targets (D16). */
