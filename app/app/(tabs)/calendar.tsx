@@ -39,7 +39,9 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 // the grid switches to a **compact** form (small square cells, numbers only). Heights are derived from the
 // cell geometry so 6 rows land exactly.
 const CELL_W = (Dimensions.get("window").width - 16) / 7; // grid is px-2 (8 each side)
-const EXP_ASPECT = 0.64; // expanded cell (tall — holds named chips)
+// Expanded cells are tall on purpose: at rest the calendar fills the screen so the detail panel below shows only
+// its "N월 N일 · ＋추가" header row (the 아침 요약 preview sits just under the fold). Drag up to reveal it.
+const EXP_ASPECT = 0.52;
 const CMP_ASPECT = 1.25; // compact cell (short — number + dots)
 const EXPANDED_H = Math.round((CELL_W / EXP_ASPECT) * 6);
 const COMPACT_H = Math.round((CELL_W / CMP_ASPECT) * 6);
@@ -230,6 +232,14 @@ export default function Calendar() {
   );
   // Compact only when settled at the small end — during a drag the grid stays expanded (and clips).
   const collapsed = !dragging && calH < MID_H;
+
+  // Re-entering the calendar always returns to the expanded (wide) state — a collapsed split never persists.
+  useFocusEffect(
+    useCallback(() => {
+      setH(EXPANDED_H);
+      setDragging(false);
+    }, []),
+  );
 
   // R1 acceptance: **swipe months** — the standard calendar convention (S26/C2: reuse what people
   // already know, spend the design budget on the moment). Only claims clearly-horizontal drags, so a

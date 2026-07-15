@@ -122,11 +122,6 @@ export default function Settings() {
     await pickLead(v);
   };
 
-  const requestBattery = () => {
-    if (battery) return;
-    safeBool(() => (alarm.requestIgnoreBatteryOptimizations(), true));
-  };
-
   const doExport = async () => {
     if (busy) return;
     setBusy(true);
@@ -309,7 +304,7 @@ export default function Settings() {
         </Pressable>
 
         {/* 실행 준비 상태 — the permissions that gate the LEVER. Sync is optional; this is not. */}
-        <GroupLabel>알람이 제때 울리게</GroupLabel>
+        <GroupLabel>권한 설정</GroupLabel>
         <Pressable onPress={() => router.push("/onboarding" as never)} className="bg-surface flex-row items-center" style={{ borderRadius: 18, padding: 16 }}>
           <View
             className="items-center justify-center"
@@ -319,12 +314,12 @@ export default function Settings() {
           </View>
           <View className="flex-1" style={{ marginLeft: 14 }}>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "700" }}>
-              알람이 제때 울릴 권한
+              {allReady ? "권한이 모두 켜져 있어요" : "권한 설정이 필요해요"}
             </Text>
             <Text className={allReady ? "text-grey mt-0.5" : "text-warn mt-0.5"} style={{ fontSize: 13, fontWeight: allReady ? "400" : "700" }}>
               {allReady
-                  ? "모두 허용됨"
-                  : `${READY_TOTAL}개 중 ${readyN}개만 허용됨 — 눌러서 마저 켜기`}
+                  ? "필요한 권한이 모두 허용됐어요 (절전 모드 제외 포함)"
+                  : `${READY_TOTAL}개 중 ${readyN}개 허용됨 — 눌러서 마저 켜기`}
             </Text>
           </View>
           <Text className="text-faint" style={{ fontSize: 20 }}>
@@ -405,7 +400,7 @@ export default function Settings() {
             <Row>
               <View className="flex-1 pr-3">
                 <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  미리 알림 시간
+                  알림 시간 기본값
                 </Text>
                 <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
                   새 일정을 시작 몇 분 전에 알릴지 정해요
@@ -471,27 +466,6 @@ export default function Settings() {
             />
           </Row>
 
-          <Divider />
-          <Pressable onPress={requestBattery}>
-            <Row>
-              <View className="flex-1 pr-3">
-                <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>
-                  절전 모드에서 제외
-                </Text>
-                <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                  꺼두면 절전이 알람을 늦추거나 막을 수 있어요
-                </Text>
-              </View>
-              <Text className={battery ? "text-brand" : "text-warn"} style={{ fontSize: 14, fontWeight: "600" }}>
-                {battery ? "해제됨" : "제한 있음"}
-              </Text>
-              {!battery && (
-                <Text className="text-faint" style={{ fontSize: 18, marginLeft: 4 }}>
-                  ›
-                </Text>
-              )}
-            </Row>
-          </Pressable>
         </View>
 
         {/* 운동 자동 판정 (GPS). Only workout/run 실행 blocks. Coordinates stay on the phone (device-local),
@@ -639,7 +613,7 @@ export default function Settings() {
                     나의 실행 기록
                   </Text>
                   <Text className="text-grey mt-0.5" style={{ fontSize: 13 }}>
-                    알람이 울렸을 때 실제로 몇 번 했는지, 알람은 제때 울렸는지
+                    내가 실제로 실행한 기록을 확인해요
                   </Text>
                 </View>
                 <Text className="text-faint" style={{ fontSize: 18 }}>

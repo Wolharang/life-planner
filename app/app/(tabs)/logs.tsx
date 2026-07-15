@@ -19,7 +19,6 @@ import { CATEGORY_COLOR, DAILY_KCAL_TARGET, MEAL_TYPES } from "@/core/logs/const
 import { CategoryIcon, MealIcon } from "@/ui/icons/LogIcons";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
-const BRAND = "#3182F6";
 type Tab = "expense" | "meal";
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -35,8 +34,8 @@ export default function Logs() {
 
   const [tab, setTab] = useState<Tab>("expense");
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() }); // m = 0-based
-  // 식사 요약이 가리키는 날 (기본 오늘). 다른 달로 넘어가면 그 달 1일로, 오늘 버튼이면 오늘로.
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+  // A day the user tapped. null = the default view: 지출 shows the whole month, 식사 shows today.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [catsExpanded, setCatsExpanded] = useState(false); // 지출 카테고리 전체 펼침
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [meals, setMeals] = useState<MealEntry[]>([]);
@@ -47,35 +46,52 @@ export default function Logs() {
     listMeals().then(setMeals);
     listBlocks().then(setBlocks);
   }, []);
-  useFocusEffect(reload);
+  // Returning to the 기록 tab resets to the default view (month total / today), per the founder.
+  useFocusEffect(
+    useCallback(() => {
+      setSelectedDay(null);
+      reload();
+    }, [reload]),
+  );
   // R2: a change that arrived from the other phone must show up **without** navigating away and back.
   useEffect(() => onSyncApplied(reload), [reload]);
 
 
   const month = monthKey(view.y, view.m);
   const isCurrentMonth = view.y === now.getFullYear() && view.m === now.getMonth();
-  const setMonthAndDay = (y: number, m: number) => {
+  const firstOfMonth = `${view.y}-${pad(view.m + 1)}-01`;
+  const resetView = (y: number, m: number) => {
     setView({ y, m });
-    // land the 식사 summary on a day that lives in the month being shown.
-    setSelectedDate(y === now.getFullYear() && m === now.getMonth() ? today : `${y}-${pad(m + 1)}-01`);
+    setSelectedDay(null);
     setCatsExpanded(false);
   };
   const shiftMonth = (delta: number) => {
     const d = new Date(view.y, view.m + delta, 1);
-    setMonthAndDay(d.getFullYear(), d.getMonth());
+    resetView(d.getFullYear(), d.getMonth());
   };
-  const goToday = () => setMonthAndDay(now.getFullYear(), now.getMonth());
+  const goToday = () => resetView(now.getFullYear(), now.getMonth());
 
   const monthExpenses = inMonth(expenses, month);
   const monthMeals = inMonth(meals, month);
-  const total = expenseTotal(monthExpenses);
-  const dist = categoryDistribution(monthExpenses);
-  const summary = mealSummary(meals, selectedDate);
-  const [sdY, sdM, sdD] = selectedDate.split("-").map(Number);
-  const mealSummaryLabel = selectedDate === today ? "오늘의 기록" : `${sdM}월 ${sdD}일 기록`;
 
-  // D22: "did I work out" is DERIVED from that day's workout/run blocks marked success — never logged here.
-  const dayAgg = dayAggregate(selectedDate, blocks, expenses, meals);
+  // 식사 summary follows the tapped day; default is today (current month) or the shown month's 1st.
+  const mealDay = selectedDay ?? (isCurrentMonth ? today : firstOfMonth);
+  const summary = mealSummary(meals, mealDay);
+  const [, mM, mD] = mealDay.split("-").map(Number);
+  const mealSummaryLabel = mealDay === today ? "오늘의 기록" : `${mM}월 ${mD}일 기록`;
+  const dayAgg = dayAggregate(mealDay, blocks, expenses, meals); // D22: 운동/러닝 derived for that day
+
+  // 지출 summary: a tapped day shows that day's expenses; otherwise the whole month.
+  const showExpenseDay = selectedDay != null;
+  const expenseSource = showExpenseDay ? expenses.filter((e) => e.date === selectedDay) : monthExpenses;
+  const total = expenseTotal(expenseSource);
+  const dist = categoryDistribution(expenseSource);
+  const [, eM, eD] = (selectedDay ?? today).split("-").map(Number);
+  const expenseLabel = showExpenseDay
+    ? `${eM}월 ${eD}일 지출`
+    : isCurrentMonth
+      ? "이번 달 총 지출"
+      : `${view.m + 1}월 총 지출`;
 
   const sections = (tab === "expense" ? byDay(monthExpenses) : byDay(monthMeals)).map((s) => ({
     title: s.date,
@@ -97,7 +113,7 @@ export default function Logs() {
             <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
           </Pressable>
         </View>
-        {!(isCurrentMonth && selectedDate === today) && (
+        {!(isCurrentMonth && selectedDay == null) && (
           <Pressable onPress={goToday} className="bg-group rounded-full px-3 py-1.5" hitSlop={8}>
             <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
               오늘
@@ -141,7 +157,7 @@ export default function Logs() {
           tab === "expense" ? (
             <View className="bg-group rounded-card mt-3" style={{ padding: 16 }}>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
-                {isCurrentMonth ? "이번 달 총 지출" : `${view.m + 1}월 총 지출`}
+                {expenseLabel}
               </Text>
               <Text className="text-ink" style={{ fontSize: 27, fontWeight: "700", letterSpacing: -0.7, marginTop: 4 }}>
                 {won(total)}
@@ -166,7 +182,7 @@ export default function Logs() {
                     ))}
                     {dist.length > 3 && (
                       <Pressable onPress={() => setCatsExpanded((v) => !v)} hitSlop={6}>
-                        <Text className={catsExpanded ? "text-grey" : "text-brand"} style={{ fontSize: 12, fontWeight: "700" }}>
+                        <Text className="text-faint" style={{ fontSize: 12 }}>
                           {catsExpanded ? "접기" : `+${dist.length - 3}개 카테고리`}
                         </Text>
                       </Pressable>
@@ -211,15 +227,15 @@ export default function Logs() {
             tab === "expense"
               ? won(expenseTotal(items as Expense[]))
               : `${(items as MealEntry[]).reduce((s, m) => s + m.kcal, 0)}kcal`;
-          // In 식사, tapping a day makes the summary card show THAT day (the selected day is highlighted).
-          const selectable = tab === "meal";
-          const isSel = selectable && section.title === selectedDate;
+          // Tapping a day makes the summary card show THAT day (지출: that day's total · 식사: that day's kcal).
+          // The selected day is marked by **bold**, not colour.
+          const isSel = section.title === (tab === "meal" ? mealDay : selectedDay);
           return (
             <Pressable
-              onPress={selectable ? () => setSelectedDate(section.title) : undefined}
+              onPress={() => setSelectedDay(section.title)}
               className="flex-row items-center justify-between mt-4 mb-1.5 px-1"
             >
-              <Text style={{ fontSize: 13, fontWeight: "700", color: isSel ? BRAND : "#191F28" }}>
+              <Text style={{ fontSize: 13, fontWeight: isSel ? "800" : "600", color: "#191F28" }}>
                 {dayHeader(section.title)}
               </Text>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
