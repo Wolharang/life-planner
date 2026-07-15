@@ -33,7 +33,9 @@ const BRAND = "#3182F6"; // token: brand
 const WORD = "LifePlanner";
 const CLOCK_SIZE = 150;
 const H = Dimensions.get("window").height;
-const SAFETY_MS = 4000; // never let a hung font load strand the launch on the splash
+const SAFETY_MS = 1000; // last resort: if the font load is genuinely stuck, hand off anyway (app runs in the
+// fallback font until it arrives). This is NOT "the app isn't ready" — a local-first app needs nothing from the
+// network to paint its first screen; this only covers a hung/failed FONT decode.
 
 const ACircle = Animated.createAnimatedComponent(Circle);
 const ALine = Animated.createAnimatedComponent(Line);
