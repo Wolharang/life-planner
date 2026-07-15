@@ -17,6 +17,9 @@ export async function listExpenses(): Promise<Expense[]> {
   try {
     const rows = JSON.parse(raw);
     const all = Array.isArray(rows) ? (rows as Expense[]) : [];
+    // Legacy normalization: 뷰티 was renamed to 의료 (D87). Remap on read so rows saved under the old name
+    // still resolve a colour and icon instead of rendering blank. They persist under the new name on next save.
+    for (const e of all) if ((e.category as string) === "뷰티") e.category = "의료";
     return all.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     // A corrupt store must degrade, not detonate — this read sits under home, the tabs, the catch-up sweep

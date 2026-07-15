@@ -8,7 +8,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addMeal, updateMeal, deleteMeal, listMeals, type MealEntry } from "@/core/data/mealRepository";
-import { KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
+import { KCAL_TARGET, MEAL_TYPES } from "@/core/logs/constants";
+import { MealIcon } from "@/ui/icons/LogIcons";
 import { stampFor } from "@/core/logs/aggregate";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { newId } from "@/core/data/id";
@@ -177,7 +178,7 @@ export default function AddMeal() {
                     : {}),
                 }}
               >
-                <Text style={{ fontSize: 15 }}>{MEAL_ICON[m]}</Text>
+                <MealIcon meal={m} size={20} color={on ? "#191F28" : "#8B95A1"} />
                 <Text className={on ? "text-ink" : "text-grey"} style={{ fontSize: 13.5, fontWeight: on ? "700" : "500", marginTop: 2 }}>
                   {m}
                 </Text>

@@ -55,7 +55,7 @@ export type ExpenseCategory =
   | "잡화소모"
   | "이동통신"
   | "대중교통비"
-  | "뷰티"
+  | "의료"
   | "기타";
 
 export type MealType = "아침" | "점심" | "저녁" | "간식";

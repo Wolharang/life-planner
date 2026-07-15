@@ -15,7 +15,8 @@ import { listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { todayYmd, shiftYmd } from "@/core/schedule/blockScheduler";
 import { categoryDistribution, dayAggregate, won } from "@/core/logs/aggregate";
-import { CATEGORY_COLOR, DAILY_KCAL_TARGET, KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
+import { CATEGORY_COLOR, DAILY_KCAL_TARGET, KCAL_TARGET, MEAL_TYPES } from "@/core/logs/constants";
+import { MealIcon } from "@/ui/icons/LogIcons";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -151,9 +152,12 @@ export default function Summary() {
           </Text>
           <View style={{ marginTop: 8, gap: 3 }}>
             {MEAL_TYPES.map((m) => (
-              <Text key={m} className="text-ink-soft" style={{ fontSize: 12.5 }}>
-                {MEAL_ICON[m]} {m} [{agg.kcalByMeal[m]}/{KCAL_TARGET[m]}]
-              </Text>
+              <View key={m} className="flex-row items-center" style={{ gap: 4 }}>
+                <MealIcon meal={m} size={14} color="#4E5968" />
+                <Text className="text-ink-soft" style={{ fontSize: 12.5 }}>
+                  {m} [{agg.kcalByMeal[m]}/{KCAL_TARGET[m]}]
+                </Text>
+              </View>
             ))}
           </View>
           {dayMeals.length === 0 && dayExpenses.length === 0 && (

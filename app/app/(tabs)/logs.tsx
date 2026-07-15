@@ -15,7 +15,8 @@ import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
 import { onSyncApplied } from "@/core/data/sync";
 import { todayYmd } from "@/core/schedule/blockScheduler";
 import { byDay, categoryDistribution, dayAggregate, expenseTotal, inMonth, mealSummary, monthKey, won } from "@/core/logs/aggregate";
-import { CATEGORY_COLOR, CATEGORY_ICON, DAILY_KCAL_TARGET, MEAL_ICON, MEAL_TYPES } from "@/core/logs/constants";
+import { CATEGORY_COLOR, DAILY_KCAL_TARGET, MEAL_TYPES } from "@/core/logs/constants";
+import { CategoryIcon, MealIcon } from "@/ui/icons/LogIcons";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 type Tab = "expense" | "meal";
@@ -161,10 +162,13 @@ export default function Logs() {
                 {MEAL_TYPES.map((m) => {
                   const s = summary.byMeal[m];
                   return (
-                    <Text key={m} className="text-ink-soft" style={{ fontSize: 12.5 }} numberOfLines={1}>
-                      {MEAL_ICON[m]} {m} [{s.kcal}/{s.target}]
-                      {s.names.length > 0 ? ` · ${s.names.join(", ")}` : ""}
-                    </Text>
+                    <View key={m} className="flex-row items-center" style={{ gap: 4 }}>
+                      <MealIcon meal={m} size={14} color="#4E5968" />
+                      <Text className="text-ink-soft flex-1" style={{ fontSize: 12.5 }} numberOfLines={1}>
+                        {m} [{s.kcal}/{s.target}]
+                        {s.names.length > 0 ? ` · ${s.names.join(", ")}` : ""}
+                      </Text>
+                    </View>
                   );
                 })}
                 {/* derived from time-blocks (D22) — the workout is never logged here */}
@@ -239,7 +243,7 @@ function ExpenseRow({ e, onPress }: { e: Expense; onPress: () => void }) {
         className="items-center justify-center"
         style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: `${CATEGORY_COLOR[e.category]}1A` }}
       >
-        <Text style={{ fontSize: 15 }}>{CATEGORY_ICON[e.category]}</Text>
+        <CategoryIcon category={e.category} size={18} color={CATEGORY_COLOR[e.category]} />
       </View>
       <View className="flex-1" style={{ marginLeft: 11 }}>
         <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }} numberOfLines={1}>
@@ -260,7 +264,7 @@ function MealRow({ m, onPress }: { m: MealEntry; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} className="flex-row items-center" style={{ paddingVertical: 9 }}>
       <View className="bg-group items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17 }}>
-        <Text style={{ fontSize: 15 }}>{MEAL_ICON[m.mealType]}</Text>
+        <MealIcon meal={m.mealType} size={18} color="#4E5968" />
       </View>
       <View className="flex-1" style={{ marginLeft: 11 }}>
         <Text className="text-ink" style={{ fontSize: 15, fontWeight: "700", letterSpacing: -0.2 }} numberOfLines={1}>

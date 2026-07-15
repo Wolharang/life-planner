@@ -12,6 +12,21 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-15 — Launch screen + Logs icon refresh
+
+### D87. Expense/meal glyphs → custom line icons; 뷰티 replaced by 의료
+- **뷰티 is retired; 의료 takes its place** in the 8 fixed expense categories (D16). The set began verbatim from
+  the reference apps, but the founder judged medical spending the more useful bucket. Colour `#2E8B7F`.
+  Legacy rows saved as 뷰티 are **remapped to 의료 on read** (`expenseRepository.listExpenses`) so old data keeps a
+  colour/icon and re-persists under the new name — no destructive migration.
+- **All category + meal glyphs are now custom SVG line icons** (`src/ui/icons/LogIcons.tsx`), not emoji. Same
+  visual language as the launch clock (24-viewBox, round-capped strokes, one parameterized colour), so they tint
+  to the category colour / white-on-selected / neutral ink per surface. Meals read as time-of-day where natural:
+  아침 sunrise · 점심 sun · 저녁 crescent moon · 간식 coffee cup. `CATEGORY_ICON`/`MEAL_ICON` emoji maps deleted;
+  the three inline-text usages became icon+text rows.
+- **Rationale**: the emoji rendered inconsistently across devices and read as dated; a cohesive line set matches
+  the app's modern skin. Categories stay **fixed and non-editable** (D16 unchanged) — only the labels/glyphs moved.
+
 ## 2026-07-14 (evening) — GPS auto-evaluation, the Kakao map, and the day's polish
 
 ### D86. The day's polish — 12h "놓쳤어요", modern confirm sheets everywhere, 주식/간식 → meal

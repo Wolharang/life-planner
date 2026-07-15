@@ -33,7 +33,7 @@ describe("expenses", () => {
     exp({ id: "a", date: "2026-08-01", amount: 10000, category: "주식" }),
     exp({ id: "b", date: "2026-08-03", amount: 5000, category: "간식" }),
     exp({ id: "c", date: "2026-08-03", amount: 5000, category: "주식" }),
-    exp({ id: "d", date: "2026-07-30", amount: 99000, category: "뷰티" }), // another month
+    exp({ id: "d", date: "2026-07-30", amount: 99000, category: "의료" }), // another month
   ];
 
   it("totals only the viewed month", () => {

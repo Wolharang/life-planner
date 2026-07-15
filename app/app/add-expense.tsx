@@ -9,7 +9,8 @@ import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addExpense, updateExpense, deleteExpense, listExpenses, type Expense } from "@/core/data/expenseRepository";
 import { addMeal } from "@/core/data/mealRepository";
-import { CATEGORY_COLOR, CATEGORY_ICON, EXPENSE_CATEGORIES } from "@/core/logs/constants";
+import { CATEGORY_COLOR, EXPENSE_CATEGORIES } from "@/core/logs/constants";
+import { CategoryIcon } from "@/ui/icons/LogIcons";
 import { stampFor } from "@/core/logs/aggregate";
 import { newId } from "@/core/data/id";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
@@ -189,11 +190,12 @@ export default function AddExpense() {
                 <Pressable
                   key={e.id}
                   onPress={() => applyRecent(e)}
-                  className="bg-group"
-                  style={{ borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, marginRight: 8 }}
+                  className="bg-group flex-row items-center"
+                  style={{ borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, marginRight: 8, gap: 5 }}
                 >
+                  <CategoryIcon category={e.category} size={15} color={CATEGORY_COLOR[e.category]} />
                   <Text className="text-ink" style={{ fontSize: 13, fontWeight: "600" }}>
-                    {CATEGORY_ICON[e.category]} {e.name} · {e.amount.toLocaleString()}원
+                    {e.name} · {e.amount.toLocaleString()}원
                   </Text>
                 </Pressable>
               ))}
@@ -240,7 +242,7 @@ export default function AddExpense() {
                   backgroundColor: on ? CATEGORY_COLOR[c] : "#F2F4F6",
                 }}
               >
-                <Text style={{ fontSize: 17 }}>{CATEGORY_ICON[c]}</Text>
+                <CategoryIcon category={c} size={22} color={on ? "#FFFFFF" : CATEGORY_COLOR[c]} />
                 <Text
                   style={{ fontSize: 11.5, fontWeight: on ? "700" : "500", color: on ? "#FFFFFF" : "#4E5968", marginTop: 3 }}
                 >
