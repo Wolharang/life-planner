@@ -14,27 +14,42 @@ Device: GET the Worker URL (If-None-Match) → 304 = keep; 200 = cache + show.  
 
 The Kakao **admin key never leaves Cloudflare** — it is a Wrangler secret, not in code or the app.
 
-## One-time setup (founder)
+## Setup (founder)
 
-From `workers/holidays/`:
+From `workers/holidays/`. Do the local test first — it works **without** email verification and proves the
+whole pull works; the production deploy needs the Cloudflare email verified.
 
-1. `npm install`
-2. `npx wrangler login`
-3. **Create the KV namespace** and paste its id into `wrangler.toml` (`kv_namespaces.id`):
-   `npx wrangler kv namespace create HOLIDAYS`
-4. **Set the secrets** (rotate the Kakao admin key first — the old one was exposed in chat):
-   - `npx wrangler secret put KAKAO_ADMIN_KEY`  → paste the rotated admin key
-   - `npx wrangler secret put REFRESH_TOKEN`    → any long random string (guards `/refresh`)
-5. **Test locally**: `npx wrangler dev`, then in another shell trigger the scheduled handler:
-   `curl "http://localhost:8787/cdn-cgi/handler/scheduled"` — the log should show it wrote KV.
-6. **Deploy**: `npx wrangler deploy` → note the URL, e.g. `https://lp-holidays.<subdomain>.workers.dev`.
-7. **Populate production once**: `curl "https://lp-holidays.<subdomain>.workers.dev/refresh?key=<REFRESH_TOKEN>"`
-   → expect `{"version":1,"count":N,"changed":true}`.
-8. **Wire the app**: put the Worker URL in `app/app.json` → `extra.holidaysUrl`, then rebuild the app.
-   (Empty = the app just uses the bundled fallback table.)
+### 0. Prereqs (once)
+- `npm install`
+- `npx wrangler login`
+- `npx wrangler kv namespace create HOLIDAYS` → paste the printed `id` into `wrangler.toml` (already done if it
+  shows a real id there).
+
+### 1. Test locally (no email verification needed)
+Local dev (Miniflare) does **not** use the production secrets — it reads a **`.dev.vars`** file. So:
+- `cp .dev.vars.example .dev.vars` and fill in the **rotated** admin key + any REFRESH_TOKEN. (`.dev.vars` is
+  gitignored — never commit it.)
+- `npx wrangler dev --test-scheduled`  ← **the `--test-scheduled` flag is required**, otherwise
+  `/cdn-cgi/handler/scheduled` just falls through to the normal GET and returns the empty `{"version":0,...}`.
+- In another shell: `curl "http://localhost:8787/cdn-cgi/handler/scheduled"` → watch the `wrangler dev` log; it
+  should pull Kakao and write local KV.
+- `curl "http://localhost:8787/"` → now returns `{"version":1,"days":{ "...": "..." }}` with real holidays.
+
+### 2. Deploy to production
+- **Verify your Cloudflare email first** (the `[code: 10034]` error blocks Worker create/deploy until you do —
+  check the shleelee@… inbox or resend from the dashboard).
+- `npx wrangler secret put KAKAO_ADMIN_KEY` → paste the rotated admin key (masked)
+- `npx wrangler secret put REFRESH_TOKEN` → a long random string
+- `npx wrangler deploy` → note the URL, e.g. `https://lp-holidays.<subdomain>.workers.dev`
+- **Populate once**: `curl "https://lp-holidays.<subdomain>.workers.dev/refresh?key=<REFRESH_TOKEN>"`
+  → expect `{"version":1,"count":N,"changed":true}`.
+
+### 3. Wire the app
+Put the Worker URL in `app/app.json` → `extra.holidaysUrl`, then rebuild. (Empty = bundled fallback table.)
 
 ## Notes
 
 - Cron is UTC; subtract 9h from the KST time you want. Weekly is ample; add `"0 8 * * *"` for a daily 17:00 KST run.
 - Only `holiday: true` events become red days.
 - Writes to KV happen only on a real diff; the ETag/version lets each device skip the download when nothing moved.
+- `wrangler secret put` sets **production** secrets; `.dev.vars` holds the **local** ones — they are separate.

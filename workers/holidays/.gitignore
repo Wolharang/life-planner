@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+# Local dev secrets (Miniflare reads these; NEVER commit — the admin key lives here for `wrangler dev`).
+.dev.vars

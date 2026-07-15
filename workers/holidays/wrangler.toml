@@ -12,7 +12,7 @@ crons = ["0 20 * * SUN"]
 # then paste the printed id below.
 [[kv_namespaces]]
 binding = "HOLIDAYS"
-id = "PUT_KV_NAMESPACE_ID_HERE"
+id = "0a14075b36af4ef49b71b0e482e71156"
 
 # Secrets are NOT set here — they are set out-of-band and stay encrypted:
 #   wrangler secret put KAKAO_ADMIN_KEY

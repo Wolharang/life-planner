@@ -1,0 +1,4 @@
+# Copy to `.dev.vars` (gitignored) for LOCAL testing with `wrangler dev`. Miniflare reads these locally;
+# `wrangler secret put` sets the SEPARATE production secrets. Never commit the real values.
+KAKAO_ADMIN_KEY=your-rotated-kakao-admin-key
+REFRESH_TOKEN=any-long-random-string
