@@ -328,10 +328,6 @@ export default function AddBlock() {
   const remove = () => {
     if (editId) setConfirmDelete(true);
   };
-  // A pre-committed block deleted on its own day records a **miss** (spec §3.6) — otherwise deleting is a
-  // silent, cost-free "can't today", the one escape R7 forbids. The sheet says so plainly, without a threat.
-  const willCountMiss =
-    orig != null && orig.status === "planned" && preCommitted(orig) && orig.date <= todayYmd();
   const doDelete = async () => {
     if (!editId) return;
     await deleteBlock(editId);
@@ -884,11 +880,7 @@ export default function AddBlock() {
       <ConfirmSheet
         visible={confirmDelete}
         title="이 블록을 지울까요?"
-        message={
-          willCountMiss
-            ? "어제 미리 정해둔 오늘 일이라, 지우면 '안 함'으로 남아요. 벌점은 없어요 — 그냥 기록이에요. 알림도 함께 꺼져요."
-            : "알림도 함께 꺼져요. 되돌릴 수 없어요."
-        }
+        message="되돌릴 수 없어요."
         confirmLabel="지우기"
         onConfirm={doDelete}
         onClose={() => setConfirmDelete(false)}

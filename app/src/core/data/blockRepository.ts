@@ -315,7 +315,11 @@ export async function deleteBlock(id: string): Promise<void> {
   const blocks = await listBlocks();
   const b = blocks.find((x) => x.id === id);
 
-  if (b && b.status === "planned" && preCommitted(b) && b.date <= ymd(new Date())) {
+  // Only **tracked** blocks record the delete-miss: fill-in blocks (없음-tier or taken out of the 아침 요약,
+  // `inBrief === false`) are never shown in 지난 기록 and are not part of the self-experiment, so deleting one is
+  // just tidying up — no miss, no record (founder, 2026-07-15).
+  const tracked = b != null && b.alert !== "none" && b.inBrief !== false;
+  if (tracked && b.status === "planned" && preCommitted(b) && b.date <= ymd(new Date())) {
     await recordOutcome({
       taskId: b.id,
       title: b.title,

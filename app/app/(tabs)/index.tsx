@@ -458,17 +458,21 @@ export default function Home() {
   const awaiting = new Set(catchUps.map((c) => `${c.taskId}|${c.date}`));
 
   const settledKeys = new Set(outcomes.map((o) => `${o.taskId}|${o.date}`));
+  // 지난 기록 shows only **tracked** items: a block that is 없음-tier or taken out of the 아침 요약
+  // (`inBrief === false`) is fill-in — it never belongs in the log (founder, 2026-07-15). A since-deleted block
+  // isn't found here, so its real historical outcome still shows.
+  const blockById = new Map(blocks.map((b) => [b.id, b] as const));
+  const isFillIn = (taskId: string) => {
+    const b = blockById.get(taskId);
+    return !!b && (b.alert === "none" || b.inBrief === false);
+  };
   const history: HistoryEntry[] = [
-    ...outcomes.map((o) => ({ taskId: o.taskId, title: o.title, date: o.date, at: o.at, status: o.status })),
+    ...outcomes
+      .filter((o) => !isFillIn(o.taskId))
+      .map((o) => ({ taskId: o.taskId, title: o.title, date: o.date, at: o.at, status: o.status })),
     ...fires
-      .filter((f) => !settledKeys.has(`${f.taskId}|${f.date}`))
+      .filter((f) => !settledKeys.has(`${f.taskId}|${f.date}`) && !isFillIn(f.taskId))
       .map((f) => ({ taskId: f.taskId, title: f.title, date: f.date, at: f.firedAt, status: "pending" as const })),
-    // A `none` block passes on its own (D68). It is **derived, never recorded**: writing an outcome for it
-    // would put context into the evidence store the self-experiment reads (S1/S5), and a 강의 that happened
-    // exactly as planned is not a datum about the lever. It shows, and it costs nothing.
-    ...blocks
-      .filter((b) => b.alert === "none" && blockStartAt(b) <= now && !settledKeys.has(`${b.id}|${b.date}`))
-      .map((b) => ({ taskId: b.id, title: b.title, date: b.date, at: blockStartAt(b), status: "passed" as const })),
   ].sort((a, b) => b.at - a.at);
   const historyRows: HomeRow[] = history.slice(0, 12).map((entry) => ({ kind: "history", entry }));
   const rows: HomeRow[] = [
