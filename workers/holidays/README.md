@@ -30,8 +30,8 @@ Local dev (Miniflare) does **not** use the production secrets — it reads a **`
 - `cp .dev.vars.example .dev.vars` and fill in the **rotated** admin key + any REFRESH_TOKEN. (`.dev.vars` is
   gitignored — never commit it.)
 - `npx wrangler dev --test-scheduled`  ← **the `--test-scheduled` flag is required**, otherwise
-  `/cdn-cgi/handler/scheduled` just falls through to the normal GET and returns the empty `{"version":0,...}`.
-- In another shell: `curl "http://localhost:8787/cdn-cgi/handler/scheduled"` → watch the `wrangler dev` log; it
+  `/__scheduled` just falls through to the normal GET and returns the empty `{"version":0,...}`.
+- In another shell: `curl "http://localhost:8787/__scheduled"` → watch the `wrangler dev` log; it
   should pull Kakao and write local KV.
 - `curl "http://localhost:8787/"` → now returns `{"version":1,"days":{ "...": "..." }}` with real holidays.
 
