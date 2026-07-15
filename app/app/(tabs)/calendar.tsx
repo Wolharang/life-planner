@@ -11,7 +11,7 @@
 
 import { View, Text, Pressable, ScrollView, PanResponder, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import {
   listBlocks,
@@ -32,6 +32,65 @@ const BRAND = "#3182F6";
 const MIN_YEAR = 2015;
 const MAX_YEAR = 2040;
 const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+// A scroll-snap wheel column (like a native date spinner): items snap to a fixed row height; the row at the
+// centre band is the selection, and it bolds live as you scroll. No dependency — just a snapping ScrollView.
+const ITEM_H = 42;
+const WHEEL_ROWS = 5; // odd, so one row sits dead-centre; viewport = 5 rows
+
+function Wheel({
+  data,
+  value,
+  onChange,
+  format,
+}: {
+  data: number[];
+  value: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+}) {
+  const ref = useRef<ScrollView>(null);
+  const inited = useRef(false);
+  const index = Math.max(0, data.indexOf(value));
+  const settle = (y: number) => {
+    const i = Math.min(Math.max(Math.round(y / ITEM_H), 0), data.length - 1);
+    if (data[i] !== value) onChange(data[i]);
+  };
+  return (
+    <ScrollView
+      ref={ref}
+      style={{ flex: 1 }}
+      showsVerticalScrollIndicator={false}
+      snapToInterval={ITEM_H}
+      decelerationRate="fast"
+      scrollEventThrottle={16}
+      onLayout={() => {
+        if (!inited.current) {
+          inited.current = true;
+          ref.current?.scrollTo({ y: index * ITEM_H, animated: false });
+        }
+      }}
+      onScroll={(e) => settle(e.nativeEvent.contentOffset.y)}
+      onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
+      contentContainerStyle={{ paddingVertical: (ITEM_H * (WHEEL_ROWS - 1)) / 2 }}
+    >
+      {data.map((v) => (
+        <View key={v} style={{ height: ITEM_H, alignItems: "center", justifyContent: "center" }}>
+          <Text
+            style={{
+              fontSize: v === value ? 19 : 16,
+              fontWeight: v === value ? "800" : "500",
+              color: v === value ? "#191F28" : "#C4CBD4",
+            }}
+          >
+            {format(v)}
+          </Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
 const HOLIDAY_RED = "#E5484D"; // Sundays + official holidays; a refined red, calendar convention (not the
 // no-guilt outcome red — that rule is about 성공/미스, D78). Saturdays use BRAND blue.
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -106,8 +165,10 @@ export default function Calendar() {
   // swipes. Pick a year, then tap a month to jump.
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickYear, setPickYear] = useState(view.y);
+  const [pickMonth, setPickMonth] = useState(view.m + 1); // 1-based
   const openPicker = () => {
     setPickYear(view.y);
+    setPickMonth(view.m + 1);
     setPickerOpen(true);
   };
   const jumpTo = (y: number, m0: number) => {
@@ -440,56 +501,41 @@ export default function Calendar() {
         </ScrollView>
       </View>
 
-      {/* jump-to-month picker */}
+      {/* jump-to-month picker — two scroll wheels (year · month), centre row = selection */}
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
         <Pressable
           onPress={() => setPickerOpen(false)}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", paddingHorizontal: 28 }}
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", paddingHorizontal: 40 }}
         >
-          <Pressable
-            onPress={() => {}}
-            className="bg-surface"
-            style={{ borderRadius: 18, padding: 18, elevation: 6 }}
-          >
-            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", textAlign: "center", marginBottom: 12 }}>
-              {pickYear}년으로 이동
+          <Pressable onPress={() => {}} className="bg-surface" style={{ borderRadius: 20, overflow: "hidden", elevation: 6 }}>
+            <Text className="text-ink" style={{ fontSize: 17, fontWeight: "800", textAlign: "center", paddingTop: 18, paddingBottom: 14 }}>
+              {pickYear}년 {pickMonth}월
             </Text>
+            <View style={{ height: 1, backgroundColor: "#F2F4F6" }} />
 
-            <Text className="text-grey" style={{ fontSize: 12, fontWeight: "700", marginBottom: 6 }}>연도</Text>
-            <ScrollView style={{ maxHeight: 132 }} showsVerticalScrollIndicator={false}>
-              <View className="flex-row flex-wrap" style={{ gap: 7 }}>
-                {YEARS.map((y) => {
-                  const on = y === pickYear;
-                  return (
-                    <Pressable
-                      key={y}
-                      onPress={() => setPickYear(y)}
-                      className={on ? "bg-brand" : "bg-group"}
-                      style={{ borderRadius: 9, paddingVertical: 8, width: "22.7%", alignItems: "center" }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: on ? "#FFFFFF" : "#4E5968" }}>{y}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <Text className="text-grey" style={{ fontSize: 12, fontWeight: "700", marginTop: 14, marginBottom: 6 }}>월</Text>
-            <View className="flex-row flex-wrap" style={{ gap: 7 }}>
-              {Array.from({ length: 12 }, (_, i) => i).map((m0) => {
-                const on = pickYear === view.y && m0 === view.m;
-                return (
-                  <Pressable
-                    key={m0}
-                    onPress={() => jumpTo(pickYear, m0)}
-                    className={on ? "bg-brand-soft" : "bg-group"}
-                    style={{ borderRadius: 9, paddingVertical: 11, width: "22.7%", alignItems: "center" }}
-                  >
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: on ? BRAND : "#191F28" }}>{m0 + 1}월</Text>
-                  </Pressable>
-                );
-              })}
+            <View style={{ flexDirection: "row", height: ITEM_H * WHEEL_ROWS }}>
+              <Wheel data={YEARS} value={pickYear} onChange={setPickYear} format={(v) => `${v}`} />
+              <Wheel data={MONTHS} value={pickMonth} onChange={setPickMonth} format={(v) => `${v}`} />
+              {/* centre selection band */}
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: ITEM_H * ((WHEEL_ROWS - 1) / 2),
+                  height: ITEM_H,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderColor: "#E5E8EB",
+                }}
+              />
             </View>
+
+            <View style={{ height: 1, backgroundColor: "#F2F4F6" }} />
+            <Pressable onPress={() => jumpTo(pickYear, pickMonth - 1)} style={{ alignSelf: "flex-end", paddingHorizontal: 22, paddingVertical: 13 }}>
+              <Text style={{ color: BRAND, fontSize: 16, fontWeight: "800" }}>선택</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
