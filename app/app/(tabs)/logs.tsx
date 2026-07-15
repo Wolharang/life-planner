@@ -19,7 +19,9 @@ import { CATEGORY_COLOR, DAILY_KCAL_TARGET, MEAL_TYPES } from "@/core/logs/const
 import { CategoryIcon, MealIcon } from "@/ui/icons/LogIcons";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
+const BRAND = "#3182F6";
 type Tab = "expense" | "meal";
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const dayHeader = (date: string) => {
   const [y, m, d] = date.split("-").map(Number);
@@ -33,6 +35,9 @@ export default function Logs() {
 
   const [tab, setTab] = useState<Tab>("expense");
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() }); // m = 0-based
+  // 식사 요약이 가리키는 날 (기본 오늘). 다른 달로 넘어가면 그 달 1일로, 오늘 버튼이면 오늘로.
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [catsExpanded, setCatsExpanded] = useState(false); // 지출 카테고리 전체 펼침
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
@@ -48,20 +53,29 @@ export default function Logs() {
 
 
   const month = monthKey(view.y, view.m);
+  const isCurrentMonth = view.y === now.getFullYear() && view.m === now.getMonth();
+  const setMonthAndDay = (y: number, m: number) => {
+    setView({ y, m });
+    // land the 식사 summary on a day that lives in the month being shown.
+    setSelectedDate(y === now.getFullYear() && m === now.getMonth() ? today : `${y}-${pad(m + 1)}-01`);
+    setCatsExpanded(false);
+  };
   const shiftMonth = (delta: number) => {
     const d = new Date(view.y, view.m + delta, 1);
-    setView({ y: d.getFullYear(), m: d.getMonth() });
+    setMonthAndDay(d.getFullYear(), d.getMonth());
   };
+  const goToday = () => setMonthAndDay(now.getFullYear(), now.getMonth());
 
   const monthExpenses = inMonth(expenses, month);
   const monthMeals = inMonth(meals, month);
   const total = expenseTotal(monthExpenses);
   const dist = categoryDistribution(monthExpenses);
-  const summary = mealSummary(meals, today);
+  const summary = mealSummary(meals, selectedDate);
+  const [sdY, sdM, sdD] = selectedDate.split("-").map(Number);
+  const mealSummaryLabel = selectedDate === today ? "오늘의 기록" : `${sdM}월 ${sdD}일 기록`;
 
-  // D22: "did I work out today" is DERIVED from workout/run blocks marked success — never logged here.
-  // The derivation lives in the shared aggregate (data-model §2.6), not inlined in this screen.
-  const todayAgg = dayAggregate(today, blocks, expenses, meals);
+  // D22: "did I work out" is DERIVED from that day's workout/run blocks marked success — never logged here.
+  const dayAgg = dayAggregate(selectedDate, blocks, expenses, meals);
 
   const sections = (tab === "expense" ? byDay(monthExpenses) : byDay(monthMeals)).map((s) => ({
     title: s.date,
@@ -72,15 +86,24 @@ export default function Logs() {
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       {/* month control */}
       <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
-        <Pressable onPress={() => shiftMonth(-1)} hitSlop={10} className="px-2">
-          <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
-        </Pressable>
-        <Text className="text-ink" style={{ fontSize: 18, fontWeight: "700", letterSpacing: -0.3 }}>
-          {view.y}. {view.m + 1}
-        </Text>
-        <Pressable onPress={() => shiftMonth(1)} hitSlop={10} className="px-2">
-          <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
-        </Pressable>
+        <View className="flex-row items-center" style={{ gap: 6 }}>
+          <Pressable onPress={() => shiftMonth(-1)} hitSlop={10} className="px-1">
+            <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
+          </Pressable>
+          <Text className="text-ink" style={{ fontSize: 18, fontWeight: "700", letterSpacing: -0.3 }}>
+            {view.y}. {view.m + 1}
+          </Text>
+          <Pressable onPress={() => shiftMonth(1)} hitSlop={10} className="px-1">
+            <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
+          </Pressable>
+        </View>
+        {!(isCurrentMonth && selectedDate === today) && (
+          <Pressable onPress={goToday} className="bg-group rounded-full px-3 py-1.5" hitSlop={8}>
+            <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
+              오늘
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* 지출 / 식사 */}
@@ -118,7 +141,7 @@ export default function Logs() {
           tab === "expense" ? (
             <View className="bg-group rounded-card mt-3" style={{ padding: 16 }}>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
-                이번 달 총 지출
+                {isCurrentMonth ? "이번 달 총 지출" : `${view.m + 1}월 총 지출`}
               </Text>
               <Text className="text-ink" style={{ fontSize: 27, fontWeight: "700", letterSpacing: -0.7, marginTop: 4 }}>
                 {won(total)}
@@ -131,8 +154,9 @@ export default function Logs() {
                       <View key={d.category} style={{ flex: d.ratio, backgroundColor: CATEGORY_COLOR[d.category] }} />
                     ))}
                   </View>
+                  {/* legend — tap "+N개 카테고리" to reveal every category's amount, "접기" to collapse */}
                   <View className="flex-row flex-wrap mt-3" style={{ gap: 12 }}>
-                    {dist.slice(0, 3).map((d) => (
+                    {(catsExpanded ? dist : dist.slice(0, 3)).map((d) => (
                       <View key={d.category} className="flex-row items-center" style={{ gap: 5 }}>
                         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: CATEGORY_COLOR[d.category] }} />
                         <Text className="text-ink-soft" style={{ fontSize: 12 }}>
@@ -141,9 +165,11 @@ export default function Logs() {
                       </View>
                     ))}
                     {dist.length > 3 && (
-                      <Text className="text-faint" style={{ fontSize: 12 }}>
-                        +{dist.length - 3}개 카테고리
-                      </Text>
+                      <Pressable onPress={() => setCatsExpanded((v) => !v)} hitSlop={6}>
+                        <Text className={catsExpanded ? "text-grey" : "text-brand"} style={{ fontSize: 12, fontWeight: "700" }}>
+                          {catsExpanded ? "접기" : `+${dist.length - 3}개 카테고리`}
+                        </Text>
+                      </Pressable>
                     )}
                   </View>
                 </>
@@ -152,7 +178,7 @@ export default function Logs() {
           ) : (
             <View className="bg-group rounded-card mt-3" style={{ padding: 16 }}>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
-                오늘의 기록
+                {mealSummaryLabel}
               </Text>
               <Text className="text-ink" style={{ fontSize: 27, fontWeight: "700", letterSpacing: -0.7, marginTop: 4 }}>
                 {summary.total}
@@ -173,8 +199,7 @@ export default function Logs() {
                 })}
                 {/* derived from time-blocks (D22) — the workout is never logged here */}
                 <Text className="text-ink-soft" style={{ fontSize: 12.5, marginTop: 2 }}>
-                  🏃 운동 {todayAgg.workoutDone ? "O" : "X"} · 👟 러닝 {todayAgg.runDone ? "O" : "X"}
-                  <Text className="text-faint"> · 블록에서 자동</Text>
+                  🏃 운동 {dayAgg.workoutDone ? "O" : "X"} · 👟 러닝 {dayAgg.runDone ? "O" : "X"}
                 </Text>
               </View>
             </View>
@@ -186,15 +211,21 @@ export default function Logs() {
             tab === "expense"
               ? won(expenseTotal(items as Expense[]))
               : `${(items as MealEntry[]).reduce((s, m) => s + m.kcal, 0)}kcal`;
+          // In 식사, tapping a day makes the summary card show THAT day (the selected day is highlighted).
+          const selectable = tab === "meal";
+          const isSel = selectable && section.title === selectedDate;
           return (
-            <View className="flex-row items-center justify-between mt-4 mb-1.5 px-1">
-              <Text className="text-ink" style={{ fontSize: 13, fontWeight: "700" }}>
+            <Pressable
+              onPress={selectable ? () => setSelectedDate(section.title) : undefined}
+              className="flex-row items-center justify-between mt-4 mb-1.5 px-1"
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: isSel ? BRAND : "#191F28" }}>
                 {dayHeader(section.title)}
               </Text>
               <Text className="text-grey" style={{ fontSize: 12.5, fontWeight: "600" }}>
                 {dayTotal}
               </Text>
-            </View>
+            </Pressable>
           );
         }}
         renderItem={({ item }) =>
