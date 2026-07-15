@@ -1,16 +1,21 @@
-// The animated loading screen (the launch/splash). The native splash (expo-splash-screen) is now a PLAIN WHITE
-// screen — no logo — so this overlay can draw the logo "from nothing": the clock is stroked on as if drawn, then
-// the "LifePlanner" wordmark is written on one letter at a time, and finally the whole thing fades to reveal the app.
+// The animated loading screen (the launch/splash). It runs CONCURRENTLY with app startup and gets out of the
+// way the instant the app is ready — the intro is there to cover a slow load, never to delay a fast one.
 //
-// Why SVG (not the PNG icon): a bitmap can't be "drawn". The clock is rebuilt as SVG strokes so each line can be
-// revealed by animating strokeDashoffset from its full length to 0 — the classic draw-on. react-native-svg +
-// Reanimated were already deps, so this adds nothing.
+// How it behaves:
+// - The native splash is a plain white screen; this overlay draws over the same white, so the hand-off is seamless.
+// - The clock is SVG (font-independent), so it starts drawing immediately — while the fonts are still loading —
+//   as the loading indicator.
+// - The "LifePlanner" wordmark uses Baloo 2, so it is written on ONLY once `ready` is true (fonts resolved) — it
+//   can never flash in a fallback font.
+// - The moment `ready` flips true, `runFinish` fast-forwards whatever is left (~0.1s) and fades out → the app.
+//   Fast startup → the whole thing is a brief blip; slow startup → the clock draws while you wait, then finishes
+//   the instant it can.
 //
-// Calm but brisk (the no-guilt ethos, minus the dawdle): single-pass strokes and a per-letter rise — no bounce,
-// no confetti — kept to ≈ 1.2s so it reads once and gets out of the way on every launch.
-import { useEffect } from "react";
+// Calm by design (no bounce, no confetti), per the no-guilt ethos.
+import { useCallback, useEffect, useRef } from "react";
 import { StyleSheet, View, Dimensions } from "react-native";
 import Animated, {
+  cancelAnimation,
   Easing,
   runOnJS,
   useAnimatedProps,
@@ -26,6 +31,7 @@ const BRAND = "#3182F6"; // token: brand
 const WORD = "LifePlanner";
 const CLOCK_SIZE = 150;
 const H = Dimensions.get("window").height;
+const SAFETY_MS = 4000; // never let a hung font load strand the launch on the splash
 
 const ACircle = Animated.createAnimatedComponent(Circle);
 const ALine = Animated.createAnimatedComponent(Line);
@@ -54,32 +60,64 @@ function Letter({ ch, index, driver }: { ch: string; index: number; driver: Shar
   return <Animated.Text style={[styles.letter, style]}>{ch}</Animated.Text>;
 }
 
-export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
+export function AnimatedSplash({ ready, onFinish }: { ready: boolean; onFinish: () => void }) {
   const ring = useSharedValue(RING_LEN); // strokeDashoffset: full = hidden, 0 = fully drawn
   const ticks = useSharedValue(TICK_LEN);
   const check = useSharedValue(CHECK_LEN);
   const wordN = useSharedValue(0); // how many letters have resolved (0 → WORD.length)
   const cover = useSharedValue(1); // whole-overlay opacity for the final fade
+  const finishing = useRef(false);
 
-  useEffect(() => {
-    // Kept deliberately BRISK (~1.2s total): the launch animation must clear fast and hand off to the app — an
-    // intro the user sees on every open should read once and get out of the way. The three strokes overlap
-    // heavily so the clock still reads as "drawn" without dwelling.
-    // 1) ring, 2) ticks, 3) checkmark — overlapping into one continuous drawing motion.
-    ring.value = withTiming(0, { duration: 340, easing: Easing.out(Easing.quad) });
-    ticks.value = withDelay(240, withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }));
-    check.value = withDelay(380, withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }));
-    // 4) the wordmark writes on, one letter at a time (starts before the clock fully finishes).
-    wordN.value = withDelay(480, withTiming(WORD.length, { duration: 440, easing: Easing.inOut(Easing.quad) }));
-    // 5) a hair of hold, then a quick fade-out that hands control to the app.
+  // Finish fast and hand off. Called the instant the app is ready (or by the safety timeout). Guarded so it runs
+  // once. Fast-forwards the clock (a no-op if already drawn), writes the wordmark quickly, then a short fade.
+  const runFinish = useCallback(() => {
+    if (finishing.current) return;
+    finishing.current = true;
+    ring.value = withTiming(0, { duration: 110 });
+    ticks.value = withTiming(0, { duration: 110 });
+    check.value = withTiming(0, { duration: 110 });
+    wordN.value = withTiming(WORD.length, { duration: 150, easing: Easing.out(Easing.quad) });
     cover.value = withDelay(
-      980,
-      withTiming(0, { duration: 240, easing: Easing.in(Easing.quad) }, (finished) => {
-        if (finished) runOnJS(onFinish)();
+      160,
+      withTiming(0, { duration: 120, easing: Easing.in(Easing.quad) }, (done) => {
+        if (done) runOnJS(onFinish)();
       }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onFinish]);
+
+  // Draw the clock at a leisurely pace right away — this plays under a slow load. If the app is already ready,
+  // runFinish (below) immediately overrides these with the fast-forward, so nothing is wasted.
+  useEffect(() => {
+    ring.value = withTiming(0, { duration: 340, easing: Easing.out(Easing.quad) });
+    ticks.value = withDelay(240, withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }));
+    check.value = withDelay(380, withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The wordmark waits for readiness; the moment we're ready, finish.
+  useEffect(() => {
+    if (ready) runFinish();
+  }, [ready, runFinish]);
+
+  // Safety net: never strand the launch if fonts hang.
+  useEffect(() => {
+    const id = setTimeout(runFinish, SAFETY_MS);
+    return () => clearTimeout(id);
+  }, [runFinish]);
+
+  // Stop any in-flight animations if we unmount mid-sequence.
+  useEffect(
+    () => () => {
+      cancelAnimation(ring);
+      cancelAnimation(ticks);
+      cancelAnimation(check);
+      cancelAnimation(wordN);
+      cancelAnimation(cover);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const coverStyle = useAnimatedStyle(() => ({ opacity: cover.value }));
   const ringProps = useAnimatedProps(() => ({ strokeDashoffset: ring.value }));

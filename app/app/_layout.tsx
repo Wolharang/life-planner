@@ -61,14 +61,15 @@ export default function RootLayout() {
     Baloo2: require("../assets/fonts/Baloo2-Bold.ttf"), // launch wordmark only, not the app body
   });
 
-  // Hide the NATIVE splash once fonts resolve (or fail — never hang the app on a font error). The JS
-  // AnimatedSplash overlay takes over from here and plays until `splashDone`, so dismissing the native splash
-  // never reveals raw app content — the overlay (same white, same clock) is already on top.
+  // Dismiss the NATIVE splash as soon as JS can paint — NOT after fonts load — so the JS AnimatedSplash starts
+  // drawing WHILE the fonts load, and the intro overlaps the load instead of following it. The overlay is on
+  // top (same white), so this never reveals raw/unstyled app content underneath.
   useEffect(() => {
-    if (loaded || error) SplashScreen.hideAsync().catch(() => {});
-  }, [loaded, error]);
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
-  // The animated loading screen runs on top of the app until its own fade-out completes.
+  // The animated loading screen runs on top of the app until its own fade-out completes. It is handed `ready`
+  // (fonts resolved or errored) so it can fast-forward the moment the app is actually ready and hand off.
   const [splashDone, setSplashDone] = useState(false);
 
   // Sync (R2/F0). Logged out — and in any build without Firebase — this does nothing at all and the app
@@ -126,8 +127,9 @@ export default function RootLayout() {
     return stop;
   }, [identified]);
 
-  if (!loaded && !error) return null;
-
+  // NOTE: we intentionally do NOT `return null` until fonts load. The app tree renders immediately (behind the
+  // opaque AnimatedSplash overlay), so any brief flash-of-fallback-font while Pretendard loads is hidden; by the
+  // time the overlay fades, `ready` is true and the app is fully styled.
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -149,7 +151,7 @@ export default function RootLayout() {
         actions={[]}
         cancelLabel="확인"
       />
-      {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
+      {!splashDone && <AnimatedSplash ready={loaded || !!error} onFinish={() => setSplashDone(true)} />}
     </SafeAreaProvider>
   );
 }
