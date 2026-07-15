@@ -35,6 +35,15 @@
       "./plugins/withExecutionLockScreen",
       "./plugins/withReleaseHeap",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 150,
+          "resizeMode": "contain"
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       [

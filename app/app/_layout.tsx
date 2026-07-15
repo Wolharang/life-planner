@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { checkClosedWhileSignedOut, onAccountClosed, startSync } from "@/core/data/sync";
 import { Sheet } from "@/ui/Sheet";
+import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { eraseLocal } from "@/core/data/erase";
 import { router } from "expo-router";
 import { rearmBlockAlarms } from "@/core/data/blockRepository";
@@ -57,10 +58,15 @@ export default function RootLayout() {
     GowunBatang: require("../assets/fonts/GowunBatang-Regular.ttf"),
   });
 
-  // Hide the splash once fonts resolve (or fail — never hang the app on a font error).
+  // Hide the NATIVE splash once fonts resolve (or fail — never hang the app on a font error). The JS
+  // AnimatedSplash overlay takes over from here and plays until `splashDone`, so dismissing the native splash
+  // never reveals raw app content — the overlay (same white, same clock) is already on top.
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync().catch(() => {});
   }, [loaded, error]);
+
+  // The animated loading screen runs on top of the app until its own fade-out completes.
+  const [splashDone, setSplashDone] = useState(false);
 
   // Sync (R2/F0). Logged out — and in any build without Firebase — this does nothing at all and the app
   // is exactly the local-first app it was (D20/R11). The hooks are what make a REMOTE change real on this
@@ -140,6 +146,7 @@ export default function RootLayout() {
         actions={[]}
         cancelLabel="확인"
       />
+      {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
     </SafeAreaProvider>
   );
 }
