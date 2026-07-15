@@ -15,6 +15,7 @@ import { rearmBlockAlarms } from "@/core/data/blockRepository";
 import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { registerBackgroundSync } from "@/core/notifications/backgroundSync";
 import { registerSelf } from "@/core/data/deviceRepository";
+import { initHolidays } from "@/core/data/holidaySync";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
 // don't have to thread fontFamily through each node. Instance styles are placed AFTER the base in the
@@ -80,6 +81,12 @@ export default function RootLayout() {
   // to decide whether the moment belongs to it; if it doesn't know, it errs loud (fires everywhere) — an alarm
   // on the wrong phone is an annoyance, an alarm on *no* phone is the product failing. Registering first turns
   // that fallback from a routine occurrence into the emergency it is meant to be.
+  // Holiday table (D89): load the cache, then a best-effort remote check. Independent of auth — the /config
+  // docs are world-readable — so it runs on its own, and never blocks anything if Firebase is absent.
+  useEffect(() => {
+    void initHolidays();
+  }, []);
+
   const [identified, setIdentified] = useState(false);
   useEffect(() => {
     registerSelf()

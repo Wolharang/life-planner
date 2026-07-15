@@ -14,6 +14,26 @@
 
 ## 2026-07-15 — Calendar redesign
 
+### D89. Holidays sync automatically — GitHub Actions → Firestore → devices (no paid cloud)
+- **Problem**: D88's holiday table was hand-maintained (lunar/substitute dates change yearly). The founder asked
+  to pull them from the **Kakao holidays API** automatically.
+- **The API needs the service ADMIN key** — an app-wide master credential that **cannot ship to devices** (an
+  APK is decompilable; the key appears in the request header at call time; it can't be rotated once distributed).
+  Encrypting-and-shipping it is a speed bump, not security: the decrypt key would be on the device too. So the
+  call must run **server-side**. Client-side leader-election among devices was considered and rejected for the
+  same reason — an elected device would still need the key.
+- **Firebase Cloud Functions were rejected**: deploying a function + scheduling + calling a non-Google API all
+  require the **Blaze (paid, card-required) plan**, which violates "free services only".
+- **Decision — the free server is GitHub Actions.** A cron job (03:00 & 17:00 KST) holds the admin key as a repo
+  Secret, pulls 60 months (one ≤31-day call each, `holiday:true` only, multi-day events expanded), and writes
+  `config/holidays_meta {version}` + `config/holidays_data {days}` to Firestore **only on a real diff**
+  (`scripts/holidays/`). Devices read the tiny meta doc, download the payload **only when the version moved**,
+  cache it, and feed `holidays.ts` (`holidaySync.ts`); the hand table stays as the **offline/first-run/no-Firebase
+  fallback**. `/config/*` is the one **world-readable** collection (no personal data; the app reads it logged
+  out, D20) — clients never write it (Admin SDK bypasses rules).
+- **Founder-only setup** (see `scripts/holidays/README.md`): rotate the exposed admin key, create a Firebase
+  service-account key, add both as GitHub Secrets, deploy the rule, push, run once.
+
 ### D88. The month grid shows only briefing events (named chips), with Korean holidays
 - **The month shows a block iff `inBrief(b)`** — the same flag the 아침 요약 uses. This **narrows D67**: D67 put
   *every* block on the calendar (a taken hour must be visible), but on a real week that filled every cell with

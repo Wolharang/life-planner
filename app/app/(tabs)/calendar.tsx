@@ -24,7 +24,7 @@ import { isSkipped } from "@/core/schedule/blockScheduler";
 import { onSyncApplied } from "@/core/data/sync";
 import { isExecution, todayYmd } from "@/core/schedule/blockScheduler";
 import { inBrief } from "@/core/notifications/morningBrief";
-import { holidayName } from "@/core/schedule/holidays";
+import { holidayName, onHolidaysChanged } from "@/core/schedule/holidays";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const BRAND = "#3182F6";
@@ -62,6 +62,9 @@ export default function Calendar() {
   useFocusEffect(reload);
   // R2: a change that arrived from the other phone must show up **without** navigating away and back.
   useEffect(() => onSyncApplied(reload), [reload]);
+  // Re-render when a holiday sync lands (D89) so the newly-fetched red days appear without a navigation.
+  const [, setHolidayTick] = useState(0);
+  useEffect(() => onHolidaysChanged(() => setHolidayTick((t) => t + 1)), []);
 
   /**
    * **The month grid shows only what the morning briefing shows** — the day's *important* events, named.

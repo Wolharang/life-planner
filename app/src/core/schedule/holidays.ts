@@ -1,13 +1,17 @@
 // Korean public holidays (관공서 공휴일) — the "red days" the calendar colours and names.
 //
-// Two kinds:
-//   · **Fixed solar** dates recur every year → keyed by "MM-DD".
-//   · **Lunar-derived** (설날·추석·부처님오신날) and **substitute** (대체공휴일)/temporary (임시공휴일) holidays
-//     move every year, so they are a hand-maintained per-year table keyed by full "YYYY-MM-DD".
+// **Source of truth is now synced** (D89): a GitHub Action pulls the Kakao holidays API and publishes a
+// {date: name} map to Firestore; each device caches it (`holidaySync.ts`) and feeds it here via
+// `applySyncedHolidays`. `holidayName` consults the synced map first. The hand-maintained table below is only
+// the **offline / first-run / no-Firebase fallback** — so a fresh install or an offline phone still shows the
+// obvious holidays before the first sync lands.
 //
-// The lunar/substitute table currently covers **2025–2026**; extend it each year (there is no lunar-calendar
-// math here on purpose — a wrong computed date is worse than a known table). Weekday colouring (Sun red / Sat
-// blue) is handled by the caller; this module only answers "is this an official red holiday, and its name?".
+// Fallback shape:
+//   · **Fixed solar** dates recur every year → keyed by "MM-DD".
+//   · **Lunar-derived** (설날·추석·부처님오신날) and **substitute/temporary** holidays move, so they are a small
+//     per-year table (2025–2026) keyed by "YYYY-MM-DD". No lunar math on purpose — a wrong computed date is
+//     worse than a known one; the synced map covers everything beyond it.
+// Weekday colouring (Sun red / Sat blue) is the caller's job; this module only answers "red holiday + name?".
 
 const FIXED: Record<string, string> = {
   "01-01": "신정",
@@ -49,7 +53,25 @@ const DATED: Record<string, string> = {
   "2026-10-05": "대체공휴일", // 개천절(토)
 };
 
-/** The official-holiday name for a date ("YYYY-MM-DD"), or null. Sundays/Saturdays are NOT holidays here. */
+// The synced map (from Firestore, via holidaySync.ts). Null until a cache load / remote sync populates it.
+let synced: Record<string, string> | null = null;
+const listeners = new Set<() => void>();
+
+/** The official-holiday name for a date ("YYYY-MM-DD"), or null. Synced map wins; the bundled table is fallback. */
 export function holidayName(ymd: string): string | null {
-  return DATED[ymd] ?? FIXED[ymd.slice(5)] ?? null;
+  return synced?.[ymd] ?? DATED[ymd] ?? FIXED[ymd.slice(5)] ?? null;
+}
+
+/** Feed in the synced {date: name} map (or null to clear). Notifies subscribers so the calendar re-renders. */
+export function applySyncedHolidays(days: Record<string, string> | null): void {
+  synced = days;
+  for (const f of listeners) f();
+}
+
+/** Subscribe to holiday-table changes (a completed sync). Returns an unsubscribe. */
+export function onHolidaysChanged(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
 }

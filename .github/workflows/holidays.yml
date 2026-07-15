@@ -1,0 +1,33 @@
+name: Sync holidays
+
+# Refreshes the Korean public-holiday table in Firestore (D89). Runs twice a day (03:00 & 17:00 KST) and is
+# manually triggerable. The Kakao admin key and the Firebase service account live ONLY as repo Secrets here —
+# never in the app.
+on:
+  schedule:
+    - cron: "0 18 * * *" # 18:00 UTC = 03:00 KST
+    - cron: "0 8 * * *" #  08:00 UTC = 17:00 KST
+  workflow_dispatch: {}
+
+# Never run two syncs at once (they both write config/holidays_*).
+concurrency:
+  group: sync-holidays
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        working-directory: scripts/holidays
+        run: npm install --no-audit --no-fund
+      - name: Sync holidays → Firestore
+        working-directory: scripts/holidays
+        env:
+          KAKAO_ADMIN_KEY: ${{ secrets.KAKAO_ADMIN_KEY }}
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
+        run: node index.mjs
