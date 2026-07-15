@@ -933,3 +933,29 @@ Firestore later behind the same interface (architecture §7). So this is F1's UI
 - `npm run typecheck` ✓ · `npm test` ✓ (route/type + scheduler logic intact). New native deps: none
   (react-native-svg already present) → no prebuild; a Metro reload suffices. On-device visual check pending
   (founder): tab switching, the square calendar, add-event → colored bar appears, tap-day → detail panel.
+
+## 2026-07-15 — Branded launch screen (native clock splash + animated wordmark)
+
+The launch screen showed expo-splash-screen's stock placeholder (grey grid + concentric circles): `app.json`
+carried **no splash config**, so `prebuild` emitted the default image. The app icon was already the LifePlanner
+clock — only the splash was unbranded.
+
+- **Native splash** — added the `expo-splash-screen` config plugin (white background + the clock
+  `adaptive-icon.png`, `imageWidth` 150). Deliberately icon-only: Android 12+'s system splash shows a single
+  circular-masked icon, so a wordmark placed under it would clip. Regenerated via `prebuild --clean`;
+  `splashscreen_logo.png` is now the clock, `splashscreen_background` = `#FFFFFF`.
+- **Animated loading screen** — `src/ui/AnimatedSplash.tsx`, a full-screen overlay that takes over the instant
+  the native splash is dismissed. **Same white, same clock asset** → the hand-off shows no jump; the clock
+  breathes once (scale 1→1.06→1) and the **LifePlanner** wordmark rises + fades in beneath it, then the whole
+  overlay fades out and reveals the app. **Reanimated + react-native-svg were already deps → no new deps.**
+  Calm by design (no bounce/confetti), per the no-guilt ethos.
+- **Wiring** (`app/_layout.tsx`) — the native `hideAsync` still fires on font-ready; a new `splashDone` state
+  holds the overlay on top until its own fade-out `runOnJS`-completes. `android/` is CNG (gitignored) so the
+  config lives in `app.json` and regenerates; `debug.keystore` was backed up + restored across the
+  `prebuild --clean` (kakao key hash `Xo8WBi6jzSxKDVR4drqm84yr9iU=` unchanged).
+
+### Verified
+- `npm run typecheck` ✓ · `npm test` ✓ (133/133). After the clean regenerate: lp-alarm + lp-kakaomap linked,
+  6 GB heap, execution lock-screen activity, Kakao maven repo, location perms all intact; keystore SHA1
+  unchanged. **On-device visual check pending (founder):** needs a fresh native build (`run:android` or
+  `assembleRelease` + install) — a Metro reload shows only the JS overlay, not the new native splash.
