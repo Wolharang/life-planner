@@ -14,8 +14,14 @@
 
 export interface Env {
   KAKAO_ADMIN_KEY: string; // wrangler secret put KAKAO_ADMIN_KEY  (kapi holidays)
-  KAKAO_REST_KEY: string; //  wrangler secret put KAKAO_REST_KEY   (dapi Local place-search proxy, D93)
+  KAKAO_REST_KEY: string; //  wrangler secret put KAKAO_REST_KEY   (dapi Local place-search proxy, D93 + Kakao login, D99)
   REFRESH_TOKEN: string; //   wrangler secret put REFRESH_TOKEN    (guards /refresh)
+  // Kakao Login (D99): the Firebase service-account JSON (the whole file, as a string). Used ONLY to sign a
+  // Firebase custom token so a Kakao user gets a Firebase uid and the existing sync just works. This is the
+  // "server" that Firebase Spark (no Cloud Functions) never had. Set with `wrangler secret put FIREBASE_SA`.
+  FIREBASE_SA?: string;
+  // Optional — only if "보안 → Client Secret" is enabled in the Kakao app. `wrangler secret put KAKAO_CLIENT_SECRET`.
+  KAKAO_CLIENT_SECRET?: string;
   HOLIDAYS: KVNamespace;
 }
 
@@ -102,6 +108,59 @@ async function refresh(env: Env): Promise<{ version: number; count: number; chan
   return { version, count, changed: true };
 }
 
+// ── Kakao Login → Firebase custom token (D99) ───────────────────────────────────────────────────────────────
+// A Kakao user is not a Firebase-native provider, so we mint a Firebase **custom token** (a JWT signed with the
+// project's service-account private key). Firebase accepts it because the signature verifies against that SA's
+// public key. All free: the Worker is the "server" Firebase Spark lacks. The REST key never leaves the Worker —
+// the app's WebView loads `/kakao/login` here, we redirect to Kakao, and Kakao redirects back to `/kakao/callback`.
+
+const b64url = (bytes: Uint8Array): string => {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+const b64urlStr = (s: string): string => b64url(new TextEncoder().encode(s));
+
+/** Import a PEM PKCS#8 RSA private key (the SA `private_key`, with real or escaped newlines) for RS256 signing. */
+async function importRsaKey(pem: string): Promise<CryptoKey> {
+  const body = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+  return crypto.subtle.importKey("pkcs8", der.buffer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+}
+
+/** Sign a Firebase custom token for `uid` with optional additional claims. Valid 1h; single sign-in. */
+async function firebaseCustomToken(saJson: string, uid: string, claims: Record<string, unknown>): Promise<string> {
+  const sa = JSON.parse(saJson) as { client_email: string; private_key: string };
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
+    iat: now,
+    exp: now + 3600,
+    uid,
+    claims,
+  };
+  const signingInput = `${b64urlStr(JSON.stringify(header))}.${b64urlStr(JSON.stringify(payload))}`;
+  const key = await importRsaKey(sa.private_key);
+  const sig = await crypto.subtle.sign({ name: "RSASSA-PKCS1-v1_5" }, key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${b64url(new Uint8Array(sig))}`;
+}
+
+/** Hand a result back to the app's WebView via postMessage (falls back to a custom-scheme redirect if opened in a
+ *  plain browser). `data` is `{ token, email }` on success or `{ error }` on failure. */
+function kakaoResult(data: Record<string, unknown>): Response {
+  const json = JSON.stringify(data).replace(/</g, "\\u003c");
+  const body =
+    `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#8B95A1;text-align:center;padding-top:40px">` +
+    `<script>(function(){var d=${json};` +
+    `if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify(d));return;}` +
+    `try{location.replace("lifeplanner://kakao-auth?data="+encodeURIComponent(JSON.stringify(d)));}catch(e){}})();</script>` +
+    `로그인 처리 중…</body>`;
+  return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+}
+
 export default {
   async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(refresh(env));
@@ -155,6 +214,65 @@ export default {
       }
       if (fired) await env.HOLIDAYS.put(kvKey, String(period));
       return Response.json({ ok: true, fired }, { headers: cors });
+    }
+
+    // Kakao Login step 1 (D99): the app's WebView opens this; we redirect to Kakao's consent page with the
+    // server-held REST key as client_id (so the key never ships in the APK). `scope=account_email` requests the
+    // email consent item. `redirect_uri` is our own /kakao/callback (must be registered in the Kakao console).
+    if (url.pathname === "/kakao/login") {
+      const auth = new URL("https://kauth.kakao.com/oauth/authorize");
+      auth.searchParams.set("client_id", env.KAKAO_REST_KEY);
+      auth.searchParams.set("redirect_uri", `${url.origin}/kakao/callback`);
+      auth.searchParams.set("response_type", "code");
+      auth.searchParams.set("scope", "account_email");
+      const state = url.searchParams.get("state");
+      if (state) auth.searchParams.set("state", state);
+      return Response.redirect(auth.toString(), 302);
+    }
+
+    // Kakao Login step 2 (D99): Kakao redirects here with `code`. Exchange it (server-side, REST key stays here),
+    // read the Kakao account id + email, mint a Firebase custom token for uid `kakao:<id>`, hand it to the app.
+    if (url.pathname === "/kakao/callback") {
+      const code = url.searchParams.get("code");
+      const oauthErr = url.searchParams.get("error");
+      if (oauthErr || !code) return kakaoResult({ error: oauthErr || "no_code" });
+      if (!env.FIREBASE_SA) return kakaoResult({ error: "server_not_configured" });
+      try {
+        const tokRes = await fetch("https://kauth.kakao.com/oauth/token", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded;charset=utf-8" },
+          body: new URLSearchParams({
+            grant_type: "authorization_code",
+            client_id: env.KAKAO_REST_KEY,
+            redirect_uri: `${url.origin}/kakao/callback`,
+            code,
+            ...(env.KAKAO_CLIENT_SECRET ? { client_secret: env.KAKAO_CLIENT_SECRET } : {}),
+          }),
+        });
+        if (!tokRes.ok) return kakaoResult({ error: `token_${tokRes.status}` });
+        const accessToken = (await tokRes.json<{ access_token?: string }>()).access_token;
+        if (!accessToken) return kakaoResult({ error: "no_access_token" });
+
+        const meRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!meRes.ok) return kakaoResult({ error: `me_${meRes.status}` });
+        const me = await meRes.json<{ id?: number; kakao_account?: { email?: string; is_email_valid?: boolean; is_email_verified?: boolean } }>();
+        if (me.id == null) return kakaoResult({ error: "no_id" });
+
+        // Only trust a Kakao email that Kakao itself marks valid AND verified; otherwise omit it (id-only account).
+        const acct = me.kakao_account;
+        const email = acct?.email && acct.is_email_valid && acct.is_email_verified ? acct.email : undefined;
+
+        const token = await firebaseCustomToken(
+          env.FIREBASE_SA,
+          `kakao:${me.id}`,
+          email ? { provider: "kakao", email } : { provider: "kakao" },
+        );
+        return kakaoResult(email ? { token, email } : { token });
+      } catch (e) {
+        return kakaoResult({ error: String((e as Error)?.message ?? e) });
+      }
     }
 
     // Kakao Local proxy (D93) — relay the two whitelisted endpoints with the server-held REST key.
