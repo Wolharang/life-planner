@@ -69,8 +69,17 @@ type IconKind = TimeBlock["kind"];
 
 type HomeRow =
   | { kind: "section"; title: string }
-  | { kind: "block"; block: TimeBlock; fireAt: number | null; started: boolean }
+  | { kind: "block"; block: TimeBlock; fireAt: number | null; started: boolean; ended: boolean }
   | { kind: "history"; entry: HistoryEntry };
+
+/** A block's END moment (ms). A block with no 끝나는 시각 ends the instant it starts. Used so a 없음 block reads
+ *  as "지남" only once it is truly over — not the moment it *begins* (a 14:00–19:00 강의 is 진행 중 at 16:00). */
+const blockEndAt = (b: TimeBlock): number => {
+  if (!b.end) return blockStartAt(b);
+  const [y, m, d] = b.date.split("-").map(Number);
+  const [hh, mm] = b.end.split(":").map(Number);
+  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+};
 
 /**
  * What 지난 기록 shows. It used to show **outcomes only** — so answering "아직 안 했어" at the re-check, which
@@ -445,6 +454,7 @@ export default function Home() {
       block,
       fireAt,
       started: (fireAt ?? blockStartAt(block)) <= now,
+      ended: blockEndAt(block) <= now,
     };
   });
 
@@ -705,31 +715,6 @@ export default function Home() {
                 </Text>
               </Pressable>
 
-              {/* 하루 요약 · 돌아보기 — the IA (§4/§8) makes 돌아보기 a **top-level destination** and, if the tab
-                  bar is full, says to reach it from 오늘's day-summary entry point. Neither existed: both were
-                  buried in 설정, two taps deep behind a screen you visit to change the volume. A surface you
-                  cannot find is a surface you do not have — and 돌아보기 is where the whole plan-vs-actual loop
-                  (R17) closes. */}
-              <View className="flex-row" style={{ gap: 8, marginTop: 8 }}>
-                <Pressable
-                  onPress={() => router.push({ pathname: "/summary", params: { date: today } })}
-                  className="bg-group flex-1 items-center"
-                  style={{ borderRadius: 14, paddingVertical: 12 }}
-                >
-                  <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
-                    오늘 요약
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/review")}
-                  className="bg-group flex-1 items-center"
-                  style={{ borderRadius: 14, paddingVertical: 12 }}
-                >
-                  <Text className="text-ink" style={{ fontSize: 13.5, fontWeight: "700" }}>
-                    돌아보기
-                  </Text>
-                </Pressable>
-              </View>
             </View>
           }
           renderItem={({ item }) => {
@@ -798,12 +783,19 @@ export default function Home() {
                 {b.alert === "none" ? (
                   // **A `none` block is context, not a commitment (D67/D68).** It holds an hour so the day is
                   // honest — 강의, 이동 — and it *happens to you*. Asking "did you do it?" would be absurd, and
-                  // demanding a tap to clear it would turn the honest day into a chore list. So it answers
-                  // itself: once its time passes it simply flows into 지난 기록 as 지남, and nothing is owed.
-                  item.started ? (
+                  // demanding a tap to clear it would turn the honest day into a chore list. So it answers itself:
+                  // **진행 중** while the hour is still running (a 14:00–19:00 강의 is not 지남 at 16:00), and **지남**
+                  // once its end has actually passed. Nothing is ever owed either way.
+                  item.ended ? (
                     <View className="bg-group rounded-full px-3 py-1">
                       <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
                         지남
+                      </Text>
+                    </View>
+                  ) : item.started ? (
+                    <View className="bg-group rounded-full px-3 py-1">
+                      <Text className="text-grey" style={{ fontSize: 12, fontWeight: "600" }}>
+                        진행 중
                       </Text>
                     </View>
                   ) : null

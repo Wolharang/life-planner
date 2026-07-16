@@ -262,7 +262,7 @@ export default function Settings() {
                 {account ? "동기화" : "로그인"}
               </Text>
               <Text className="text-ink" style={{ fontSize: 24, fontWeight: "700", lineHeight: 33 }}>
-                {account ? "다른 기기와 자동으로\n맞춰지고 있어요" : "다른 기기에서도 그대로 쓰려면\n로그인하세요"}
+                {account ? "다른 기기와 자동으로\n맞춰지고 있어요" : "다른 기기에서도 그대로\n쓰려면 로그인하세요"}
               </Text>
             </View>
             <View
