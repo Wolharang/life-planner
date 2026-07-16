@@ -33,6 +33,45 @@ const commas = (digits: string) => (digits ? Number(digits).toLocaleString("ko-K
 const scheduleLabel = (frequency: SubFrequency, dayOfMonth: number, weekday: number) =>
   subscriptionScheduleLabel({ frequency, dayOfMonth, weekday } as Subscription);
 
+// **Module-scope, NOT defined inside the screen.** A component declared in the render body is a *new type* on
+// every keystroke, so React unmounts+remounts its <TextInput> and the keyboard closes and reopens each digit.
+// Hoisting them keeps the input mounted (D98 follow-up).
+function AmountField({ value, onChange, autoFocus }: { value: string; onChange: (v: string) => void; autoFocus: boolean }) {
+  const num = parseInt(value.replace(/,/g, ""), 10) || 0;
+  return (
+    <View>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND }}>금액</Text>
+      <View className="flex-row items-baseline" style={{ borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 8, marginTop: 6 }}>
+        <TextInput
+          value={value}
+          onChangeText={(t) => onChange(commas(t.replace(/[^0-9]/g, "")))}
+          keyboardType="number-pad"
+          autoFocus={autoFocus}
+          placeholder="0"
+          placeholderTextColor="#D1D6DB"
+          className="text-ink flex-1"
+          style={{ fontSize: 32, fontWeight: "700", letterSpacing: -1 }}
+        />
+        <Text style={{ fontSize: 20, fontWeight: "700", color: FAINT }}>원</Text>
+      </View>
+      {num > 0 && <Text style={{ fontSize: 13, color: FAINT, marginTop: 8 }}>{readableWon(num)}</Text>}
+    </View>
+  );
+}
+
+// A decided value shown above/below the current question, tappable to revisit it.
+function DecidedField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ marginTop: 24 }}>
+      <Text style={{ fontSize: 13, color: FAINT }}>{label}</Text>
+      <View className="flex-row items-center justify-between" style={{ borderBottomWidth: 1, borderBottomColor: "#F2F4F6", paddingVertical: 10 }}>
+        <Text style={{ fontSize: 19, fontWeight: "700", color: value ? "#191F28" : FAINT }}>{value || "선택"}</Text>
+        <Text style={{ fontSize: 16, color: FAINT }}>⌄</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function AddSubscription() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -120,38 +159,6 @@ export default function AddSubscription() {
     router.back();
   };
 
-  // ── shared field renderers ────────────────────────────────────────────────
-  const AmountField = ({ autoFocus }: { autoFocus: boolean }) => (
-    <View>
-      <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND }}>금액</Text>
-      <View className="flex-row items-baseline" style={{ borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 8, marginTop: 6 }}>
-        <TextInput
-          value={amount}
-          onChangeText={(t) => setAmount(commas(t.replace(/[^0-9]/g, "")))}
-          keyboardType="number-pad"
-          autoFocus={autoFocus}
-          placeholder="0"
-          placeholderTextColor="#D1D6DB"
-          className="text-ink flex-1"
-          style={{ fontSize: 32, fontWeight: "700", letterSpacing: -1 }}
-        />
-        <Text style={{ fontSize: 20, fontWeight: "700", color: FAINT }}>원</Text>
-      </View>
-      {amountNum > 0 && <Text style={{ fontSize: 13, color: FAINT, marginTop: 8 }}>{readableWon(amountNum)}</Text>}
-    </View>
-  );
-
-  // A decided value shown above/below the current question, tappable to revisit it.
-  const DecidedField = ({ label, value, onPress }: { label: string; value: string; onPress: () => void }) => (
-    <Pressable onPress={onPress} style={{ marginTop: 24 }}>
-      <Text style={{ fontSize: 13, color: FAINT }}>{label}</Text>
-      <View className="flex-row items-center justify-between" style={{ borderBottomWidth: 1, borderBottomColor: "#F2F4F6", paddingVertical: 10 }}>
-        <Text style={{ fontSize: 19, fontWeight: "700", color: value ? "#191F28" : FAINT }}>{value || "선택"}</Text>
-        <Text style={{ fontSize: 16, color: FAINT }}>⌄</Text>
-      </View>
-    </Pressable>
-  );
-
   // ── wizard (ADD) ──────────────────────────────────────────────────────────
   const TITLES: Record<Step, string> = {
     date: "언제 결제하나요?",
@@ -183,7 +190,7 @@ export default function AddSubscription() {
 
         {step === "amount" && (
           <>
-            <AmountField autoFocus />
+            <AmountField value={amount} onChange={setAmount} autoFocus />
             <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
           </>
         )}
@@ -262,7 +269,7 @@ export default function AddSubscription() {
       </Pressable>
       <Text className="text-ink mb-6" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>정기구독 수정</Text>
 
-      <AmountField autoFocus={false} />
+      <AmountField value={amount} onChange={setAmount} autoFocus={false} />
       <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
 
       <View className="flex-row" style={{ gap: 12 }}>
