@@ -1,9 +1,10 @@
-// 정기구독 입력 / 수정 (D96). A recurring-spend template: name · amount (KRW) · 결제일 (1–31) · 결제처 · 결제수단 ·
-// on/off. Managed only from here (never the normal 지출 form). Saving runs materializeSubscriptions so a row due
-// today lands in the log at once. The generated monthly Expense is ordinary and editable; editing the template
-// here changes only future rows, never ones already logged.
+// 정기구독 입력 / 수정 (D96/D98). ADD is a Toss-style step wizard on a blank screen — 날짜 → 금액 → 결제처·결제수단
+// → 제목 — decided fields stack above with light-grey labels. EDIT shows every field at once. The schedule
+// (매월/매주/매일 + 결제일/요일) is chosen in a bottom sheet with scroll wheels, so a late 결제일 is one flick, not
+// 31 taps. Saving runs materializeSubscriptions so a row due today lands in the log at once; editing the template
+// changes only future rows, never ones already logged.
 
-import { View, Text, Pressable, TextInput, ScrollView, Switch } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -13,27 +14,47 @@ import {
   deleteSubscription,
   listSubscriptions,
   materializeSubscriptions,
+  subscriptionScheduleLabel,
+  WEEKDAY_LABELS,
   type Subscription,
 } from "@/core/data/subscriptionRepository";
+import type { SubFrequency } from "@/core/data/types";
+import { readableWon } from "@/core/logs/aggregate";
 import { newId } from "@/core/data/id";
 import { hapticDeleted, hapticSaved } from "@/core/ui/haptics";
 import { ConfirmSheet } from "@/ui/Sheet";
+import { Wheel } from "@/ui/Wheel";
 
-const clampDay = (n: number) => Math.min(31, Math.max(1, n));
+const FAINT = "#B0B8C1";
+const BRAND = "#3182F6";
+type Step = "date" | "amount" | "extra" | "title";
+
+const commas = (digits: string) => (digits ? Number(digits).toLocaleString("ko-KR") : "");
+const scheduleLabel = (frequency: SubFrequency, dayOfMonth: number, weekday: number) =>
+  subscriptionScheduleLabel({ frequency, dayOfMonth, weekday } as Subscription);
 
 export default function AddSubscription() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const editId = params.id;
+  const editing = !!editId;
 
   const [orig, setOrig] = useState<Subscription | null>(null);
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [day, setDay] = useState(1);
+  const [step, setStep] = useState<Step>("date");
+  const [sheetOpen, setSheetOpen] = useState(!editing); // ADD opens on the date sheet immediately
+
+  // schedule
+  const [frequency, setFrequency] = useState<SubFrequency>("monthly");
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [weekday, setWeekday] = useState(0);
+  const [scheduleChosen, setScheduleChosen] = useState(editing);
+
+  // fields
+  const [amount, setAmount] = useState(""); // comma-formatted
   const [store, setStore] = useState("");
   const [payment, setPayment] = useState("");
+  const [name, setName] = useState("");
   const [active, setActive] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!editId) return;
@@ -41,40 +62,51 @@ export default function AddSubscription() {
       const s = (await listSubscriptions()).find((x) => x.id === editId);
       if (!s) return;
       setOrig(s);
-      setName(s.name);
-      setAmount(String(s.amount));
-      setDay(clampDay(s.dayOfMonth));
+      setFrequency(s.frequency ?? "monthly");
+      setDayOfMonth(s.dayOfMonth ?? 1);
+      setWeekday(s.weekday ?? 0);
+      setAmount(commas(String(s.amount)));
       setStore(s.store ?? "");
       setPayment(s.payment ?? "");
+      setName(s.name);
       setActive(s.active);
+      setScheduleChosen(true);
     })();
   }, [editId]);
 
-  const amountNum = parseInt(amount.replace(/,/g, ""), 10);
-  const canSave = !isNaN(amountNum) && amountNum > 0;
+  const amountNum = parseInt(amount.replace(/,/g, ""), 10) || 0;
+  const canSave = amountNum > 0;
+  const schedText = scheduleChosen ? scheduleLabel(frequency, dayOfMonth, weekday) : "";
+
+  const onScheduleSelect = (s: { frequency: SubFrequency; dayOfMonth: number; weekday: number }) => {
+    setFrequency(s.frequency);
+    setDayOfMonth(s.dayOfMonth);
+    setWeekday(s.weekday);
+    setScheduleChosen(true);
+    setSheetOpen(false);
+    if (!editing && step === "date") setStep("amount");
+  };
 
   const save = async () => {
-    if (!canSave) {
-      setError("금액을 적어주세요.");
-      return;
-    }
+    if (!canSave) return;
     const now = Date.now();
     const sub: Subscription = {
       id: editId ?? newId("sub"),
       name: name.trim() || "정기구독",
       amount: amountNum,
-      dayOfMonth: clampDay(day),
+      frequency,
+      dayOfMonth: frequency === "monthly" ? dayOfMonth : undefined,
+      weekday: frequency === "weekly" ? weekday : undefined,
       store: store.trim() || undefined,
       payment: payment.trim() || undefined,
       active,
-      lastMonth: orig?.lastMonth,
+      lastRun: orig?.lastRun,
       createdAt: orig?.createdAt ?? now,
       updatedAt: now,
     };
-    if (editId) await updateSubscription(sub);
+    if (editing) await updateSubscription(sub);
     else await addSubscription(sub);
-    // If today is (or is past) the 결제일, log it right away instead of waiting for the next app open.
-    await materializeSubscriptions();
+    await materializeSubscriptions(); // if today is a due occurrence, log it now
     hapticSaved();
     router.back();
   };
@@ -88,118 +120,204 @@ export default function AddSubscription() {
     router.back();
   };
 
+  // ── shared field renderers ────────────────────────────────────────────────
+  const AmountField = ({ autoFocus }: { autoFocus: boolean }) => (
+    <View>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND }}>금액</Text>
+      <View className="flex-row items-baseline" style={{ borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 8, marginTop: 6 }}>
+        <TextInput
+          value={amount}
+          onChangeText={(t) => setAmount(commas(t.replace(/[^0-9]/g, "")))}
+          keyboardType="number-pad"
+          autoFocus={autoFocus}
+          placeholder="0"
+          placeholderTextColor="#D1D6DB"
+          className="text-ink flex-1"
+          style={{ fontSize: 32, fontWeight: "700", letterSpacing: -1 }}
+        />
+        <Text style={{ fontSize: 20, fontWeight: "700", color: FAINT }}>원</Text>
+      </View>
+      {amountNum > 0 && <Text style={{ fontSize: 13, color: FAINT, marginTop: 8 }}>{readableWon(amountNum)}</Text>}
+    </View>
+  );
+
+  // A decided value shown above/below the current question, tappable to revisit it.
+  const DecidedField = ({ label, value, onPress }: { label: string; value: string; onPress: () => void }) => (
+    <Pressable onPress={onPress} style={{ marginTop: 24 }}>
+      <Text style={{ fontSize: 13, color: FAINT }}>{label}</Text>
+      <View className="flex-row items-center justify-between" style={{ borderBottomWidth: 1, borderBottomColor: "#F2F4F6", paddingVertical: 10 }}>
+        <Text style={{ fontSize: 19, fontWeight: "700", color: value ? "#191F28" : FAINT }}>{value || "선택"}</Text>
+        <Text style={{ fontSize: 16, color: FAINT }}>⌄</Text>
+      </View>
+    </Pressable>
+  );
+
+  // ── wizard (ADD) ──────────────────────────────────────────────────────────
+  const TITLES: Record<Step, string> = {
+    date: "언제 결제하나요?",
+    amount: "얼마를 보낼까요?",
+    extra: "어디에 내나요?",
+    title: "마지막으로\n정기구독 제목을 입력해주세요",
+  };
+  const primaryLabel = step === "title" ? "추가" : "다음";
+  const primaryEnabled = step === "amount" ? canSave : step === "title" ? true : true;
+  const onPrimary = () => {
+    if (step === "amount") setStep("extra");
+    else if (step === "extra") setStep("title");
+    else if (step === "title") save();
+  };
+
+  const wizard = (
+    <>
+      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()} hitSlop={10} className="mb-4">
+          <Text className="text-ink" style={{ fontSize: 24 }}>←</Text>
+        </Pressable>
+        <Text className="text-ink" style={{ fontSize: 24, fontWeight: "800", letterSpacing: -0.5, lineHeight: 33, marginBottom: 28 }}>
+          {TITLES[step]}
+        </Text>
+
+        {step === "date" && (
+          <DecidedField label="정기구독 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
+        )}
+
+        {step === "amount" && (
+          <>
+            <AmountField autoFocus />
+            <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
+          </>
+        )}
+
+        {step === "extra" && (
+          <>
+            <Text style={{ fontSize: 14, color: "#8B95A1", lineHeight: 20, marginBottom: 6 }}>
+              결제처와 결제수단이에요. 몰라도 괜찮아요 — 비워도 돼요.
+            </Text>
+            <TextInput
+              value={store}
+              onChangeText={setStore}
+              placeholder="결제처 (예: 넷플릭스)"
+              placeholderTextColor={FAINT}
+              autoFocus
+              className="text-ink"
+              style={{ fontSize: 18, fontWeight: "600", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 8 }}
+            />
+            <TextInput
+              value={payment}
+              onChangeText={setPayment}
+              placeholder="결제수단 (예: 국민카드)"
+              placeholderTextColor={FAINT}
+              className="text-ink"
+              style={{ fontSize: 18, fontWeight: "600", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 8 }}
+            />
+            <DecidedField label="금액" value={readableWon(amountNum)} onPress={() => setStep("amount")} />
+            <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
+          </>
+        )}
+
+        {step === "title" && (
+          <>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="이름 (예: 넷플릭스)"
+              placeholderTextColor={FAINT}
+              autoFocus
+              className="text-ink"
+              style={{ fontSize: 20, fontWeight: "700", paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: BRAND }}
+            />
+            <DecidedField label="금액" value={readableWon(amountNum)} onPress={() => setStep("amount")} />
+            <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
+            {(store || payment) !== "" && (
+              <DecidedField
+                label="결제처 · 결제수단"
+                value={[store, payment].filter(Boolean).join(" · ")}
+                onPress={() => setStep("extra")}
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {step !== "date" && (
+        <View style={{ paddingHorizontal: 20, paddingBottom: 18, paddingTop: 6 }}>
+          <Pressable
+            onPress={onPrimary}
+            disabled={!primaryEnabled}
+            className="items-center"
+            style={{ backgroundColor: primaryEnabled ? BRAND : "#B0C9F5", borderRadius: 15, paddingVertical: 16 }}
+          >
+            <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>{primaryLabel}</Text>
+          </Pressable>
+        </View>
+      )}
+    </>
+  );
+
+  // ── consolidated form (EDIT) ──────────────────────────────────────────────
+  const editForm = (
+    <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={() => router.back()} hitSlop={10} className="mb-3">
+        <Text className="text-ink" style={{ fontSize: 24 }}>←</Text>
+      </Pressable>
+      <Text className="text-ink mb-6" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>정기구독 수정</Text>
+
+      <AmountField autoFocus={false} />
+      <DecidedField label="결제 주기 · 날짜" value={schedText} onPress={() => setSheetOpen(true)} />
+
+      <View className="flex-row" style={{ gap: 12 }}>
+        <TextInput
+          value={store}
+          onChangeText={setStore}
+          placeholder="결제처 (선택)"
+          placeholderTextColor={FAINT}
+          className="text-ink flex-1"
+          style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 24 }}
+        />
+        <TextInput
+          value={payment}
+          onChangeText={setPayment}
+          placeholder="결제수단 (선택)"
+          placeholderTextColor={FAINT}
+          className="text-ink flex-1"
+          style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 24 }}
+        />
+      </View>
+
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder="이름 (예: 넷플릭스)"
+        placeholderTextColor={FAINT}
+        className="text-ink"
+        style={{ fontSize: 17, fontWeight: "600", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 20 }}
+      />
+
+      <Pressable
+        onPress={save}
+        disabled={!canSave}
+        className="items-center"
+        style={{ backgroundColor: canSave ? BRAND : "#B0C9F5", borderRadius: 15, paddingVertical: 16, marginTop: 34 }}
+      >
+        <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>저장</Text>
+      </Pressable>
+      <Pressable onPress={() => setConfirmDelete(true)} className="items-center mt-3 py-3">
+        <Text className="text-warn" style={{ fontSize: 15 }}>삭제</Text>
+      </Pressable>
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} hitSlop={10} className="mb-3">
-          <Text className="text-ink" style={{ fontSize: 24 }}>←</Text>
-        </Pressable>
-        <Text className="text-ink mb-5" style={{ fontSize: 20, fontWeight: "700", letterSpacing: -0.3 }}>
-          {editId ? "정기구독 수정" : "정기구독"}
-        </Text>
+      {editing ? editForm : wizard}
 
-        {/* amount — first, biggest */}
-        <View className="flex-row items-baseline" style={{ borderBottomWidth: 2, borderBottomColor: "#3182F6", paddingBottom: 8 }}>
-          <TextInput
-            value={amount}
-            onChangeText={(t) => {
-              setAmount(t.replace(/[^0-9]/g, ""));
-              setError(null);
-            }}
-            keyboardType="number-pad"
-            autoFocus={!editId}
-            placeholder="0"
-            placeholderTextColor="#D1D6DB"
-            className="text-ink flex-1"
-            style={{ fontSize: 34, fontWeight: "700", letterSpacing: -1 }}
-          />
-          <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>원 / 월</Text>
-        </View>
-
-        {/* name */}
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="이름 (예: 넷플릭스)"
-          placeholderTextColor="#B0B8C1"
-          className="text-ink"
-          style={{ fontSize: 17, fontWeight: "600", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 26 }}
-        />
-
-        {/* 결제일 — 1–31, clamped to a short month's last day when it comes around */}
-        <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700", marginTop: 26, marginBottom: 10 }}>
-          결제일
-        </Text>
-        <View className="flex-row items-center justify-between bg-group" style={{ borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6 }}>
-          <Pressable onPress={() => setDay((d) => clampDay(d - 1))} hitSlop={10} className="px-3 py-1">
-            <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>‹</Text>
-          </Pressable>
-          <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>매월 {day}일</Text>
-          <Pressable onPress={() => setDay((d) => clampDay(d + 1))} hitSlop={10} className="px-3 py-1">
-            <Text className="text-ink" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
-          </Pressable>
-        </View>
-        <Text className="text-grey" style={{ fontSize: 12, marginTop: 6 }}>
-          29·30·31일은 그 달에 없으면 말일에 추가돼요.
-        </Text>
-
-        {/* 결제처 · 결제수단 (optional) */}
-        <View className="flex-row" style={{ gap: 12 }}>
-          <TextInput
-            value={store}
-            onChangeText={setStore}
-            placeholder="결제처 (선택)"
-            placeholderTextColor="#B0B8C1"
-            className="text-ink flex-1"
-            style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 20 }}
-          />
-          <TextInput
-            value={payment}
-            onChangeText={setPayment}
-            placeholder="결제수단 (선택)"
-            placeholderTextColor="#B0B8C1"
-            className="text-ink flex-1"
-            style={{ fontSize: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F4F6", marginTop: 20 }}
-          />
-        </View>
-
-        {/* on/off */}
-        <View className="flex-row items-center justify-between" style={{ marginTop: 26 }}>
-          <View className="flex-1" style={{ paddingRight: 12 }}>
-            <Text className="text-ink" style={{ fontSize: 16, fontWeight: "700" }}>자동 추가 켜기</Text>
-            <Text className="text-grey mt-0.5" style={{ fontSize: 12.5, lineHeight: 18 }}>
-              끄면 다음 결제일부터 지출에 추가되지 않아요.
-            </Text>
-          </View>
-          <Switch
-            value={active}
-            onValueChange={setActive}
-            trackColor={{ true: "#3182F6", false: "#D1D6DB" }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor="#D1D6DB"
-          />
-        </View>
-
-        {error && (
-          <Text className="text-warn mt-4" style={{ fontSize: 13 }}>{error}</Text>
-        )}
-
-        <Pressable
-          onPress={save}
-          disabled={!canSave}
-          className="items-center"
-          style={{ backgroundColor: canSave ? "#3182F6" : "#B0B8C1", borderRadius: 15, paddingVertical: 16, marginTop: 32 }}
-        >
-          <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>저장</Text>
-        </Pressable>
-
-        {editId && (
-          <Pressable onPress={() => setConfirmDelete(true)} className="items-center mt-3 py-3">
-            <Text className="text-warn" style={{ fontSize: 15 }}>삭제</Text>
-          </Pressable>
-        )}
-      </ScrollView>
+      <ScheduleSheet
+        visible={sheetOpen}
+        initial={{ frequency, dayOfMonth, weekday }}
+        onSelect={onScheduleSelect}
+        onClose={() => setSheetOpen(false)}
+      />
 
       <ConfirmSheet
         visible={confirmDelete}
@@ -210,5 +328,81 @@ export default function AddSubscription() {
         onClose={() => setConfirmDelete(false)}
       />
     </SafeAreaView>
+  );
+}
+
+// ── the schedule bottom sheet (매월/매주/매일 + 결제일/요일 wheels) ───────────────────────────────────────────
+const FREQS: SubFrequency[] = ["monthly", "weekly", "daily"];
+const FREQ_LABEL: Record<SubFrequency, string> = { monthly: "매월", weekly: "매주", daily: "매일" };
+const DOM = Array.from({ length: 31 }, (_, i) => i + 1);
+const WD = Array.from({ length: 7 }, (_, i) => i);
+const ROW_H = 44;
+
+function ScheduleSheet({
+  visible,
+  initial,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  initial: { frequency: SubFrequency; dayOfMonth: number; weekday: number };
+  onSelect: (s: { frequency: SubFrequency; dayOfMonth: number; weekday: number }) => void;
+  onClose: () => void;
+}) {
+  const [freq, setFreq] = useState<SubFrequency>(initial.frequency);
+  const [dom, setDom] = useState(initial.dayOfMonth);
+  const [wd, setWd] = useState(initial.weekday);
+
+  // re-seed from the caller each time the sheet opens
+  useEffect(() => {
+    if (visible) {
+      setFreq(initial.frequency);
+      setDom(initial.dayOfMonth || 1);
+      setWd(initial.weekday || 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View className="bg-surface" style={{ borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 }}>
+          <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#E5E8EB", marginBottom: 18 }} />
+          <Text className="text-ink" style={{ fontSize: 21, fontWeight: "800", letterSpacing: -0.4 }}>언제 결제하나요?</Text>
+          <Text style={{ fontSize: 14, color: "#8B95A1", lineHeight: 20, marginTop: 8 }}>
+            정한 날에 지출로 자동 기록돼요.{"\n"}매월·매주·매일 중에 고를 수 있어요.
+          </Text>
+
+          <View style={{ flexDirection: "row", height: ROW_H * 5, marginTop: 16, justifyContent: "center" }}>
+            <Wheel data={FREQS} value={freq} onChange={setFreq} format={(f) => FREQ_LABEL[f]} itemHeight={ROW_H} width={"40%" as never} />
+            {freq === "monthly" && (
+              <Wheel key="dom" data={DOM} value={dom} onChange={setDom} format={(v) => `${v}일`} itemHeight={ROW_H} width={"40%" as never} />
+            )}
+            {freq === "weekly" && (
+              <Wheel key="wd" data={WD} value={wd} onChange={setWd} format={(v) => WEEKDAY_LABELS[v]} itemHeight={ROW_H} width={"40%" as never} />
+            )}
+            {freq === "daily" && (
+              <View style={{ width: "40%", alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 16, color: "#C4CBD4", fontWeight: "600" }}>매일 반복</Text>
+              </View>
+            )}
+            {/* centre selection band */}
+            <View
+              pointerEvents="none"
+              style={{ position: "absolute", left: 0, right: 0, top: ROW_H * 2, height: ROW_H, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#E5E8EB" }}
+            />
+          </View>
+
+          <Pressable
+            onPress={() => onSelect({ frequency: freq, dayOfMonth: dom, weekday: wd })}
+            className="items-center"
+            style={{ backgroundColor: BRAND, borderRadius: 15, paddingVertical: 16, marginTop: 18 }}
+          >
+            <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>선택</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }

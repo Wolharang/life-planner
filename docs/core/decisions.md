@@ -12,6 +12,28 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-16 — 정기구독 redesign: cadences + step wizard + background-free list
+
+### D98. 정기구독 supports 매월/매주/매일, is added through a step wizard, and the list drops its card background
+- **Decision** (extends D96):
+  - **Cadence**: a subscription is 매월 (결제일 1–31), 매주 (요일 일–토), or 매일. `Subscription` gains
+    `frequency` + `weekday`; `dayOfMonth` becomes optional; the generation guard changes from `lastMonth` to
+    **`lastRun`** (last occurrence date, YYYY-MM-DD) so weekly/daily occurrences are tracked at day precision.
+    Legacy D96 rows (no frequency) read as 매월 and derive `lastRun` from `lastMonth` (`normalizeSubscription`).
+    The generated Expense id is `sub_<id>_<YYYY-MM>` for 매월 (unchanged, so rows already in the wild still
+    dedup) and `sub_<id>_<YYYY-MM-DD>` for 매주/매일.
+  - **결제일 picker**: no more 31-tap stepper. The schedule is chosen in a **bottom sheet with scroll wheels**
+    (frequency wheel + day/weekday wheel), so any date is one flick.
+  - **Add flow = a step wizard** (Toss-style, founder mockup): a blank screen asks one thing at a time —
+    ① 언제 결제하나요? (the wheel sheet rises) → ② 얼마를 보낼까요? (amount; 원 in faint grey, a "1만 5,000원"
+    readable hint below, thousands auto-commaed) → ③ 어디에 내나요? (결제처·결제수단, skippable) → ④ 제목.
+    Each decided value stacks above the current question with a light-grey label and is tappable to revisit.
+    **Edit** stays a single consolidated form (all fields at once).
+  - **List design**: the grey card background is removed — background-free rows (name + chevron over a
+    "매월 11일 · 75,000원" line, toggle at the right), matching the bank-app reference the founder gave.
+- **Rationale**: Founder — the stepper made a late 결제일 painful, and the one-screen form was heavier than the
+  task. A guided wizard with a wheel makes setup fast and calm; cadences beyond monthly cover 매주/매일 auto-saves.
+
 ## 2026-07-16 — 정기구독 (recurring spend) + calendar resize touch target
 
 ### D96. 정기구독: a recurring monthly spend the user sets up once, auto-logged on its 결제일

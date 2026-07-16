@@ -27,6 +27,19 @@ export const expenseTotal = (expenses: Expense[]) => expenses.reduce((sum, e) =>
 /** 1,234원 — the reference app's number formatting. */
 export const won = (amount: number) => `${amount.toLocaleString("ko-KR")}원`;
 
+/** 15000 → "1만 5,000원" — the human-readable amount shown under the input (D98), like the bank app's hint. */
+export function readableWon(amount: number): string {
+  if (amount <= 0) return "";
+  const eok = Math.floor(amount / 100_000_000);
+  const man = Math.floor((amount % 100_000_000) / 10_000);
+  const rest = amount % 10_000;
+  const parts: string[] = [];
+  if (eok) parts.push(`${eok}억`);
+  if (man) parts.push(`${man}만`);
+  if (rest) parts.push(rest.toLocaleString("ko-KR"));
+  return `${parts.join(" ")}원`;
+}
+
 /** Each category's share of the given expenses, biggest first; zero-amount categories are dropped. */
 export function categoryDistribution(expenses: Expense[]): { category: Expense["category"]; amount: number; ratio: number }[] {
   const total = expenseTotal(expenses);

@@ -95,16 +95,22 @@ export interface Expense {
   updatedAt: number;
 }
 
+/** How often a Subscription recurs (D98). 매월/매주/매일. */
+export type SubFrequency = "monthly" | "weekly" | "daily";
+
 /**
- * Subscription — a **recurring monthly spend** the user set up once (D96): 넷플릭스, 헬스장 월회비, …. On its
- * `dayOfMonth` each month, an Expense (category 정기구독) is auto-generated into the log
+ * Subscription — a **recurring spend** the user set up once (D96/D98): 넷플릭스, 헬스장 월회비, 매일 적립…. On each
+ * occurrence of its schedule an Expense (category 정기구독) is auto-generated into the log
  * (subscriptionRepository.materializeSubscriptions). The template lives here; the generated rows are ordinary,
  * editable Expenses. Managed only from the 정기구독 editor, never the normal 지출 form.
  *
- * `active` gates generation (the per-row on/off toggle). `lastMonth` is the last YYYY-MM already materialized —
- * the guard that makes generation idempotent and forward-only (a user-deleted month is never recreated). Syncs
- * across devices like expenses; the generated Expense carries a **deterministic id** (`sub_<subId>_<YYYYMM>`)
- * so two phones can never mint two rows for the same month.
+ * **Schedule (D98):** `frequency` picks the cadence — 매월 uses `dayOfMonth` (1–31, clamped to a short month's
+ * last day), 매주 uses `weekday` (0=일 … 6=토), 매일 uses neither.
+ *
+ * `active` gates generation (the per-row on/off toggle). `lastRun` is the last occurrence date (YYYY-MM-DD)
+ * already materialized — the forward-only, idempotent guard (a user-deleted occurrence is never recreated).
+ * Syncs across devices like expenses; the generated Expense carries a **deterministic id** (monthly:
+ * `sub_<id>_<YYYY-MM>`, weekly/daily: `sub_<id>_<YYYY-MM-DD>`) so two phones can never double-log one occurrence.
  */
 export interface Subscription {
   id: string;
@@ -112,15 +118,21 @@ export interface Subscription {
   name: string;
   /** KRW (D25) */
   amount: number;
-  /** 결제일 1–31; clamped to the month's length when a short month has no such day */
-  dayOfMonth: number;
+  /** 매월/매주/매일 (D98). Legacy rows (D96) have no frequency → read as "monthly". */
+  frequency?: SubFrequency;
+  /** 매월 결제일 1–31; clamped to the month's length when a short month has no such day */
+  dayOfMonth?: number;
+  /** 매주 결제 요일 0=일 … 6=토 */
+  weekday?: number;
   /** 결제처 */
   store?: string;
   /** 결제수단 — free text (D26) */
   payment?: string;
   /** on/off toggle — when false, no rows are generated (D96) */
   active: boolean;
-  /** last YYYY-MM already materialized; absent = never run (starts from the creation month, forward-only) */
+  /** last occurrence date (YYYY-MM-DD) already materialized; absent = never run (starts at creation, forward-only) */
+  lastRun?: string;
+  /** LEGACY (D96): last YYYY-MM materialized. Migrated to `lastRun` on read (normalizeSubscription). */
   lastMonth?: string;
   createdAt: number;
   updatedAt: number;
