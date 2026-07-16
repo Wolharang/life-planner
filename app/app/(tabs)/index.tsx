@@ -73,7 +73,7 @@ type HomeRow =
   | { kind: "history"; entry: HistoryEntry };
 
 /** A block's END moment (ms). A block with no 끝나는 시각 ends the instant it starts. Used so a 없음 block reads
- *  as "지남" only once it is truly over — not the moment it *begins* (a 14:00–19:00 강의 is 진행 중 at 16:00). */
+ *  as "완료" only once it is truly over — not the moment it *begins* (a 14:00–19:00 강의 is 진행 중 at 16:00). */
 const blockEndAt = (b: TimeBlock): number => {
   if (!b.end) return blockStartAt(b);
   const [y, m, d] = b.date.split("-").map(Number);
@@ -784,12 +784,13 @@ export default function Home() {
                   // **A `none` block is context, not a commitment (D67/D68).** It holds an hour so the day is
                   // honest — 강의, 이동 — and it *happens to you*. Asking "did you do it?" would be absurd, and
                   // demanding a tap to clear it would turn the honest day into a chore list. So it answers itself:
-                  // **진행 중** while the hour is still running (a 14:00–19:00 강의 is not 지남 at 16:00), and **지남**
-                  // once its end has actually passed. Nothing is ever owed either way.
+                  // **진행 중** while the hour is still running (a 14:00–19:00 강의 is not over at 16:00), and **완료**
+                  // once its end has passed — never "지남" (which reads as a miss; a block nobody committed to can't
+                  // be missed, R14/no-guilt). Both stay neutral grey; nothing is ever owed either way.
                   item.ended ? (
                     <View className="bg-group rounded-full px-3 py-1">
                       <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
-                        지남
+                        완료
                       </Text>
                     </View>
                   ) : item.started ? (
@@ -877,13 +878,13 @@ const iconOf = (title: string): IconKind => {
 };
 
 function OutcomeBadge({ status }: { status: OutcomeRecord["status"] | "pending" | "passed" }) {
-  // 지남 — a `none` block whose hour has gone by. Not a verdict: nobody passed or failed anything. It is the
-  // day, recorded. Neutral grey, never taupe (which means "miss") and certainly never gold.
+  // 완료 — a `none` block whose hour has gone by. Not a verdict: nobody passed or failed anything, and it must
+  // NOT read as a miss ("지남" did). It is the day, recorded. Neutral grey, never taupe (miss), never gold.
   if (status === "passed") {
     return (
       <View className="bg-group rounded-full px-3 py-1">
         <Text className="text-faint" style={{ fontSize: 12, fontWeight: "600" }}>
-          지남
+          완료
         </Text>
       </View>
     );
