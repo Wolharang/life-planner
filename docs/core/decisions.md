@@ -12,6 +12,33 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-16 — Kakao login (the Worker is the "server" Firebase Spark never had)
+
+### D99. Kakao 로그인 via WebView + Cloudflare Worker–minted Firebase custom token
+- **Decision**: Add 카카오 계정 login as a third provider (after 이메일/비밀번호 and Google). Kakao is not a
+  Firebase-native provider, so a Firebase **custom token** must be minted server-side — which Firebase Spark (no
+  Cloud Functions) could never do. **The Cloudflare Worker already in place (D93/D95) is that server.** Flow: the
+  app opens a WebView at the Worker's `/kakao/login`; the Worker 302-redirects to Kakao's consent page with the
+  server-held **REST key** as `client_id` (so the key never ships in the APK, D93); Kakao redirects to the Worker's
+  `/kakao/callback`, which exchanges the code, reads the 회원번호 + 이메일, and **signs a Firebase custom token**
+  (RS256 JWT, Web Crypto, with the Firebase service-account key held as the `FIREBASE_SA` Worker secret) for uid
+  `kakao:<회원번호>`. The Worker `postMessage`s the token to the WebView; the app calls `signInWithCustomToken`, and
+  the existing Firestore sync just works. **No new native dependency** (reuses `react-native-webview`), so no
+  prebuild — a JS rebuild ships it.
+- **Membership**: a Kakao user is `verified` (정회원) like Google — Kakao verified the identity — detected by the
+  `kakao:` uid prefix; they have no email/password of ours (no 이메일 인증, no 비밀번호 재설정, no 이메일 변경). The
+  one-button login/signup consent asymmetry mirrors Google's exactly (account.tsx `kakao()` ≈ `google()`).
+- **Data (id + 이메일, founder's choice)**: the 회원번호 becomes the account key (goes to Google/Firestore via the
+  uid); the email — only if the user consented in Kakao — is received via the Worker and stored **on-device only**
+  (kakaoAuth, per uid), never written to Firestore. Legal in the SAME commit (D71): 처리방침 제2조 제1항·⑧
+  (수집 항목), 제5조 제2항 (Cloudflare 위탁), 제6조 제2항 (국외 이전, 미국); 약관 가입 방법; `LEGAL_VERSION` →
+  2026-07-16 + a pinned 공지. **The email never persists on any server** — the honest, minimal footprint.
+- **Founder-only setup (out of band)**: Kakao Developers — enable 카카오 로그인, register Redirect URI
+  `<WORKER>/kakao/callback`, set 동의항목 (이메일 = 선택 동의), confirm the Android key hash (same debug keystore as
+  the map). Worker — `wrangler secret put FIREBASE_SA` (Firebase 서비스 계정 JSON), then `wrangler deploy`. No
+  Firebase console change (custom tokens work out of the box). The terms' 7-day advance-notice for the policy
+  change is a release-timing decision.
+
 ## 2026-07-16 — 정기구독 redesign: cadences + step wizard + background-free list
 
 ### D98. 정기구독 supports 매월/매주/매일, is added through a step wizard, and the list drops its card background

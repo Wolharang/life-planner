@@ -25,6 +25,12 @@ export interface Account {
    * offer to reset a password we do not hold. (D-log: 준회원/정회원, 2026-07-14.)
    */
   google: boolean;
+  /**
+   * Signed in through Kakao (D99). A custom-token user whose uid is `kakao:<회원번호>`; Kakao verified the
+   * identity, so — like Google — they are a 정회원 with no email step, and we hold no password to reset. Their
+   * email (if consented) is not a Firebase auth email, so it lives outside `email` here (see kakaoIdentity).
+   */
+  kakao: boolean;
 }
 
 /**
@@ -36,11 +42,15 @@ export interface Account {
  *                  same rule that gates 정회원 on `verified` makes every Google user a 정회원 with no extra step.
  */
 export function accountFromUser(u: any): Account {
+  // A Kakao user (D99) is a custom-token user with uid `kakao:<회원번호>`. Kakao already verified them, so they
+  // are a 정회원 (verified) with no email/password of ours — exactly the Google rule, keyed off the uid prefix.
+  const kakao = typeof u?.uid === "string" && u.uid.startsWith("kakao:");
   return {
     uid: u.uid,
     email: u.email ?? null,
-    verified: !!u.emailVerified,
+    verified: !!u.emailVerified || kakao,
     google: Array.isArray(u.providerData) && u.providerData.some((p: any) => p?.providerId === "google.com"),
+    kakao,
   };
 }
 
@@ -334,6 +344,33 @@ export async function signInWithGoogle(chooseAccount = false): Promise<{ isNewUs
     authNs.default.GoogleAuthProvider.credential(idToken, accessToken)
   );
   return { isNewUser: !!cred?.additionalUserInfo?.isNewUser };
+}
+
+// ── Kakao login (D99) ────────────────────────────────────────────────────────
+// Kakao is not a Firebase-native provider, so the Cloudflare Worker mints a Firebase **custom token** (uid
+// `kakao:<회원번호>`) after the OAuth code exchange; the app just signs in with it. The whole browser dance runs
+// inside the app's WebView (app/kakao-login.tsx) so the REST key never ships in the APK (D93). This function is
+// only the last step: swap the Worker's token for a Firebase session.
+
+const KAKAO_PROXY: string =
+  (Constants.expoConfig?.extra as { kakaoProxyUrl?: string } | undefined)?.kakaoProxyUrl ?? "";
+
+/** Kakao login is offered only when Firebase is present AND a Worker proxy URL is configured. */
+export function kakaoLoginAvailable(): boolean {
+  return load() && KAKAO_PROXY.length > 0;
+}
+
+/** The Worker URL the login WebView opens; it 302-redirects to Kakao's consent page. `state` binds the session. */
+export function kakaoLoginUrl(state: string): string {
+  return `${KAKAO_PROXY}/kakao/login?state=${encodeURIComponent(state)}`;
+}
+
+/** Sign in with the Firebase custom token the Worker handed back. `isNewUser` drives the same consent asymmetry
+ *  as Google: one button is both login and signup, and Firebase only says which afterward. */
+export async function signInWithKakaoToken(token: string): Promise<{ isNewUser: boolean; uid: string }> {
+  if (!load()) throw new Error("cloud-unavailable");
+  const cred = await authMod().signInWithCustomToken(token);
+  return { isNewUser: !!cred?.additionalUserInfo?.isNewUser, uid: cred?.user?.uid ?? "" };
 }
 
 /**

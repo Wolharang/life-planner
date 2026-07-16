@@ -17,16 +17,19 @@ import {
   discardCurrentUser,
   firebaseAvailable,
   googleAvailable,
+  kakaoLoginAvailable,
   onAccountChanged,
   refreshVerification,
   resendVerification,
   sendPasswordReset,
   signIn,
   signInWithGoogle,
+  signInWithKakaoToken,
   signOut,
   signUp,
   type Account,
 } from "@/core/data/firebase";
+import { awaitKakaoResult, getKakaoEmail, setKakaoEmail } from "@/core/data/kakaoAuth";
 import { spendDaily, refundDaily, dailyLimit } from "@/core/data/rateLimit";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
 import { deleteAccount } from "@/core/data/erase";
@@ -95,11 +98,20 @@ export default function AccountScreen() {
 
   const available = firebaseAvailable();
   const withGoogle = googleAvailable();
+  const withKakao = kakaoLoginAvailable();
 
   // **Do not show them a login that is about to be taken back.** `onAccountChanged` fires the moment Firebase
   // accepts the Google account, so the screen flashed "동기화 켜짐" with their email — and only then bounced them
   // to 가입. Announcing an account we are in the middle of deleting is a lie the user watches us tell.
   const [deciding, setDeciding] = useState(false);
+
+  // Kakao's email is not a Firebase auth email — load the on-device copy (if the user consented) to show instead
+  // of "로그인됨". Cleared when the account isn't a Kakao one.
+  const [kakaoEmail, setKakaoEmailState] = useState<string | null>(null);
+  useEffect(() => {
+    if (account?.kakao && account.uid) getKakaoEmail(account.uid).then(setKakaoEmailState);
+    else setKakaoEmailState(null);
+  }, [account?.uid, account?.kakao]);
 
   const google = async (chooseAccount = false) => {
     if (busy) return;
@@ -147,6 +159,55 @@ export default function AccountScreen() {
     } catch (e) {
       keepIt = false;
       setError(authErrorMessage(e)); // "" when the user simply backed out of the sheet
+    } finally {
+      releaseSync(keepIt);
+      setDeciding(false);
+      setBusy(false);
+    }
+  };
+
+  // **Kakao — the same one-button asymmetry as Google (D99).** The OAuth dance runs in a WebView (kakao-login);
+  // it hands back a Firebase custom token, and from here the consent/discard logic is identical to `google()`.
+  const kakao = async () => {
+    if (busy) return;
+    setError("");
+    if (mode === "signUp" && !allTicked) {
+      setError("필수 항목에 모두 체크해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setDeciding(true);
+    holdSync();
+    let keepIt = false;
+    try {
+      const result = awaitKakaoResult(); // set the bridge BEFORE navigating
+      router.push("/kakao-login" as never);
+      const r = await result;
+      if (r.cancelled) return; // backed out of the WebView — nothing to say
+      if (r.error || !r.token) {
+        setError("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      const { isNewUser, uid } = await signInWithKakaoToken(r.token);
+      if (r.email && uid) await setKakaoEmail(uid, r.email); // on-device email, if consented
+
+      if (isNewUser && mode !== "signUp") {
+        await discardCurrentUser(); // a brand-new account with no consent behind it — take it back
+        setMode("signUp");
+        setError("처음이시네요. 필수 항목에 체크해 주세요.");
+        return;
+      }
+      keepIt = true;
+      const acc = currentAccount()?.uid;
+      if (isNewUser) {
+        await recordConsent(ticks, acc);
+        setAlreadyConsented(true);
+      } else if (acc) {
+        await pushConsent(acc);
+        setAlreadyConsented(consentComplete(await fetchConsent(acc)));
+      }
+    } catch (e) {
+      setError(authErrorMessage(e));
     } finally {
       releaseSync(keepIt);
       setDeciding(false);
@@ -398,7 +459,7 @@ export default function AccountScreen() {
               동기화 켜짐
             </Text>
             <Text className="text-ink" style={{ fontSize: 17, fontWeight: "600", marginBottom: 14 }}>
-              {account.email ?? "로그인됨"}
+              {account.email ?? kakaoEmail ?? (account.kakao ? "카카오 로그인" : "로그인됨")}
             </Text>
             <Text className="text-grey" style={{ fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
               일정·시간블록·지출·식사가 다른 기기와 자동으로 맞춰져요. 오프라인에서 바꾼 것은 연결되면 올라가요.
@@ -446,9 +507,9 @@ export default function AccountScreen() {
               </View>
             )}
 
-            {/* 이메일 주소 변경 — email accounts only (a Google email is Google's to change). Collapsed until asked
-                for: it is a rare action, and an always-open input next to the account email invites accidents. */}
-            {!account.google && (
+            {/* 이메일 주소 변경 — email accounts only (a Google email is Google's; a Kakao email is Kakao's). Collapsed
+                until asked for: it is a rare action, and an always-open input next to the account email invites accidents. */}
+            {!account.google && !account.kakao && (
               <View style={{ marginBottom: 12 }}>
                 {!changingEmail ? (
                   <Pressable
@@ -648,7 +709,7 @@ export default function AccountScreen() {
               </Pressable>
             )}
 
-            {withGoogle && (
+            {(withGoogle || withKakao) && (
               <>
                 <View className="flex-row items-center" style={{ marginVertical: 16 }}>
                   <View className="bg-group" style={{ flex: 1, height: 1 }} />
@@ -657,35 +718,53 @@ export default function AccountScreen() {
                   </Text>
                   <View className="bg-group" style={{ flex: 1, height: 1 }} />
                 </View>
-                <Pressable
-                  onPress={() => google(false)}
-                  disabled={busy}
-                  className="items-center"
-                  style={{
-                    borderRadius: 12,
-                    paddingVertical: 15,
-                    borderWidth: 1,
-                    borderColor: "#E5E8EB",
-                    opacity: busy ? 0.6 : 1,
-                  }}
-                >
-                  <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600" }}>
-                    Google로 계속하기
-                  </Text>
-                </Pressable>
 
-                {/* Google remembers the first account and silently reuses it — which is a dead end for someone
-                    who owns two and picked the wrong one. This is the way back. */}
-                <Pressable
-                  onPress={() => google(true)}
-                  disabled={busy}
-                  hitSlop={{ top: 8, bottom: 8 }}
-                  style={{ marginTop: 12, alignSelf: "center" }}
-                >
-                  <Text className="text-faint" style={{ fontSize: 11.5, textDecorationLine: "underline" }}>
-                    다른 Google 계정으로 로그인
-                  </Text>
-                </Pressable>
+                {withKakao && (
+                  <Pressable
+                    onPress={kakao}
+                    disabled={busy}
+                    className="items-center"
+                    style={{ borderRadius: 12, paddingVertical: 15, backgroundColor: "#FEE500", opacity: busy ? 0.6 : 1, marginBottom: withGoogle ? 10 : 0 }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#191600" }}>
+                      카카오로 계속하기
+                    </Text>
+                  </Pressable>
+                )}
+
+                {withGoogle && (
+                  <>
+                    <Pressable
+                      onPress={() => google(false)}
+                      disabled={busy}
+                      className="items-center"
+                      style={{
+                        borderRadius: 12,
+                        paddingVertical: 15,
+                        borderWidth: 1,
+                        borderColor: "#E5E8EB",
+                        opacity: busy ? 0.6 : 1,
+                      }}
+                    >
+                      <Text className="text-ink" style={{ fontSize: 15, fontWeight: "600" }}>
+                        Google로 계속하기
+                      </Text>
+                    </Pressable>
+
+                    {/* Google remembers the first account and silently reuses it — which is a dead end for someone
+                        who owns two and picked the wrong one. This is the way back. */}
+                    <Pressable
+                      onPress={() => google(true)}
+                      disabled={busy}
+                      hitSlop={{ top: 8, bottom: 8 }}
+                      style={{ marginTop: 12, alignSelf: "center" }}
+                    >
+                      <Text className="text-faint" style={{ fontSize: 11.5, textDecorationLine: "underline" }}>
+                        다른 Google 계정으로 로그인
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
               </>
             )}
           </View>

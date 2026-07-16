@@ -39,6 +39,15 @@ describe("accountFromUser — 준회원/정회원", () => {
     });
     expect(a.google).toBe(true);
     expect(a.verified).toBe(true);
+    expect(a.kakao).toBe(false);
+  });
+
+  it("a Kakao account (uid kakao:<id>) is 정회원, kakao, not google", () => {
+    // A custom-token user: no google.com provider, emailVerified false — but the uid prefix marks it verified.
+    const a = accountFromUser({ uid: "kakao:1234567", email: null, emailVerified: false, providerData: [] });
+    expect(a.kakao).toBe(true);
+    expect(a.verified).toBe(true);
+    expect(a.google).toBe(false);
   });
 
   it("a missing email and missing providerData never throw", () => {
@@ -46,5 +55,6 @@ describe("accountFromUser — 준회원/정회원", () => {
     expect(a.email).toBe(null);
     expect(a.google).toBe(false);
     expect(a.verified).toBe(false);
+    expect(a.kakao).toBe(false);
   });
 });
