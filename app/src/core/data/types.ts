@@ -47,7 +47,13 @@ export interface Settings {
 
 // ── Full-app entities ───────────────────────────────────────────────────────
 
-/** The 8 fixed budget categories (D16 — user-editable categories are deliberately not offered). */
+/**
+ * The 8 fixed budget categories (D16 — user-editable categories are deliberately not offered), plus
+ * **정기구독** (D96). 정기구독 is a *product* category, not a user-editable one: it exists only so a
+ * subscription's monthly auto-generated spend classifies apart from ordinary spending. It is deliberately
+ * **absent from EXPENSE_CATEGORIES** (the manual picker) — a 정기구독 row is born only from a Subscription
+ * (subscriptionRepository), never chosen by hand in the 지출 form.
+ */
 export type ExpenseCategory =
   | "주식"
   | "간식"
@@ -56,7 +62,8 @@ export type ExpenseCategory =
   | "이동통신"
   | "대중교통비"
   | "의료"
-  | "기타";
+  | "기타"
+  | "정기구독";
 
 export type MealType = "아침" | "점심" | "저녁" | "간식";
 
@@ -84,6 +91,37 @@ export interface Expense {
   memo?: string;
   /** Manual within-day display order (D92). Absent = fall back to timestamp (newest first). Lower = higher. */
   sortIndex?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Subscription — a **recurring monthly spend** the user set up once (D96): 넷플릭스, 헬스장 월회비, …. On its
+ * `dayOfMonth` each month, an Expense (category 정기구독) is auto-generated into the log
+ * (subscriptionRepository.materializeSubscriptions). The template lives here; the generated rows are ordinary,
+ * editable Expenses. Managed only from the 정기구독 editor, never the normal 지출 form.
+ *
+ * `active` gates generation (the per-row on/off toggle). `lastMonth` is the last YYYY-MM already materialized —
+ * the guard that makes generation idempotent and forward-only (a user-deleted month is never recreated). Syncs
+ * across devices like expenses; the generated Expense carries a **deterministic id** (`sub_<subId>_<YYYYMM>`)
+ * so two phones can never mint two rows for the same month.
+ */
+export interface Subscription {
+  id: string;
+  /** 구독 이름 (e.g. 넷플릭스) */
+  name: string;
+  /** KRW (D25) */
+  amount: number;
+  /** 결제일 1–31; clamped to the month's length when a short month has no such day */
+  dayOfMonth: number;
+  /** 결제처 */
+  store?: string;
+  /** 결제수단 — free text (D26) */
+  payment?: string;
+  /** on/off toggle — when false, no rows are generated (D96) */
+  active: boolean;
+  /** last YYYY-MM already materialized; absent = never run (starts from the creation month, forward-only) */
+  lastMonth?: string;
   createdAt: number;
   updatedAt: number;
 }

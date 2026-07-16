@@ -16,6 +16,7 @@ import { startKakaoKeepAlive } from "@/core/data/kakaoKeepAlive";
 import { rescheduleMorningBrief } from "@/core/notifications/morningBrief";
 import { registerBackgroundSync } from "@/core/notifications/backgroundSync";
 import { registerSelf } from "@/core/data/deviceRepository";
+import { materializeSubscriptions } from "@/core/data/subscriptionRepository";
 import { initHolidays } from "@/core/data/holidaySync";
 
 // Global default font (v5): inject Pretendard as the base family for every <Text> so utility screens
@@ -94,7 +95,7 @@ export default function RootLayout() {
     void migrateBlockColorsToBlue();
   }, []);
 
-  // Keep the Kakao REST key warm (D95): a signed-in device pings the Worker, which makes one throwaway Kakao
+  // Keep the Kakao REST key warm (D96): a signed-in device pings the Worker, which makes one throwaway Kakao
   // call at most ~monthly (deduped server-side by account-creation time). Idle/signed-out users never connect.
   useEffect(() => startKakaoKeepAlive(), []);
 
@@ -132,6 +133,10 @@ export default function RootLayout() {
     // uid it last synced as — otherwise a device that reconnects a day later never learns, never wipes, and
     // never explains its own logout.
     void checkClosedWhileSignedOut();
+
+    // Settle any due 정기구독 rows on launch (D96), so a subscription whose 결제일 passed while the app was
+    // closed is already in the log — not only after the user opens 기록. Idempotent; safe every launch.
+    void materializeSubscriptions();
 
     // The briefings carry each day's actual list, so they are re-cut at every launch — after a reboot, a
     // reinstall, or a day simply passing.

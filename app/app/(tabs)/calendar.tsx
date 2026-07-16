@@ -43,7 +43,9 @@ const CELL_W = (Dimensions.get("window").width - 16) / 7; // grid is px-2 (8 eac
 // the space that is left after reserving DETAIL_MIN for the detail panel's header row ("N월 N일 · ＋추가"). This
 // is what keeps that row (and the whole detail panel) on screen — a fixed tall aspect once grew the grid past the
 // viewport and squeezed the flex-1 detail to zero, wiping the panel out entirely. Drag up to grow the detail.
-const HANDLE_H = 21; // drag handle: paddingVertical 8·2 + bar 4 + 1px border
+const HANDLE_H = 45; // drag handle: paddingVertical 20·2 + bar 4 + 1px border — a tall, forgiving grab zone
+// (D97): the old 21px strip demanded a pixel-perfect hit, so pulling the detail panel up took 4–5 stabs. The
+// whole band is now the target, and a plain tap on it toggles expanded/collapsed.
 const DETAIL_MIN = 56; // the detail header row (date + ＋추가) kept visible at rest
 const CMP_ASPECT = 1.25; // compact cell (short — number + dots)
 const COMPACT_H = Math.round((CELL_W / CMP_ASPECT) * 6);
@@ -235,7 +237,10 @@ export default function Calendar() {
         // Dragging up → g.dy < 0 → calendar shrinks (detail grows). Down → grows back.
         onPanResponderMove: (_, g) => setH(clamp(startH.current + g.dy)),
         onPanResponderRelease: (_, g) => {
-          setH(startH.current + g.dy < midH ? COMPACT_H : expandedH);
+          // A negligible move = a **tap** → toggle to the other end (so tapping anywhere on the band expands a
+          // collapsed calendar, or collapses an expanded one). A real drag snaps to whichever end it ended nearest.
+          if (Math.abs(g.dy) < 6) setH(startH.current < midH ? expandedH : COMPACT_H);
+          else setH(startH.current + g.dy < midH ? COMPACT_H : expandedH);
           setDragging(false);
         },
         onPanResponderTerminate: () => setDragging(false),
@@ -421,8 +426,9 @@ export default function Calendar() {
         </View>
       </View>
 
-      {/* drag handle — pull up to enlarge the detail panel (calendar collapses to the compact form) */}
-      <View {...handle.panHandlers} className="items-center" style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#F2F4F6" }}>
+      {/* drag handle — pull up to enlarge the detail panel (or just tap the band). The whole strip is the grab
+          zone (D97): tall paddingVertical + a wide bar, so a near-miss still catches. */}
+      <View {...handle.panHandlers} className="items-center justify-center" style={{ paddingVertical: 20, borderTopWidth: 1, borderTopColor: "#F2F4F6" }}>
         <View style={{ width: 44, height: 4, borderRadius: 2, backgroundColor: "#D1D6DB" }} />
       </View>
 

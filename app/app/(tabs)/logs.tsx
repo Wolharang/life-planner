@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { listExpenses, type Expense } from "@/core/data/expenseRepository";
+import { materializeSubscriptions } from "@/core/data/subscriptionRepository";
 import { listMeals, type MealEntry } from "@/core/data/mealRepository";
 import { listBlocks, type TimeBlock } from "@/core/data/blockRepository";
 import { onSyncApplied } from "@/core/data/sync";
@@ -53,11 +54,12 @@ export default function Logs() {
     listMeals().then(setMeals);
     listBlocks().then(setBlocks);
   }, []);
-  // Returning to the 기록 tab resets to the default view (month total / today), per the founder.
+  // Returning to the 기록 tab resets to the default view (month total / today), per the founder. Also settle any
+  // due 정기구독 rows first (D96) so a subscription whose 결제일 has arrived shows the moment you open 기록.
   useFocusEffect(
     useCallback(() => {
       setSelectedDay(null);
-      reload();
+      materializeSubscriptions().then(reload, reload);
     }, [reload]),
   );
   // R2: a change that arrived from the other phone must show up **without** navigating away and back.
@@ -126,13 +128,29 @@ export default function Logs() {
             <Text className="text-grey" style={{ fontSize: 20, fontWeight: "700" }}>›</Text>
           </Pressable>
         </View>
-        {!(isCurrentMonth && selectedDay == null) && (
-          <Pressable onPress={goToday} className="bg-group rounded-full px-3 py-1.5" hitSlop={8}>
-            <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
-              오늘
-            </Text>
-          </Pressable>
-        )}
+        <View className="flex-row items-center" style={{ gap: 6 }}>
+          {/* 정기구독 editor — a small button just left of 오늘 (지출 tab only). Manages the monthly auto-adds (D96). */}
+          {tab === "expense" && (
+            <Pressable
+              onPress={() => router.push("/subscriptions" as never)}
+              className="bg-group rounded-full flex-row items-center px-2.5 py-1.5"
+              style={{ gap: 4 }}
+              hitSlop={8}
+            >
+              <CategoryIcon category="정기구독" size={13} color={CATEGORY_COLOR["정기구독"]} />
+              <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
+                정기구독
+              </Text>
+            </Pressable>
+          )}
+          {!(isCurrentMonth && selectedDay == null) && (
+            <Pressable onPress={goToday} className="bg-group rounded-full px-3 py-1.5" hitSlop={8}>
+              <Text className="text-ink-soft" style={{ fontSize: 12, fontWeight: "700" }}>
+                오늘
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* 지출 / 식사 */}

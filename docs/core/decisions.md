@@ -12,6 +12,35 @@
 > `docs/research/prototype/` (state snapshot: `PROTOTYPE-STATE.md`); the design foundation lives on in
 > `docs/core/design-system.md` + `app/`.
 
+## 2026-07-16 — 정기구독 (recurring spend) + calendar resize touch target
+
+### D96. 정기구독: a recurring monthly spend the user sets up once, auto-logged on its 결제일
+- **Decision**: A **Subscription** template (name · amount · 결제일 1–31 · 결제처 · 결제수단 · on/off) is managed
+  from a **small 정기구독 button placed just left of the 오늘 button** on the 지출 tab — never from the normal 지출
+  form. It opens a list where each subscription toggles on/off in place, taps through to edit, and a pinned button
+  adds a new one. On its 결제일 each month, an **ordinary, editable Expense** (new fixed category **정기구독**) is
+  auto-generated into the log. Generation is done by `materializeSubscriptions` (run on 기록 focus + app open),
+  and is **idempotent + forward-only**: `lastMonth` guards against recreating a month (so a user-deleted row does
+  not resurrect), a charge dated before the subscription was created is never fabricated, a future 결제일 waits,
+  and a 29/30/31 that a short month lacks clamps to the month's last day. Subscriptions **sync** like expenses;
+  the generated Expense carries a **deterministic id** (`sub_<subId>_<YYYYMM>`) so two phones holding the same
+  subscription can never double-log a month (Firestore last-write-wins collapses the identical ids).
+- **Rationale**: Founder — monthly subscriptions are predictable, same-day, same-place spends; forcing the normal
+  add-flow for them every month is friction the app exists to remove. Keeping them a separate category and a
+  separate editor keeps the ordinary 지출 flow (S4: ≤2 taps) untouched while the recurring ones log themselves.
+- **On D16**: D16 forbids *user-editable* categories; 정기구독 is a **fixed product category** (like D87's 뷰티→의료),
+  absent from the manual picker (`EXPENSE_CATEGORIES`) — a 정기구독 row is born only from a Subscription. No 처리방침
+  change (no new field leaves the phone; subscriptions ride the existing per-account sync, owner-only by the
+  wildcard Firestore rule).
+
+### D97. The calendar's resize handle is a tall, forgiving grab zone, and a tap toggles it
+- **Decision**: The drag handle between the month grid and the day-detail panel had a ~21px strip that demanded a
+  pixel-perfect hit (pulling the detail up took 4–5 stabs). The grab band is now **tall** (`HANDLE_H` 45, generous
+  `paddingVertical`) so a near-miss still catches, and a **plain tap** on the band toggles expanded↔collapsed (a
+  negligible-movement release is treated as a tap), so the panel can be enlarged without a precise drag.
+- **Rationale**: Founder-reported friction — the resize was effectively unreliable. A bigger target + tap-to-toggle
+  makes it a one-touch action.
+
 ## 2026-07-15 — Kakao REST-key keep-alive
 
 ### D95. A signed-in device keeps the Kakao REST key warm — one throwaway call/month, deduped server-side

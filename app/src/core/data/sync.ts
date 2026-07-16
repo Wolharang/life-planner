@@ -51,6 +51,9 @@ const KEYS = {
   blocks: "lp.blocks.v1",
   devices: "lp.devices.v1", // which phones this account has (D70) — a block names the one that takes the screen
   expenses: "lp.expenses.v1",
+  // Recurring-spend templates (D96). They follow the account across devices like expenses; the monthly rows
+  // they generate carry a deterministic id, so two phones holding the same subscription never double-log a month.
+  subscriptions: "lp.subscriptions.v1",
   meals: "lp.meals.v1",
   // Saved gyms (auto-eval). A gym is a **static place the member chose**, not their live location — like the
   // block's 장소명 that already syncs — so it rides the same machinery. The real-time evaluation fixes are NOT

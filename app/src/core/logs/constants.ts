@@ -29,6 +29,7 @@ export const CATEGORY_COLOR: Record<ExpenseCategory, string> = {
   대중교통비: "#E64980", // pink
   의료: "#15AABF", // cyan
   기타: "#868E96", // grey
+  정기구독: "#4263EB", // indigo — a distinct hue for the auto-generated recurring spend (D96)
 };
 
 export const MEAL_TYPES: MealType[] = ["아침", "점심", "저녁", "간식"];

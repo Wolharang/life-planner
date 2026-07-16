@@ -82,6 +82,15 @@ export function CategoryIcon({
           <Circle cx={18} cy={12} r={1.5} fill={color} />
         </>
       )}
+      {category === "정기구독" && (
+        // recurring (two arcs + arrowheads — a "repeats every month" glyph)
+        <>
+          <Path d="M5 12 A7 7 0 0 1 16.5 6.6" {...p} />
+          <Path d="M13.5 6 L16.8 6.6 L16.2 9.9" {...p} />
+          <Path d="M19 12 A7 7 0 0 1 7.5 17.4" {...p} />
+          <Path d="M10.5 18 L7.2 17.4 L7.8 14.1" {...p} />
+        </>
+      )}
     </Svg>
   );
 }
