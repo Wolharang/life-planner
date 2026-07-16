@@ -230,6 +230,35 @@ export default {
       return Response.redirect(auth.toString(), 302);
     }
 
+    // Kakao Login via the **native SDK** (D99): the app already holds a Kakao access token, so it POSTs it here
+    // (Authorization: Bearer <kakao access token>) and we skip the code exchange. We still verify the token by
+    // calling Kakao ourselves — never trust an id the client claims — then mint the Firebase custom token. (RN's
+    // fetch is not a browser, so no CORS/preflight applies; the SA key never leaves the Worker.)
+    if (url.pathname === "/kakao/mint") {
+      if (req.method !== "POST") return Response.json({ error: "method" }, { status: 405 });
+      if (!env.FIREBASE_SA) return Response.json({ error: "server_not_configured" }, { status: 500 });
+      const accessToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      if (!accessToken) return Response.json({ error: "no_token" }, { status: 400 });
+      try {
+        const meRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!meRes.ok) return Response.json({ error: `me_${meRes.status}` }, { status: 502 });
+        const me = await meRes.json<{ id?: number; kakao_account?: { email?: string; is_email_valid?: boolean; is_email_verified?: boolean } }>();
+        if (me.id == null) return Response.json({ error: "no_id" }, { status: 502 });
+        const acct = me.kakao_account;
+        const email = acct?.email && acct.is_email_valid && acct.is_email_verified ? acct.email : undefined;
+        const token = await firebaseCustomToken(
+          env.FIREBASE_SA,
+          `kakao:${me.id}`,
+          email ? { provider: "kakao", email } : { provider: "kakao" },
+        );
+        return Response.json(email ? { token, email } : { token }, { headers: { "cache-control": "no-store" } });
+      } catch (e) {
+        return Response.json({ error: String((e as Error)?.message ?? e) }, { status: 500 });
+      }
+    }
+
     // Kakao Login step 2 (D99): Kakao redirects here with `code`. Exchange it (server-side, REST key stays here),
     // read the Kakao account id + email, mint a Firebase custom token for uid `kakao:<id>`, hand it to the app.
     if (url.pathname === "/kakao/callback") {

@@ -355,14 +355,9 @@ export async function signInWithGoogle(chooseAccount = false): Promise<{ isNewUs
 const KAKAO_PROXY: string =
   (Constants.expoConfig?.extra as { kakaoProxyUrl?: string } | undefined)?.kakaoProxyUrl ?? "";
 
-/** Kakao login is offered only when Firebase is present AND a Worker proxy URL is configured. */
+/** Kakao login is offered only when Firebase is present AND a Worker proxy URL is configured (the token mint). */
 export function kakaoLoginAvailable(): boolean {
   return load() && KAKAO_PROXY.length > 0;
-}
-
-/** The Worker URL the login WebView opens; it 302-redirects to Kakao's consent page. `state` binds the session. */
-export function kakaoLoginUrl(state: string): string {
-  return `${KAKAO_PROXY}/kakao/login?state=${encodeURIComponent(state)}`;
 }
 
 /** Sign in with the Firebase custom token the Worker handed back. `isNewUser` drives the same consent asymmetry

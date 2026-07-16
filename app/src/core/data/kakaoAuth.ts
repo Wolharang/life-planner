@@ -1,42 +1,48 @@
-// Kakao login glue (D99). The OAuth dance runs in a **Chrome Custom Tab** (a real browser), NOT a WebView —
-// Kakao hides "카카오톡으로 로그인" inside plain WebViews for security, so a WebView only ever showed the
-// account-password screen. A real browser offers KakaoTalk app login first (auto sign-in when the app is
-// installed) and falls back to the 카카오계정 login on its own. The Worker's /kakao/callback finishes the
-// exchange and redirects to `lifeplanner://kakao-auth?data=...`, which openAuthSessionAsync catches.
+// Kakao login glue (D99). Uses the **native Kakao SDK** — `login()` tries KakaoTalk app login first (the
+// founder's requirement) and falls back to 카카오계정 login on its own, handling the app-to-app deep-link return
+// natively. (A browser Custom Tab could show "카카오톡으로 로그인" but the session died on the app-switch, so the
+// KakaoTalk path never completed.) The SDK gives us a Kakao **access token**; we hand it to the Worker's
+// `/kakao/mint`, which verifies it, reads the 회원번호 + email, and mints a Firebase custom token — the SA key
+// stays on the Worker.
 //
-// Also here: the on-device Kakao email store. The email is not a Firebase auth email — it arrives from the
+// Also here: the on-device Kakao email store. The email is not a Firebase auth email — it comes back from the
 // Worker at login and, if the user consented, is kept **on-device only** (per uid) for the account screen. It
 // is never synced (the sync key is the uid) and is wiped by 회원 탈퇴 (erase clears every lp.* key).
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
-import { kakaoLoginUrl } from "./firebase";
+import Constants from "expo-constants";
+import { login as kakaoSdkLogin } from "@react-native-seoul/kakao-login";
 
 export type KakaoResult = { token?: string; email?: string; error?: string; cancelled?: boolean };
 
-/** The app's return scheme; the Worker redirects here with `?data=<json>` when it isn't inside a WebView. */
-const RETURN_URL = "lifeplanner://kakao-auth";
+const PROXY: string =
+  (Constants.expoConfig?.extra as { kakaoProxyUrl?: string } | undefined)?.kakaoProxyUrl ?? "";
 
 /**
- * Open the Kakao login in a Custom Tab and resolve with the result. `state` binds the session (not
- * security-critical — the token is minted server-side and single-use). Cancelled/dismissed → `{cancelled:true}`.
+ * Run the native Kakao login (KakaoTalk-first, account fallback) and swap the Kakao access token for a Firebase
+ * custom token via the Worker. Cancelling the sheet → `{cancelled:true}` (the SDK throws on cancel).
  */
 export async function openKakaoLogin(): Promise<KakaoResult> {
-  const state = `s${Date.now()}${Math.floor(Math.random() * 1e6)}`;
-  let res: WebBrowser.WebBrowserAuthSessionResult;
+  let accessToken: string;
   try {
-    res = await WebBrowser.openAuthSessionAsync(kakaoLoginUrl(state), RETURN_URL);
+    const token = await kakaoSdkLogin();
+    accessToken = token.accessToken;
   } catch {
-    return { error: "browser" };
+    // The user backed out (or KakaoTalk returned an error) — not something to shout about.
+    return { cancelled: true };
   }
-  if (res.type !== "success" || !("url" in res) || !res.url) return { cancelled: true };
-  const data = Linking.parse(res.url).queryParams?.data;
-  if (typeof data !== "string") return { error: "no_data" };
+  if (!accessToken) return { cancelled: true };
   try {
-    return JSON.parse(data) as KakaoResult;
+    const res = await fetch(`${PROXY}/kakao/mint`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return { error: `mint_${res.status}` };
+    const d = (await res.json()) as KakaoResult;
+    if (d.error || !d.token) return { error: d.error || "no_token" };
+    return { token: d.token, email: d.email };
   } catch {
-    return { error: "parse" };
+    return { error: "network" };
   }
 }
 

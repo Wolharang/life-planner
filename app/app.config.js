@@ -38,16 +38,26 @@ function kakaoNativeKey() {
 }
 
 module.exports = ({ config }) => {
+  const kakaoKey = kakaoNativeKey();
+  const plugins = [...(config.plugins ?? [])];
+  // Kakao native SDK login (D99): app-to-app KakaoTalk login (the reliable path — a browser Custom Tab dies on
+  // the KakaoTalk app-switch). Wired only when the native key is present; absent → the button is hidden anyway
+  // (kakaoLoginAvailable also needs the proxy) and the build still succeeds. kotlinVersion MUST match the project
+  // (1.9.25) — the plugin's default 1.5.10 would downgrade and break the Expo 52 build.
+  if (kakaoKey) {
+    plugins.push(["@react-native-seoul/kakao-login", { kakaoAppKey: kakaoKey, kotlinVersion: "1.9.25" }]);
+  }
   return {
     ...config,
+    plugins,
     extra: {
       ...config.extra,
       googleWebClientId: googleWebClientId(),
       // Only the **native map key** is shipped — it is key-hash protected (useless without our keystore), the
-      // standard Kakao model. The **REST (place-search) key is NOT** bundled (D93): it is not key-hash protected,
-      // so a public APK would leak it. Place search instead goes through the Cloudflare Worker (`kakaoProxyUrl`),
-      // which holds the REST key as a secret — so this build is safe to distribute openly.
-      kakaoNativeAppKey: kakaoNativeKey(),
+      // standard Kakao model. It also drives Kakao login (D99). The **REST (place-search) key is NOT** bundled
+      // (D93): it is not key-hash protected, so a public APK would leak it. Place search + the Kakao-login token
+      // mint go through the Cloudflare Worker (`kakaoProxyUrl`), which holds the REST/SA keys as secrets.
+      kakaoNativeAppKey: kakaoKey,
     },
   };
 };
