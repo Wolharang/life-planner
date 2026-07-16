@@ -155,9 +155,9 @@ export default function AddSubscription() {
   // ── wizard (ADD) ──────────────────────────────────────────────────────────
   const TITLES: Record<Step, string> = {
     date: "언제 결제하나요?",
-    amount: "얼마를 보낼까요?",
-    extra: "어디에 내나요?",
-    title: "마지막으로\n정기구독 제목을 입력해주세요",
+    amount: "얼마를 결제하나요?",
+    extra: "어디에 결제하나요?",
+    title: "마지막으로\n정기구독 이름을 입력해주세요",
   };
   const primaryLabel = step === "title" ? "추가" : "다음";
   const primaryEnabled = step === "amount" ? canSave : step === "title" ? true : true;
