@@ -189,6 +189,9 @@ export default function AccountScreen() {
       }
       const { isNewUser, uid } = await signInWithKakaoToken(r.token);
       if (r.email && uid) await setKakaoEmail(uid, r.email); // on-device email, if consented
+      // Update the display state directly too — the load effect fires on the auth-state change (before this
+      // store completes), so without this the email would only appear on the next visit to the screen.
+      if (r.email) setKakaoEmailState(r.email);
 
       if (isNewUser && mode !== "signUp") {
         await discardCurrentUser(); // a brand-new account with no consent behind it — take it back
