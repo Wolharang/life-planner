@@ -4,9 +4,9 @@
 // 31 taps. Saving runs materializeSubscriptions so a row due today lands in the log at once; editing the template
 // changes only future rows, never ones already logged.
 
-import { View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet, Animated, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   addSubscription,
@@ -360,12 +360,32 @@ function ScheduleSheet({
   const [dom, setDom] = useState(initial.dayOfMonth);
   const [wd, setWd] = useState(initial.weekday);
 
-  // re-seed from the caller each time the sheet opens
+  // Drag-to-dismiss: the grab handle actually moves the sheet now. Pan lives on the header only, so the wheels
+  // (ScrollViews) still take vertical drags for scrolling. Drag down past a threshold closes; a short drag springs
+  // back. `ty` translates the whole card.
+  const ty = useRef(new Animated.Value(0)).current;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) ty.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 110) Animated.timing(ty, { toValue: 700, duration: 180, useNativeDriver: true }).start(() => closeRef.current());
+        else Animated.spring(ty, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
+  // re-seed from the caller each time the sheet opens, and reset any leftover drag offset
   useEffect(() => {
     if (visible) {
       setFreq(initial.frequency);
       setDom(initial.dayOfMonth || 1);
       setWd(initial.weekday || 0);
+      ty.setValue(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -374,12 +394,18 @@ function ScheduleSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View className="bg-surface" style={{ borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 }}>
-          <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#E5E8EB", marginBottom: 18 }} />
-          <Text className="text-ink" style={{ fontSize: 21, fontWeight: "800", letterSpacing: -0.4 }}>언제 결제하나요?</Text>
-          <Text style={{ fontSize: 14, color: "#8B95A1", lineHeight: 20, marginTop: 8 }}>
-            정한 날에 지출로 자동 기록돼요.{"\n"}매월·매주·매일 중에 고를 수 있어요.
-          </Text>
+        <Animated.View
+          className="bg-surface"
+          style={{ borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24, transform: [{ translateY: ty }] }}
+        >
+          {/* grab area — drag this to move/dismiss the sheet */}
+          <View {...pan.panHandlers}>
+            <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#E5E8EB", marginBottom: 18, marginTop: 4 }} />
+            <Text className="text-ink" style={{ fontSize: 21, fontWeight: "800", letterSpacing: -0.4 }}>언제 결제하나요?</Text>
+            <Text style={{ fontSize: 14, color: "#8B95A1", lineHeight: 20, marginTop: 8 }}>
+              정한 날에 지출로 자동 기록돼요.{"\n"}매월·매주·매일 중에 고를 수 있어요.
+            </Text>
+          </View>
 
           <View style={{ flexDirection: "row", height: ROW_H * 5, marginTop: 16, justifyContent: "center" }}>
             <Wheel data={FREQS} value={freq} onChange={setFreq} format={(f) => FREQ_LABEL[f]} itemHeight={ROW_H} width={"40%" as never} />
@@ -408,7 +434,7 @@ function ScheduleSheet({
           >
             <Text className="text-white" style={{ fontSize: 16, fontWeight: "700" }}>선택</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

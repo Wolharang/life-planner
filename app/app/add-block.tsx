@@ -72,6 +72,19 @@ const MULTI_DAYS = 21; // how far the "여러 날에 추가" picker reaches
 const CAL_COLORS = ["#3182F6", "#46466B", "#3C7A89", "#7C5295", "#8B7E74"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+// Default a new block to **now**, not a fixed hour — a block you add is almost always for the time you are
+// looking at the clock, and a hardcoded 21:00 meant every add started with the same wrong time to correct.
+function defaultStart(): string {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// End defaults to one hour later, clamped to 23:59 so a late-night add never wraps past midnight (which would
+// read as an end *before* the start).
+function oneHourLater(hm: string): string {
+  const [h, m] = hm.split(":").map(Number);
+  return h + 1 > 23 ? "23:59" : `${pad(h + 1)}:${pad(m)}`;
+}
 const dayNum = (d: string) => Number(d.split("-")[2]);
 const weekday = (d: string) => {
   const [y, m, dd] = d.split("-").map(Number);
@@ -93,11 +106,14 @@ export default function AddBlock() {
   const [dates, setDates] = useState<string[]>([baseDate]); // add mode: one block per ticked date
   const [dateStr, setDateStr] = useState(baseDate); // edit mode: the single date
   const [title, setTitle] = useState("");
-  const [startH, setStartH] = useState((params.start ?? "21:00").split(":")[0]);
-  const [startM, setStartM] = useState((params.start ?? "21:00").split(":")[1]);
+  // Computed once (module fns read the clock) so start and end can't be split across a minute tick.
+  const [initStart] = useState(() => params.start ?? defaultStart());
+  const [initEnd] = useState(() => params.end ?? oneHourLater(initStart));
+  const [startH, setStartH] = useState(initStart.split(":")[0]);
+  const [startM, setStartM] = useState(initStart.split(":")[1]);
   const [endOn, setEndOn] = useState(!!params.end);
-  const [endH, setEndH] = useState((params.end ?? "22:00").split(":")[0]);
-  const [endM, setEndM] = useState((params.end ?? "22:00").split(":")[1]);
+  const [endH, setEndH] = useState(initEnd.split(":")[0]);
+  const [endM, setEndM] = useState(initEnd.split(":")[1]);
   const [kind, setKind] = useState<BlockKind>("normal");
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
