@@ -348,9 +348,9 @@ export async function signInWithGoogle(chooseAccount = false): Promise<{ isNewUs
 
 // ── Kakao login (D99) ────────────────────────────────────────────────────────
 // Kakao is not a Firebase-native provider, so the Cloudflare Worker mints a Firebase **custom token** (uid
-// `kakao:<회원번호>`) after the OAuth code exchange; the app just signs in with it. The whole browser dance runs
-// inside the app's WebView (app/kakao-login.tsx) so the REST key never ships in the APK (D93). This function is
-// only the last step: swap the Worker's token for a Firebase session.
+// `kakao:<회원번호>`) after the OAuth code exchange; the app just signs in with it. The browser dance runs in a
+// **Custom Tab** (kakaoAuth.openKakaoLogin) — a real browser, so KakaoTalk app login is offered first — and the
+// REST key never ships in the APK (D93). This function is only the last step: swap the token for a Firebase session.
 
 const KAKAO_PROXY: string =
   (Constants.expoConfig?.extra as { kakaoProxyUrl?: string } | undefined)?.kakaoProxyUrl ?? "";

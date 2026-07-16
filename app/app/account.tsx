@@ -29,7 +29,7 @@ import {
   signUp,
   type Account,
 } from "@/core/data/firebase";
-import { awaitKakaoResult, getKakaoEmail, setKakaoEmail } from "@/core/data/kakaoAuth";
+import { openKakaoLogin, getKakaoEmail, setKakaoEmail } from "@/core/data/kakaoAuth";
 import { spendDaily, refundDaily, dailyLimit } from "@/core/data/rateLimit";
 import { holdSync, releaseSync, syncStats } from "@/core/data/sync";
 import { deleteAccount } from "@/core/data/erase";
@@ -166,8 +166,9 @@ export default function AccountScreen() {
     }
   };
 
-  // **Kakao — the same one-button asymmetry as Google (D99).** The OAuth dance runs in a WebView (kakao-login);
-  // it hands back a Firebase custom token, and from here the consent/discard logic is identical to `google()`.
+  // **Kakao — the same one-button asymmetry as Google (D99).** The OAuth dance runs in a Custom Tab (a real
+  // browser, so KakaoTalk app login is offered first); it hands back a Firebase custom token, and from here the
+  // consent/discard logic is identical to `google()`.
   const kakao = async () => {
     if (busy) return;
     setError("");
@@ -180,10 +181,8 @@ export default function AccountScreen() {
     holdSync();
     let keepIt = false;
     try {
-      const result = awaitKakaoResult(); // set the bridge BEFORE navigating
-      router.push("/kakao-login" as never);
-      const r = await result;
-      if (r.cancelled) return; // backed out of the WebView — nothing to say
+      const r = await openKakaoLogin();
+      if (r.cancelled) return; // closed the browser — nothing to say
       if (r.error || !r.token) {
         setError("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
         return;
