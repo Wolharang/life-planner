@@ -368,7 +368,9 @@ function ScheduleSheet({
   closeRef.current = onClose;
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      // Claim on touch-down (the header has no tappable children) so the drag reliably engages, then also on move.
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
       onPanResponderMove: (_, g) => {
         if (g.dy > 0) ty.setValue(g.dy);
       },
@@ -376,6 +378,7 @@ function ScheduleSheet({
         if (g.dy > 110) Animated.timing(ty, { toValue: 700, duration: 180, useNativeDriver: true }).start(() => closeRef.current());
         else Animated.spring(ty, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
       },
+      onPanResponderTerminate: () => Animated.spring(ty, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start(),
     }),
   ).current;
 
